@@ -73,28 +73,6 @@ fun OnboardingScreen(onSkipClick: () -> Unit, onStartClick: () -> Unit) {
 }
 
 @Composable
-fun SelfTestScreen(
-    onBackClick: () -> Unit,
-    onComplete: (Map<Int, Int>) -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AppColors.SurfaceBackgroundBackground)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text("자가테스트", style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary))
-        ColePrimaryButton(
-            text = "완료 (스텁)",
-            onClick = { onComplete(mapOf(0 to 1, 1 to 2)) },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        ColeGhostButton(text = "돌아가기", onClick = onBackClick, modifier = Modifier.fillMaxWidth())
-    }
-}
-
-@Composable
 fun SelfTestResultScreen(
     resultType: SelfTestResultType,
     onStartClick: () -> Unit,

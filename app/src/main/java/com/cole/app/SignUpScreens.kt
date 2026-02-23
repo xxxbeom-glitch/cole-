@@ -92,6 +92,7 @@ fun SignUpEmailScreen(
             .fillMaxSize()
             .background(AppColors.SurfaceBackgroundBackground)
             .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = 10.dp)
             .windowInsetsPadding(WindowInsets.navigationBars)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -180,6 +181,7 @@ fun SignUpPasswordScreen(
             .fillMaxSize()
             .background(AppColors.SurfaceBackgroundBackground)
             .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = 10.dp)
             .windowInsetsPadding(WindowInsets.navigationBars)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -293,6 +295,7 @@ fun SignUpNameBirthPhoneScreen(
             .fillMaxSize()
             .background(AppColors.SurfaceBackgroundBackground)
             .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = 10.dp)
             .windowInsetsPadding(WindowInsets.navigationBars)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -395,6 +398,7 @@ fun SignUpVerificationCodeScreen(
             .fillMaxSize()
             .background(AppColors.SurfaceBackgroundBackground)
             .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = 10.dp)
             .windowInsetsPadding(WindowInsets.navigationBars)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -491,6 +495,7 @@ fun SignUpCompleteScreen(
             .fillMaxSize()
             .background(AppColors.SurfaceBackgroundBackground)
             .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = 10.dp)
             .windowInsetsPadding(WindowInsets.navigationBars),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

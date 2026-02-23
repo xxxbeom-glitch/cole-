@@ -27,6 +27,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.unit.dp
 
 // ─────────────────────────────────────────────
@@ -89,26 +90,29 @@ fun OnboardingHost(
     )
 
     // statusBars만 적용 - 이미지는 하단 끝까지 (navigationBars 미적용)
+    // 전체 화면 스와이프: HorizontalPager가 fillMaxSize로 전체 터치 영역 확보
+    // 인디케이터: pager 밖에 오버레이로 고정
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(AppColors.SurfaceBackgroundBackground)
-            .windowInsetsPadding(WindowInsets.statusBars),
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = 10.dp),
     ) {
-        Column(
+        HorizontalPager(
+            state = pagerState,
             modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.weight(1f),
-                userScrollEnabled = true,
-            ) { page ->
-                val p = pages[page]
+            userScrollEnabled = true,
+        ) { page ->
+            val p = pages[page]
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
+                    modifier = Modifier.weight(1f),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
@@ -121,38 +125,49 @@ fun OnboardingHost(
                             style = AppTypography.Display2.copy(color = AppColors.TextPrimary),
                             textAlign = TextAlign.Center,
                         )
-                        if (p.subtitleUsesColeHighlight) {
-                            Text(
-                                text = buildAnnotatedString {
-                                    withStyle(SpanStyle(color = AppColors.TextHighlight)) {
-                                        append("cole")
-                                    }
-                                    append("은 당신이 과하게 소비하는 앱을\n효과적으로 제한해드려요")
-                                },
-                                style = AppTypography.BodyBold.copy(color = AppColors.TextSecondary),
-                                textAlign = TextAlign.Center,
-                            )
-                        } else {
-                            Text(
-                                text = "${p.subtitleLine1}\n${p.subtitleLine2}",
-                                style = AppTypography.BodyBold.copy(color = AppColors.TextSecondary),
-                                textAlign = TextAlign.Center,
-                            )
-                        }
+                    if (p.subtitleUsesColeHighlight) {
+                        Text(
+                            text = buildAnnotatedString {
+                                withStyle(SpanStyle(color = AppColors.TextHighlight)) {
+                                    append("cole")
+                                }
+                                append("은 당신이 과하게 소비하는 앱을\n효과적으로 제한해드려요")
+                            },
+                            style = AppTypography.BodyBold.copy(color = AppColors.TextSecondary),
+                            textAlign = TextAlign.Center,
+                        )
+                    } else {
+                        Text(
+                            text = "${p.subtitleLine1}\n${p.subtitleLine2}",
+                            style = AppTypography.BodyBold.copy(color = AppColors.TextSecondary),
+                            textAlign = TextAlign.Center,
+                        )
                     }
                     Spacer(modifier = Modifier.height(MessageIndicatorGap))
-                    ColePageIndicator(pageCount = 4, currentPage = pagerState.currentPage)
                 }
+                Spacer(modifier = Modifier.height(24.dp))
+                // ob_01~04_image.png 사용 (ob_04_logo 아님). 4번은 비율 유지 위해 Fit 적용 가능
+                Image(
+                    painter = painterResource(id = p.imageResId),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(400.dp),
+                    contentScale = if (page == 3) ContentScale.Fit else ContentScale.FillWidth,
+                )
             }
+        }
 
-            Image(
-                painter = painterResource(id = pages[pagerState.currentPage].imageResId),
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(400.dp),
-                contentScale = ContentScale.FillWidth,
-            )
+        // 인디케이터: 고정 위치 오버레이 (스와이프해도 움직이지 않음, 터치 통과)
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 280.dp)
+                .fillMaxWidth()
+                .pointerInteropFilter { false },
+            contentAlignment = Alignment.Center,
+        ) {
+            ColePageIndicator(pageCount = 4, currentPage = pagerState.currentPage)
         }
 
         if (pagerState.currentPage == 3) {

@@ -72,6 +72,7 @@ fun LoginScreen(
             .background(AppColors.SurfaceBackgroundLogin)
             .verticalScroll(rememberScrollState())
             .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = 10.dp)
             .windowInsetsPadding(WindowInsets.navigationBars)
             .padding(top = 125.dp, start = 16.dp, end = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
