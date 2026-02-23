@@ -117,6 +117,7 @@ fun OnboardingHost(
                     ),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                // 텍스트: 상단 영역에 배치 (weight로 여백 차지)
                 Column(
                     modifier = Modifier.weight(1f),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -151,8 +152,9 @@ fun OnboardingHost(
                     }
                     Spacer(modifier = Modifier.height(MessageIndicatorGap))
                 }
+                }
                 Spacer(modifier = Modifier.height(24.dp))
-                // ob_01~04_image.png 사용 (ob_04_logo 아님). 4번은 비율 유지 위해 Fit 적용 가능
+                // 이미지: 하단 고정 (가로 100%, Figma OB-01~04)
                 Image(
                     painter = painterResource(id = p.imageResId),
                     contentDescription = null,
@@ -161,7 +163,6 @@ fun OnboardingHost(
                         .height(400.dp),
                     contentScale = if (page == 3) ContentScale.Fit else ContentScale.FillWidth,
                 )
-            }
             }
         }
 

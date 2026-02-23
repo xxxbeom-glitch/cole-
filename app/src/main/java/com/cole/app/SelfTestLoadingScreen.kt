@@ -63,7 +63,7 @@ fun SelfTestLoadingScreen(
         containerColor = AppColors.SurfaceBackgroundBackground,
         topBar = {
             ColeHeaderSub(
-                title = "통계",
+                title = "스마트폰 중독 자가 테스트",
                 backIcon = painterResource(id = R.drawable.ic_back),
                 onBackClick = null,
                 showNotification = true,

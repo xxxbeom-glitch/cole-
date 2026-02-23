@@ -10,8 +10,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -27,10 +27,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -121,7 +122,7 @@ fun SelfTestResultScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        // 게이지 영역 (좌→우 fill 애니메이션)
+        // 게이지 영역 (좌→우 fill 애니메이션 + 점수 위치 화살표)
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
@@ -138,20 +139,49 @@ fun SelfTestResultScreen(
                         .height(148.dp)
                         .clipToBounds(),
                 ) {
+                    // 게이지 fill: drawWithContent로 좌→우 클리핑 (부모 제약으로 이미지 축소 방지)
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(animatedFill)
-                            .height(148.dp)
-                            .clipToBounds(),
+                            .fillMaxSize()
+                            .drawWithContent scope@ {
+                                clipRect(left = 0f, right = size.width * animatedFill) {
+                                    this@scope.drawContent()
+                                }
+                            },
                     ) {
                         Image(
                             painter = painterResource(R.drawable.st_result_gauge),
                             contentDescription = null,
                             modifier = Modifier
-                                .width(gaugeWidth)
+                                .fillMaxWidth()
                                 .height(148.dp),
                             contentScale = ContentScale.FillWidth,
                         )
+                    }
+                    // 점수 위치 화살표 (클리핑 밖 오버레이)
+                    val arrowStartDp = gaugeWidth * fillProgress - 12.dp // 24dp 화살표 중앙 정렬
+                    if (animatedFill > 0.02f) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .fillMaxWidth()
+                                .height(148.dp),
+                            contentAlignment = Alignment.CenterStart,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(start = arrowStartDp.coerceIn(0.dp, gaugeWidth - 24.dp))
+                                    .size(24.dp),
+                                contentAlignment = Alignment.BottomCenter,
+                            ) {
+                                Image(
+                                    painter = painterResource(R.drawable.ic_result_gauge_arrow),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp),
+                                    contentScale = ContentScale.Fit,
+                                )
+                            }
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(4.dp))

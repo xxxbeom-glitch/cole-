@@ -487,6 +487,34 @@ private fun DebugScreenListSection(onScreenSelect: (DebugScreen) -> Unit) {
                 }
             }
         }
+        Spacer(modifier = Modifier.height(8.dp))
+        // 자가테스트 플로우 바로가기
+        Text(
+            text = "자가테스트 플로우",
+            style = AppTypography.Caption2.copy(color = AppColors.TextHighlight),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            listOf(DebugScreen.SelfTest, DebugScreen.SelfTestLoading, DebugScreen.SelfTestResult).forEach { screen ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AppColors.Primary300)
+                        .clickable { onScreenSelect(screen) }
+                        .padding(12.dp),
+                ) {
+                    Text(
+                        text = screen.label,
+                        style = AppTypography.Caption1.copy(color = AppColors.TextInvert),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
         Spacer(modifier = Modifier.height(12.dp))
 
         val allScreens = listOf(
