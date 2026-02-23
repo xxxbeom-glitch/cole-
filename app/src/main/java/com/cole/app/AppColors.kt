@@ -149,6 +149,7 @@ object AppColors {
     val FormTextHelper = Grey600
 
     val SurfaceBackgroundBackground = Grey100
+    val SurfaceBackgroundLogin = Grey100
     val SurfaceBackgroundCard = White900
     val SurfaceBackgroundBottomSheet = Grey100
     val SurfaceBackgroundInfoBox = Grey150

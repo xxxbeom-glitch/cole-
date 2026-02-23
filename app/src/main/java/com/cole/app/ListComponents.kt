@@ -75,9 +75,9 @@ fun AppStatusRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(72.dp),
+            .height(56.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Box(
             modifier = Modifier
@@ -171,7 +171,7 @@ fun SelectionRow(
             style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
             modifier = Modifier.weight(1f),
         )
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (variant == SelectionRowVariant.Selected && selectedValue.isNotEmpty()) {
                 Text(
                     text = selectedValue,
@@ -179,14 +179,12 @@ fun SelectionRow(
                     modifier = Modifier.wrapContentWidth(),
                 )
             }
-            if (variant != SelectionRowVariant.Switch) {
-                Icon(
-                    painter = chevronIcon ?: defaultChevron,
-                    contentDescription = null,
-                    tint = AppColors.TextPrimary,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
+            Icon(
+                painter = chevronIcon ?: defaultChevron,
+                contentDescription = null,
+                tint = AppColors.TextPrimary,
+                modifier = Modifier.size(24.dp),
+            )
             if (variant == SelectionRowVariant.Switch) {
                 ColeSwitch(checked = switchChecked, onCheckedChange = { onSwitchChange?.invoke(it) })
             }

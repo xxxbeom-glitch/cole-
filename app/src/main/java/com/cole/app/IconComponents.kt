@@ -170,10 +170,9 @@ fun LabelPro(
         )
         Text(
             text = "Pro",
-            style = AppTypography.Label.copy(
-                color = AppColors.TextInvert,
-                fontSize = 9.sp,
-            ),
+            style = AppTypography.Label,
+            color = AppColors.TextInvert,
+            fontSize = 9.sp,
         )
     }
 }
@@ -190,10 +189,9 @@ fun LabelWarning(
     ) {
         Text(
             text = "주의",
-            style = AppTypography.Label.copy(
-                color = AppColors.TextInvert,
-                fontSize = 9.sp,
-            ),
+            style = AppTypography.Label,
+            color = AppColors.TextInvert,
+            fontSize = 9.sp,
         )
     }
 }
@@ -210,10 +208,9 @@ fun LabelDanger(
     ) {
         Text(
             text = "위험",
-            style = AppTypography.Label.copy(
-                color = AppColors.TextInvert,
-                fontSize = 9.sp,
-            ),
-        }
+            style = AppTypography.Label,
+            color = AppColors.TextInvert,
+            fontSize = 9.sp,
+        )
     }
 }
