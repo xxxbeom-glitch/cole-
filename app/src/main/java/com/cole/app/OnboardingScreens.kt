@@ -27,6 +27,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.unit.dp
 
@@ -48,7 +49,7 @@ private data class OnboardingPage(
 private val TitleSubtitleGap = 8.dp
 private val MessageIndicatorGap = 28.dp
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun OnboardingHost(
     onSkipClick: () -> Unit,
@@ -155,6 +156,7 @@ fun OnboardingHost(
                         .height(400.dp),
                     contentScale = if (page == 3) ContentScale.Fit else ContentScale.FillWidth,
                 )
+            }
             }
         }
 
