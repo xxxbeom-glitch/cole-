@@ -4,8 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -108,12 +110,23 @@ fun ColeTextField(
         val subText = if (isError && errorText != null) errorText else helperText
         if (subText != null) {
             Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = subText,
-                style = AppTypography.Disclaimer.copy(
-                    color = if (isError) AppColors.FormTextError else AppColors.FormTextHelper,
-                ),
-            )
+            if (isError) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    IcoErrorInfo()
+                    Text(
+                        text = subText,
+                        style = AppTypography.Disclaimer.copy(color = AppColors.FormTextError),
+                    )
+                }
+            } else {
+                Text(
+                    text = subText,
+                    style = AppTypography.Disclaimer.copy(color = AppColors.FormTextHelper),
+                )
+            }
         }
     }
 }

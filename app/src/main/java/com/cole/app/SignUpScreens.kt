@@ -6,10 +6,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -29,21 +33,24 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 // ─────────────────────────────────────────────
-// 회원가입 플로우 간격 (Figma MB-01~MB-08 기준)
+// 회원가입 플로우 간격 (스크린샷 기준 재조정)
 // ─────────────────────────────────────────────
 private val SignUpSpacing = object {
-    val headerToContent: Dp = 26.dp     // 헤더 ~ 콘텐츠 (gap)
-    val titleToSubtitle: Dp = 40.dp    // 메인 타이틀 ~ 서브타이틀
-    val subtitleToContent: Dp = 48.dp  // 서브타이틀 ~ 첫 입력 섹션
-    val labelToInput: Dp = 32.dp       // 라벨 ~ 입력 필드
-    val inputToInput: Dp = 32.dp       // 입력 필드 사이
-    val errorToNext: Dp = 6.dp         // 에러 메시지 ~ 다음 요소 (gap)
-    val resendToButton: Dp = 16.dp     // 재발송 문구 ~ 버튼
-    val contentPaddingTop: Dp = 48.dp
-    val contentPaddingBottom: Dp = 34.dp
+    val headerToContent: Dp = 20.dp     // 헤더 ~ 콘텐츠
+    val titleToSubtitle: Dp = 8.dp      // 메인 타이틀 ~ 서브타이틀 (타이트)
+    val subtitleToContent: Dp = 36.dp  // 서브타이틀 ~ 첫 입력 섹션
+    val labelToInput: Dp = 8.dp         // 라벨 ~ 입력 필드 (작은)
+    val inputToInput: Dp = 16.dp        // 입력 필드 사이 (기본)
+    val inputGroupGap: Dp = 20.dp       // 입력 폼 그룹 간 (이름/생년월일/휴대전화, +4px)
+    val passwordFieldGap: Dp = 6.dp    // 비밀번호 2개 입력 필드 사이
+    val errorToNext: Dp = 6.dp          // 에러 메시지 ~ 다음 요소
+    val resendToButton: Dp = 16.dp      // 재발송 문구 ~ 버튼
+    val contentPaddingTop: Dp = 24.dp
+    val contentPaddingBottom: Dp = 24.dp
     val contentPaddingHorizontal: Dp = 16.dp
     val buttonGap: Dp = 12.dp
-    val iconToText: Dp = 22.dp         // MB-08 완료 아이콘~텍스트
+    val iconToText: Dp = 24.dp          // MB-08 완료 아이콘~텍스트
+    val bottomButtonPadding: Dp = 24.dp // 하단 버튼 영역 패딩 (WindowInsets 외)
 }
 
 // ─────────────────────────────────────────────
@@ -84,6 +91,8 @@ fun SignUpEmailScreen(
         modifier = modifier
             .fillMaxSize()
             .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.navigationBars)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -133,7 +142,7 @@ fun SignUpEmailScreen(
                     start = SignUpSpacing.contentPaddingHorizontal,
                     top = 0.dp,
                     end = SignUpSpacing.contentPaddingHorizontal,
-                    bottom = SignUpSpacing.contentPaddingBottom,
+                    bottom = SignUpSpacing.bottomButtonPadding,
                 ),
             verticalArrangement = Arrangement.spacedBy(SignUpSpacing.buttonGap),
         ) {
@@ -170,6 +179,8 @@ fun SignUpPasswordScreen(
         modifier = modifier
             .fillMaxSize()
             .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.navigationBars)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -210,7 +221,7 @@ fun SignUpPasswordScreen(
                     errorText = if (!isPasswordValid && password.isNotEmpty()) "영어 대/소문자 및 숫자 포함 8자리 이상" else null,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(modifier = Modifier.height(SignUpSpacing.inputToInput))
+                Spacer(modifier = Modifier.height(SignUpSpacing.passwordFieldGap))
                 ColeTextField(
                     value = confirmPassword,
                     onValueChange = { confirmPassword = it },
@@ -246,7 +257,7 @@ fun SignUpPasswordScreen(
                     start = SignUpSpacing.contentPaddingHorizontal,
                     top = 0.dp,
                     end = SignUpSpacing.contentPaddingHorizontal,
-                    bottom = SignUpSpacing.contentPaddingBottom,
+                    bottom = SignUpSpacing.bottomButtonPadding,
                 ),
             verticalArrangement = Arrangement.spacedBy(SignUpSpacing.buttonGap),
         ) {
@@ -281,6 +292,8 @@ fun SignUpNameBirthPhoneScreen(
         modifier = modifier
             .fillMaxSize()
             .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.navigationBars)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -306,7 +319,7 @@ fun SignUpNameBirthPhoneScreen(
                 )
             }
             Spacer(modifier = Modifier.height(SignUpSpacing.subtitleToContent))
-            Column(verticalArrangement = Arrangement.spacedBy(SignUpSpacing.inputToInput)) {
+            Column(verticalArrangement = Arrangement.spacedBy(SignUpSpacing.inputGroupGap)) {
                 Column(verticalArrangement = Arrangement.spacedBy(SignUpSpacing.labelToInput)) {
                     Text("이름을 입력해주세요", style = AppTypography.BodyMedium.copy(color = AppColors.FormTextLabel))
                     ColeTextField(
@@ -348,7 +361,7 @@ fun SignUpNameBirthPhoneScreen(
                     start = SignUpSpacing.contentPaddingHorizontal,
                     top = 0.dp,
                     end = SignUpSpacing.contentPaddingHorizontal,
-                    bottom = SignUpSpacing.contentPaddingBottom,
+                    bottom = SignUpSpacing.bottomButtonPadding,
                 ),
             verticalArrangement = Arrangement.spacedBy(SignUpSpacing.buttonGap),
         ) {
@@ -381,6 +394,8 @@ fun SignUpVerificationCodeScreen(
         modifier = modifier
             .fillMaxSize()
             .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.navigationBars)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -446,7 +461,7 @@ fun SignUpVerificationCodeScreen(
                     start = SignUpSpacing.contentPaddingHorizontal,
                     top = 0.dp,
                     end = SignUpSpacing.contentPaddingHorizontal,
-                    bottom = SignUpSpacing.contentPaddingBottom,
+                    bottom = SignUpSpacing.bottomButtonPadding,
                 ),
             verticalArrangement = Arrangement.spacedBy(SignUpSpacing.buttonGap),
         ) {
@@ -474,7 +489,9 @@ fun SignUpCompleteScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(AppColors.SurfaceBackgroundBackground),
+            .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.navigationBars),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(modifier = Modifier.weight(1f))
@@ -499,7 +516,7 @@ fun SignUpCompleteScreen(
                 .padding(
                     start = SignUpSpacing.contentPaddingHorizontal,
                     end = SignUpSpacing.contentPaddingHorizontal,
-                    bottom = 36.dp,
+                    bottom = SignUpSpacing.bottomButtonPadding,
                 ),
         ) {
             ColePrimaryButton(
