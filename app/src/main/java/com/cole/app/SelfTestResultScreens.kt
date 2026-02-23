@@ -2,6 +2,7 @@ package com.cole.app
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.painter.Painter
@@ -36,6 +39,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 
@@ -138,8 +142,25 @@ fun SelfTestResultScreen(
                         .fillMaxWidth()
                         .height(148.dp)
                         .clipToBounds(),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    // 게이지 fill: drawWithContent로 좌→우 클리핑 (부모 제약으로 이미지 축소 방지)
+                    // 배경: 회색 트랙 (Figma 비활성 구간)
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val strokeWidth = 12.dp.toPx()
+                        drawArc(
+                            color = AppColors.Grey300.copy(alpha = 0.6f),
+                            startAngle = 180f,
+                            sweepAngle = 180f,
+                            useCenter = false,
+                            topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
+                            size = androidx.compose.ui.geometry.Size(
+                                size.width - strokeWidth,
+                                size.height - strokeWidth,
+                            ),
+                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                        )
+                    }
+                    // 게이지 fill: drawWithContent로 좌→우 클리핑
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -158,6 +179,11 @@ fun SelfTestResultScreen(
                             contentScale = ContentScale.FillWidth,
                         )
                     }
+                    // 점수: 반원 내부 중앙 (Figma)
+                    Text(
+                        text = "$displayScore",
+                        style = AppTypography.Display1.copy(color = AppColors.TextPrimary),
+                    )
                     // 점수 위치 화살표 (클리핑 밖 오버레이)
                     val arrowStartDp = gaugeWidth * fillProgress - 12.dp // 24dp 화살표 중앙 정렬
                     if (animatedFill > 0.02f) {
@@ -190,26 +216,20 @@ fun SelfTestResultScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text("250", style = AppTypography.Caption1.copy(color = AppColors.TextCaption))
+                    Text("350", style = AppTypography.Caption1.copy(color = AppColors.TextCaption))
                     Text("500", style = AppTypography.Caption1.copy(color = AppColors.TextCaption))
                 }
             }
         }
 
-        // 점수 + 해석
-        Column(
+        // 점수(게이지 내부) + 해석
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = interpretation,
+            style = AppTypography.BodyBold.copy(color = AppColors.TextSecondary),
             modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = "$displayScore",
-                style = AppTypography.Display1.copy(color = AppColors.TextPrimary),
-            )
-            Text(
-                text = interpretation,
-                style = AppTypography.BodyBold.copy(color = AppColors.TextSecondary),
-            )
-        }
+            textAlign = TextAlign.Center,
+        )
         Spacer(modifier = Modifier.height(52.dp))
 
         // 습관 breakdown
@@ -262,12 +282,12 @@ fun SelfTestResultScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             ColePrimaryButton(
-                text = "계속 진행",
+                text = "확인",
                 onClick = onStartClick,
                 modifier = Modifier.fillMaxWidth(),
             )
             ColeGhostButton(
-                text = "돌아가기",
+                text = "다시하기",
                 onClick = onBackClick,
                 modifier = Modifier.fillMaxWidth(),
             )
