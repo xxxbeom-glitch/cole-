@@ -34,11 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -794,11 +789,12 @@ private fun DebugFormContent() {
 private fun DebugNavigationContent() {
     var navIndex by remember { mutableIntStateOf(0) }
     var tabIndex by remember { mutableIntStateOf(0) }
+    var tabIndexLimit by remember { mutableIntStateOf(0) }
     val navDestinations = listOf(
-        NavDestination("홈", Icons.Filled.Home),
-        NavDestination("챌린지", Icons.Filled.Schedule),
-        NavDestination("통계", Icons.Filled.BarChart),
-        NavDestination("마이", Icons.Filled.Person),
+        NavDestination("홈", R.drawable.ic_nav_home),
+        NavDestination("챌린지", R.drawable.ic_nav_challenge),
+        NavDestination("통계", R.drawable.ic_nav_stats),
+        NavDestination("마이", R.drawable.ic_nav_mypage),
     )
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
         DebugSectionTitle("Navigation")
@@ -812,7 +808,7 @@ private fun DebugNavigationContent() {
         ColeHeaderHome(logo = painterResource(R.drawable.ic_logo), hasNotification = true)
         ColeSegmentedTab(items = listOf("오늘", "주간", "연간", "월간"), selectedIndex = tabIndex, onTabSelected = { tabIndex = it })
         ColeSegmentedTab(items = listOf("주간", "월간", "연간"), selectedIndex = tabIndex.coerceAtMost(2), onTabSelected = { tabIndex = it })
-        ColeSegmentedTab(items = listOf("시간 지정 제한", "일일 제한 시간"), selectedIndex = 0, onTabSelected = {})
+        ColeSegmentedTab(items = listOf("시간 지정 제한", "일일 제한 시간"), selectedIndex = tabIndexLimit, onTabSelected = { tabIndexLimit = it })
         Column(
             modifier = Modifier
                 .fillMaxWidth()

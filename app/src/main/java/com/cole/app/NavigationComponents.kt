@@ -21,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -29,12 +28,13 @@ import androidx.compose.ui.unit.dp
 // ─────────────────────────────────────────────────────────────────────────────
 // NavDestination — 하단 내비게이션 탭 정의
 // Figma: App Bar (홈, 챌린지, 통계, 마이)
-// 스크린샷: 흰색 바, 상단 모서리 둥글게, 아이콘 24dp, 선택 시 보라색 / 비선택 회색
+// 사용자 제공 PNG (Group_88 시리즈) drawable 사용, 아이콘 24dp
 // ─────────────────────────────────────────────────────────────────────────────
 
 data class NavDestination(
     val label: String,
-    val icon: ImageVector,
+    val iconResId: Int,
+    val activeIconResId: Int = iconResId,
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,9 +76,11 @@ fun ColeBottomNavBar(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Icon(
-                        imageVector = destination.icon,
+                        painter = painterResource(
+                            id = if (isSelected) destination.activeIconResId else destination.iconResId
+                        ),
                         contentDescription = destination.label,
-                        tint = if (isSelected) AppColors.Primary300 else AppColors.Grey400,
+                        tint = Color.Unspecified,
                         modifier = Modifier.size(24.dp),
                     )
                     Text(
@@ -104,12 +106,13 @@ fun ColeBottomNavBar(
                     )
                     .padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.Center,
             ) {
                 Text(
                     text = premiumBannerText,
                     style = AppTypography.ButtonSmall.copy(color = AppColors.TextInvert),
                 )
+                Spacer(modifier = Modifier.size(4.dp))
                 Icon(
                     painter = painterResource(R.drawable.ic_chevron_right),
                     contentDescription = null,
@@ -168,17 +171,8 @@ fun ColeHeaderHome(
                     ),
                     contentDescription = "알림",
                     tint = Color.Unspecified,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(36.dp),
                 )
-                if (hasNotification) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .clip(RoundedCornerShape(50))
-                            .background(AppColors.Red300)
-                            .align(Alignment.TopEnd),
-                    )
-                }
             }
         }
     }
@@ -234,18 +228,9 @@ fun ColeHeaderTitleWithNotification(
                         id = if (hasNotification) R.drawable.ic_notification_on else R.drawable.ic_notification_off
                     ),
                     contentDescription = "알림",
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(36.dp),
                     tint = Color.Unspecified,
                 )
-                if (hasNotification) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .clip(RoundedCornerShape(50))
-                            .background(AppColors.Red300)
-                            .align(Alignment.TopEnd),
-                    )
-                }
             }
         }
     }
@@ -325,7 +310,7 @@ fun ColeHeaderSub(
                             id = if (hasNotification) R.drawable.ic_notification_on else R.drawable.ic_notification_off
                         ),
                         contentDescription = "알림",
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(36.dp),
                         tint = Color.Unspecified,
                     )
                     actionIcon != null -> Icon(

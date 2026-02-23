@@ -86,27 +86,58 @@ fun ColeStepBar(
     var trackWidthPx by remember { mutableFloatStateOf(0f) }
     val density = LocalDensity.current
 
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .onSizeChanged { size -> trackWidthPx = size.width.toFloat() }
+            .pointerInput(steps.size, trackWidthPx) {
+                detectHorizontalDragGestures { change, _ ->
+                    change.consume()
+                    if (trackWidthPx > 0f) {
+                        val ratio = (change.position.x / trackWidthPx).coerceIn(0f, 1f)
+                        onStepSelected((ratio * steps.lastIndex).roundToInt())
+                    }
+                }
+            },
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        // 상단: 각 숫자 위치에 dot 균등 분배
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            repeat(steps.size) { index ->
+                val isActive = index <= clampedIndex
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(
+                                if (isActive) AppColors.ChartTrackFill
+                                else AppColors.ChartTrackDotInactive
+                            ),
+                    )
+                }
+            }
+        }
+
+        // 중단: track + fill (track 10dp, handle 24dp 수용)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(24.dp)
-                .onSizeChanged { size -> trackWidthPx = size.width.toFloat() }
-                .pointerInput(steps.size, trackWidthPx) {
-                    detectHorizontalDragGestures { change, _ ->
-                        change.consume()
-                        if (trackWidthPx > 0f) {
-                            val ratio = (change.position.x / trackWidthPx).coerceIn(0f, 1f)
-                            onStepSelected((ratio * steps.lastIndex).roundToInt())
-                        }
-                    }
-                },
+                .height(24.dp),
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(10.dp)
-                    .align(Alignment.CenterStart)
+                    .align(Alignment.Center)
                     .clip(RoundedCornerShape(6.dp))
                     .background(AppColors.ChartTrackBackground),
             )
@@ -118,15 +149,6 @@ fun ColeStepBar(
                     .clip(RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = 2.dp, bottomEnd = 2.dp))
                     .background(AppColors.ChartTrackFill),
             )
-            Row(
-                modifier = Modifier.fillMaxWidth().align(Alignment.Center),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                repeat(steps.size) { index ->
-                    val isActive = index <= clampedIndex
-                    Box(modifier = Modifier.size(4.dp).clip(RoundedCornerShape(999.dp)).background(if (isActive) Color.Transparent else AppColors.ChartTrackDotInactive))
-                }
-            }
             val handleOffsetDp = with(density) {
                 val handleWidthPx = 40.dp.toPx()
                 (trackWidthPx * progress - handleWidthPx / 2f).coerceIn(0f, (trackWidthPx - handleWidthPx).coerceAtLeast(0f)).toDp()
@@ -135,7 +157,8 @@ fun ColeStepBar(
                 modifier = Modifier
                     .width(40.dp)
                     .height(24.dp)
-                    .offset(x = handleOffsetDp),
+                    .offset(x = handleOffsetDp)
+                    .align(Alignment.CenterStart),
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.ic_stepbar_handle),
@@ -144,13 +167,22 @@ fun ColeStepBar(
                 )
             }
         }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+
+        // 하단: 각 숫자 라벨 균등 분배 (dot과 동일한 위치)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
             steps.forEach { label ->
-                Text(
-                    text = label,
-                    style = AppTypography.Caption1.copy(color = AppColors.TextCaption, textAlign = TextAlign.Center),
-                    modifier = Modifier.width(40.dp),
-                )
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = label,
+                        style = AppTypography.Caption1.copy(color = AppColors.TextCaption, textAlign = TextAlign.Center),
+                    )
+                }
             }
         }
     }

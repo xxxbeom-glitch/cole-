@@ -81,11 +81,6 @@ fun LoginScreen(
             contentDescription = "cole.",
             modifier = Modifier.width(280.dp).height(150.dp),
         )
-        Text(
-            text = "Cut Off, Live Everyday",
-            style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
-            textAlign = TextAlign.Center,
-        )
 
         Spacer(modifier = Modifier.height(50.dp))
 
