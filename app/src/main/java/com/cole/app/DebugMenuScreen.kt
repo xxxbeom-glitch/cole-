@@ -139,6 +139,13 @@ private fun DebugScreenPreview(
             onComplete = { onBack() },
         )
         DebugScreen.SelfTestLoading -> SelfTestLoadingScreen(onFinish = onBack)
+        DebugScreen.SelfTestResult -> SelfTestResultScreen(
+            resultType = SelfTestResultType.MIDDLE,
+            onStartClick = onBack,
+            onBackClick = onBack,
+            rawScore = 12,
+            userName = "디버그",
+        )
         DebugScreen.AddAppAA01 -> AddAppScreenAA01(
             onAddAppClick = onBack,
             onBackClick = onBack,

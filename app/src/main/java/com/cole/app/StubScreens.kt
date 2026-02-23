@@ -73,26 +73,6 @@ fun OnboardingScreen(onSkipClick: () -> Unit, onStartClick: () -> Unit) {
 }
 
 @Composable
-fun SelfTestResultScreen(
-    resultType: SelfTestResultType,
-    onStartClick: () -> Unit,
-    onBackClick: () -> Unit,
-    rawScore: Int,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AppColors.SurfaceBackgroundBackground)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text("결과: $resultType (점수:$rawScore)", style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary))
-        ColePrimaryButton(text = "시작하기", onClick = onStartClick, modifier = Modifier.fillMaxWidth())
-        ColeGhostButton(text = "돌아가기", onClick = onBackClick, modifier = Modifier.fillMaxWidth())
-    }
-}
-
-@Composable
 fun MainFlowHost(onAddAppClick: () -> Unit, onLogout: () -> Unit) {
     Column(
         modifier = Modifier

@@ -106,10 +106,15 @@ fun OnboardingHost(
             userScrollEnabled = true,
         ) { page ->
             val p = pages[page]
+            val isPage4 = page == 3
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 16.dp)
+                    .then(
+                        if (isPage4) Modifier.windowInsetsPadding(WindowInsets.navigationBars)
+                        else Modifier
+                    ),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Column(
