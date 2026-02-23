@@ -127,6 +127,7 @@ fun SelfTestResultScreen(
                 .fillMaxWidth()
                 .height(180.dp),
         ) {
+            val gaugeWidth = maxWidth
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -147,7 +148,7 @@ fun SelfTestResultScreen(
                             painter = painterResource(R.drawable.st_result_gauge),
                             contentDescription = null,
                             modifier = Modifier
-                                .width(maxWidth)
+                                .width(gaugeWidth)
                                 .height(148.dp),
                             contentScale = ContentScale.FillWidth,
                         )
