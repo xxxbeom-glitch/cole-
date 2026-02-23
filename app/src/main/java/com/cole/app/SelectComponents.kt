@@ -87,18 +87,30 @@ fun ColeSelectionCard(
             .clip(RoundedCornerShape(12.dp))
             .then(
                 if (selected) Modifier.border(1.5.dp, AppColors.Primary300, RoundedCornerShape(12.dp))
-                else Modifier.border(1.dp, AppColors.BorderDefault, RoundedCornerShape(12.dp))
+                else Modifier.border(1.dp, AppColors.InteractiveRadioBorderUnselected, RoundedCornerShape(12.dp))
             )
             .background(AppColors.SurfaceBackgroundCard)
             .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 22.dp),
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top,
+        ) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                 ColeRadioButton(selected = selected, onClick = onClick)
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(text = title, style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(text = description, style = AppTypography.BodyMedium.copy(color = AppColors.TextTertiary))
+                    Text(
+                        text = title,
+                        style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = description,
+                        style = AppTypography.BodyMedium.copy(color = AppColors.TextTertiary),
+                    )
                 }
             }
             Text(
@@ -193,6 +205,7 @@ fun ColeCheckBox(
             id = if (checked) R.drawable.ic_checkbox_selected else R.drawable.ic_checkbox_inactive
         ),
         contentDescription = if (checked) "선택됨" else "선택 안됨",
+        tint = androidx.compose.ui.graphics.Color.Unspecified,
         modifier = modifier
             .size(size)
             .clickable { onCheckedChange(!checked) },

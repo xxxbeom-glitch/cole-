@@ -1,7 +1,6 @@
 package com.cole.app
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -29,18 +29,19 @@ import androidx.compose.ui.unit.dp
 // ─────────────────────────────────────────────────────────────────────────────
 // NavDestination — 하단 내비게이션 탭 정의
 // Figma: App Bar (홈, 챌린지, 통계, 마이)
+// 스크린샷: 흰색 바, 상단 모서리 둥글게, 아이콘 24dp, 선택 시 보라색 / 비선택 회색
 // ─────────────────────────────────────────────────────────────────────────────
 
 data class NavDestination(
     val label: String,
-    val icon: Painter,
-    val activeIcon: Painter,
+    val icon: ImageVector,
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ColeBottomNavBar
 // Figma: App Bar - 1~4 On
 // 80dp 영역, 아이콘 24dp / Caption1 12sp, 선택 시 Primary300 / 비선택 Grey400
+// 상단 모서리 둥글게 (bottom nav이므로 화면 하단에서 위쪽 모서리가 둥글게)
 // 하단 프리미엄 배너 42dp, #2b2b2b
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -55,14 +56,14 @@ fun ColeBottomNavBar(
     premiumBannerText: String = "더 강하게 제한하고 싶다면 프리미엄으로",
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(AppColors.Grey250))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(80.dp)
+                .height(79.dp)
                 .background(AppColors.SurfaceBackgroundCard)
-                .border(1.dp, AppColors.Grey250, RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp))
-                .padding(top = 13.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+                .padding(start = 42.dp, end = 42.dp, top = 13.dp),
+            horizontalArrangement = Arrangement.spacedBy(36.dp),
             verticalAlignment = Alignment.Top,
         ) {
             destinations.forEachIndexed { index, destination ->
@@ -72,12 +73,12 @@ fun ColeBottomNavBar(
                         .width(42.dp)
                         .clickable { onTabSelected(index) },
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(0.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Icon(
-                        painter = if (isSelected) destination.activeIcon else destination.icon,
+                        imageVector = destination.icon,
                         contentDescription = destination.label,
-                        tint = Color.Unspecified,
+                        tint = if (isSelected) AppColors.Primary300 else AppColors.Grey400,
                         modifier = Modifier.size(24.dp),
                     )
                     Text(

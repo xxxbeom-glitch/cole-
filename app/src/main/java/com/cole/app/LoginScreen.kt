@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -70,19 +71,23 @@ fun LoginScreen(
             .fillMaxSize()
             .background(AppColors.SurfaceBackgroundLogin)
             .verticalScroll(rememberScrollState())
-            .padding(top = 48.dp, start = 16.dp, end = 16.dp)
-            .windowInsetsPadding(WindowInsets.navigationBars),
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(top = 125.dp, start = 16.dp, end = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(modifier = Modifier.height(80.dp))
-
         Image(
             painter = logo,
             contentDescription = "cole.",
             modifier = Modifier.width(280.dp).height(150.dp),
         )
+        Text(
+            text = "Cut Off, Live Everyday",
+            style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+            textAlign = TextAlign.Center,
+        )
 
-        Spacer(modifier = Modifier.height(56.dp))
+        Spacer(modifier = Modifier.height(50.dp))
 
         ColeTextField(
             value = email,
@@ -129,7 +134,7 @@ fun LoginScreen(
 
         Text(
             text = "SNS 계정으로 간편 가입하기",
-            style = AppTypography.BodyMedium.copy(color = AppColors.TextCaption),
+            style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
             textAlign = TextAlign.Center,
         )
 
@@ -160,7 +165,7 @@ fun LoginScreen(
 
         Text(
             text = "로그인 정보를 잃어버리셨나요?",
-            style = AppTypography.BodyMedium.copy(color = AppColors.TextCaption),
+            style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
             textAlign = TextAlign.Center,
             modifier = Modifier.clickable { onForgotPasswordClick() }.padding(vertical = 4.dp),
         )

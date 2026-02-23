@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -32,6 +34,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -105,15 +112,8 @@ private fun DebugScreenPreview(
     onBack: () -> Unit,
 ) {
     when (screen) {
-        DebugScreen.Login -> LoginScreen(
-            logo = painterResource(R.drawable.ic_logo),
-            onLoginClick = { _, _ -> onBack() },
-            onSignUpClick = onBack,
-            onNaverLoginClick = {},
-            onKakaoLoginClick = {},
-            onGoogleLoginClick = {},
-            onForgotPasswordClick = {},
-        )
+        DebugScreen.Splash -> DebugSplashPreview(onBack = onBack)
+        DebugScreen.Login -> DebugLoginPreview(onBack = onBack)
         DebugScreen.SignUpEmail -> SignUpEmailScreen(
             onNextClick = { onBack() },
             onBackClick = onBack,
@@ -223,6 +223,46 @@ private fun DebugScreenPreview(
             )
         }
         else -> DebugPlaceholderScreen(screen = screen, onBack = onBack)
+    }
+}
+
+@Composable
+private fun DebugSplashPreview(onBack: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        SplashScreen(onFinish = onBack)
+        ColeGhostButton(
+            text = "돌아가기",
+            onClick = onBack,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(16.dp)
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .widthIn(max = 120.dp),
+        )
+    }
+}
+
+@Composable
+private fun DebugLoginPreview(onBack: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        LoginScreen(
+            logo = painterResource(R.drawable.ic_login_logo),
+            onLoginClick = { _, _ -> onBack() },
+            onSignUpClick = onBack,
+            onNaverLoginClick = {},
+            onKakaoLoginClick = {},
+            onGoogleLoginClick = {},
+            onForgotPasswordClick = {},
+        )
+        ColeGhostButton(
+            text = "돌아가기",
+            onClick = onBack,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(16.dp)
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .widthIn(max = 120.dp),
+        )
     }
 }
 
@@ -403,35 +443,6 @@ private fun DebugMenuScreen(
 
 @Composable
 private fun DebugScreenListSection(onScreenSelect: (DebugScreen) -> Unit) {
-    val allScreens = listOf(
-        DebugScreen.Splash,
-        DebugScreen.Login,
-        DebugScreen.SignUpEmail,
-        DebugScreen.SignUpPassword,
-        DebugScreen.SignUpNameBirthPhone,
-        DebugScreen.SignUpVerification,
-        DebugScreen.SignUpComplete,
-        DebugScreen.Onboarding,
-        DebugScreen.SelfTest,
-        DebugScreen.SelfTestLoading,
-        DebugScreen.SelfTestResult,
-        DebugScreen.AddAppAA01,
-        DebugScreen.AddAppAA02A01,
-        DebugScreen.AddAppDaily01,
-        DebugScreen.AddAppDaily02,
-        DebugScreen.AddAppDaily03,
-        DebugScreen.AddAppDaily04,
-        DebugScreen.AddAppDaily05,
-        DebugScreen.AddAppFlowHost,
-        DebugScreen.MainFlow,
-        DebugScreen.BaseBottomSheet,
-        DebugScreen.TermsBottomSheet,
-        DebugScreen.AppLimitSetupTime,
-        DebugScreen.AppLimitSetupDay,
-        DebugScreen.AppLimitInfoBottomSheet,
-    )
-    val grouped = allScreens.groupBy { it.category }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -439,6 +450,64 @@ private fun DebugScreenListSection(onScreenSelect: (DebugScreen) -> Unit) {
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        // 앱 스플래시·로그인 바로가기
+        Text(
+            text = "바로가기",
+            style = AppTypography.Caption2.copy(color = AppColors.TextHighlight),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            listOf(DebugScreen.Splash, DebugScreen.Login).forEach { screen ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AppColors.Primary300)
+                        .clickable { onScreenSelect(screen) }
+                        .padding(16.dp),
+                ) {
+                    Text(
+                        text = screen.label,
+                        style = AppTypography.BodyMedium.copy(color = AppColors.TextInvert),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+
+        val allScreens = listOf(
+            DebugScreen.Splash,
+            DebugScreen.Login,
+            DebugScreen.SignUpEmail,
+            DebugScreen.SignUpPassword,
+            DebugScreen.SignUpNameBirthPhone,
+            DebugScreen.SignUpVerification,
+            DebugScreen.SignUpComplete,
+            DebugScreen.Onboarding,
+            DebugScreen.SelfTest,
+            DebugScreen.SelfTestLoading,
+            DebugScreen.SelfTestResult,
+            DebugScreen.AddAppAA01,
+            DebugScreen.AddAppAA02A01,
+            DebugScreen.AddAppDaily01,
+            DebugScreen.AddAppDaily02,
+            DebugScreen.AddAppDaily03,
+            DebugScreen.AddAppDaily04,
+            DebugScreen.AddAppDaily05,
+            DebugScreen.AddAppFlowHost,
+            DebugScreen.MainFlow,
+            DebugScreen.BaseBottomSheet,
+            DebugScreen.TermsBottomSheet,
+            DebugScreen.AppLimitSetupTime,
+            DebugScreen.AppLimitSetupDay,
+            DebugScreen.AppLimitInfoBottomSheet,
+        )
+        val grouped = allScreens.groupBy { it.category }
+
         grouped.forEach { (category, screens) ->
             Text(
                 text = category,
@@ -464,8 +533,74 @@ private fun DebugScreenListSection(onScreenSelect: (DebugScreen) -> Unit) {
     }
 }
 
+/** 디자인 시스템 하위 섹션 (스크린샷 카테고리 기준) */
+private sealed class DesignSystemSection(val label: String) {
+    data object Typography : DesignSystemSection("타이포그래피")
+    data object Buttons : DesignSystemSection("버튼")
+    data object Progress : DesignSystemSection("프로그레스")
+    data object Infobox : DesignSystemSection("인포박스")
+    data object Lists : DesignSystemSection("리스트")
+    data object Form : DesignSystemSection("폼")
+    data object Navigation : DesignSystemSection("네비게이션")
+    data object Select : DesignSystemSection("선택")
+    data object IconsLabel : DesignSystemSection("아이콘/라벨")
+}
+
 @Composable
 private fun DebugDesignSystemSection() {
+    var selectedSection by remember { mutableStateOf<DesignSystemSection?>(null) }
+
+    if (selectedSection != null) {
+        DebugDesignSystemDetailSection(
+            section = selectedSection!!,
+            onBack = { selectedSection = null },
+        )
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "디자인 시스템",
+                style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary),
+            )
+            listOf(
+                DesignSystemSection.Typography,
+                DesignSystemSection.Buttons,
+                DesignSystemSection.Progress,
+                DesignSystemSection.Infobox,
+                DesignSystemSection.Lists,
+                DesignSystemSection.Form,
+                DesignSystemSection.Navigation,
+                DesignSystemSection.Select,
+                DesignSystemSection.IconsLabel,
+            ).forEach { section ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AppColors.SurfaceBackgroundCard)
+                        .clickable { selectedSection = section }
+                        .padding(16.dp),
+                ) {
+                    Text(
+                        text = section.label,
+                        style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DebugDesignSystemDetailSection(
+    section: DesignSystemSection,
+    onBack: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -473,11 +608,38 @@ private fun DebugDesignSystemSection() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        // 타이포그래피
-        Text(
-            text = "타이포그래피 (AppTypography)",
-            style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary),
+        ColeGhostButton(text = "← 목차로", onClick = onBack)
+        when (section) {
+            DesignSystemSection.Typography -> DebugTypographyContent()
+            DesignSystemSection.Buttons -> DebugButtonsContent()
+            DesignSystemSection.Progress -> DebugProgressContent()
+            DesignSystemSection.Infobox -> DebugInfoboxContent()
+            DesignSystemSection.Lists -> DebugListsContent()
+            DesignSystemSection.Form -> DebugFormContent()
+            DesignSystemSection.Navigation -> DebugNavigationContent()
+            DesignSystemSection.Select -> DebugSelectContent()
+            DesignSystemSection.IconsLabel -> DebugIconsLabelContent()
+        }
+    }
+}
+
+@Composable
+private fun DebugSectionTitle(title: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(text = title, style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(AppColors.TextPrimary),
         )
+    }
+}
+
+@Composable
+private fun DebugTypographyContent() {
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        DebugSectionTitle("타이포그래피")
         val typographyItems = listOf(
             "Display1" to AppTypography.Display1,
             "Display2" to AppTypography.Display2,
@@ -514,125 +676,208 @@ private fun DebugDesignSystemSection() {
                 )
             }
         }
+    }
+}
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 에셋
-        Text(
-            text = "에셋 (아이콘/이미지)",
-            style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary),
-        )
-        val drawables = listOf(
-            R.drawable.ic_logo to "ic_logo",
-            R.drawable.ic_back to "ic_back",
-            R.drawable.ic_add to "ic_add",
-            R.drawable.ic_chevron_right to "ic_chevron_right",
-            R.drawable.ic_notification_on to "ic_notification_on",
-            R.drawable.ic_notification_off to "ic_notification_off",
-            R.drawable.ic_error_info to "ic_error_info",
-            R.drawable.ic_disclaimer_info to "ic_disclaimer_info",
-            R.drawable.ic_lock_app to "ic_lock_app",
-            R.drawable.ic_lock_label to "ic_lock_label",
-            R.drawable.ic_app_placeholder to "ic_app_placeholder",
-            R.drawable.ic_lock to "ic_lock",
-            R.drawable.ic_app_lock to "ic_app_lock",
-            R.drawable.ob_04_logo to "ob_04_logo",
-        )
-        drawables.chunked(4).forEach { chunk ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                chunk.forEach { (resId, label) ->
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(AppColors.Grey200),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                painter = painterResource(resId),
-                                contentDescription = label,
-                                modifier = Modifier.size(24.dp),
-                                tint = androidx.compose.ui.graphics.Color.Unspecified,
-                            )
-                        }
-                        Text(
-                            text = label,
-                            style = AppTypography.Caption1.copy(color = AppColors.TextSecondary),
-                            maxLines = 1,
-                        )
-                    }
-                }
-            }
-        }
-
-        // 소셜 로그인 아이콘 (png 등)
-        val socialDrawables = listOf(
-            R.drawable.ic_naver to "ic_naver",
-            R.drawable.ic_kakao to "ic_kakao",
-            R.drawable.ic_google to "ic_google",
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            socialDrawables.forEach { (resId, label) ->
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(AppColors.Grey200),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Image(
-                            painter = painterResource(resId),
-                            contentDescription = label,
-                            modifier = Modifier.size(40.dp),
-                        )
-                    }
-                    Text(
-                        text = label,
-                        style = AppTypography.Caption1.copy(color = AppColors.TextSecondary),
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 컴포넌트
-        Text(
-            text = "컴포넌트",
-            style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary),
-        )
+@Composable
+private fun DebugButtonsContent() {
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        DebugSectionTitle("Buttons")
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            ColePrimaryButton(text = "Primary 버튼", onClick = {})
-            ColeGhostButton(text = "Ghost 버튼", onClick = {})
-            ColeSecondaryButton(text = "Secondary 버튼", onClick = {})
-            ColeHeaderSub(
-                title = "헤더 (Sub)",
-                backIcon = painterResource(R.drawable.ic_back),
-                onBackClick = {},
-                showNotification = true,
-                hasNotification = true,
+            ColeTwoLineButton("계속 진행", "돌아가기", onPrimaryClick = {}, onGhostClick = {})
+            ColeTwoLineButton("계속 진행", "돌아가기", onPrimaryClick = {}, onGhostClick = {}, enabled = false)
+            ColeGhostButton(text = "자세히 보기", onClick = {})
+            ColeGhostButton(text = "자세히 보기", onClick = {}, enabled = false)
+            ColeAddAppButton(text = "잠시만 멀어질 앱 추가하기", icon = painterResource(R.drawable.ic_add), onClick = {})
+        }
+    }
+}
+
+@Composable
+private fun DebugProgressContent() {
+    var sliderIndex by remember { mutableIntStateOf(1) }
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        DebugSectionTitle("Progress")
+        val steps = listOf("30분", "60분", "120분", "180분", "240분", "360분")
+        ColeStepBar(steps = steps, selectedIndex = sliderIndex, onStepSelected = { sliderIndex = it })
+        ColeLinearProgressBar(progress = 0.15f)
+    }
+}
+
+@Composable
+private fun DebugInfoboxContent() {
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        DebugSectionTitle("Infobox")
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(AppColors.SurfaceBackgroundInfoBox)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                listOf(
+                    "선택된 앱" to "인스타그램",
+                    "일일 사용시간" to "1시간 30분",
+                    "반복 요일" to "월, 화, 수, 목",
+                    "적용 기간" to "4주",
+                    "시작 시기" to "지금 즉시",
+                ).forEach { (label, value) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(text = label, style = AppTypography.BodyMedium.copy(color = AppColors.TextBody))
+                        Text(text = value, style = AppTypography.BodyBold.copy(color = AppColors.TextHighlight))
+                    }
+                }
+            }
+            ColeInfoBox(
+                text = "사용 중 10분간의 시간이 끝나면 자동으로 다시 차단되며, 현재까지 진행된 시간엔 반영이 되지 않아요\n※ 10분 사용은 하루 최대 2회까지 가능해요.",
             )
-            ColeHeaderHome(
-                logo = painterResource(R.drawable.ic_logo),
-                hasNotification = true,
+        }
+    }
+}
+
+@Composable
+private fun DebugListsContent() {
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        DebugSectionTitle("Lists")
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            AppStatusRow(appName = "인스타그램", appIcon = painterResource(R.drawable.ic_app_placeholder))
+            AppStatusRow(
+                appName = "인스타그램",
+                appIcon = painterResource(R.drawable.ic_app_placeholder),
+                variant = AppStatusVariant.Button,
+                usageText = "14분",
+                usageLabel = "30분 사용 중",
+                onDetailClick = {},
             )
-            ColeInfoBox(text = "ColeInfoBox 예시 텍스트")
+            AppStatusRow(
+                appName = "인스타그램",
+                appIcon = painterResource(R.drawable.ic_app_placeholder),
+                variant = AppStatusVariant.DataView,
+                usageMinutes = "144분",
+                sessionCount = "12회",
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                ColeSwitch(checked = false, onCheckedChange = {})
+                ColeSwitch(checked = true, onCheckedChange = {})
+            }
+            SelectionRow(label = "앱을 선택해주세요", variant = SelectionRowVariant.Selected, selectedValue = "인스타그램", onClick = {})
+            SelectionRow(label = "앱을 선택해주세요", variant = SelectionRowVariant.Default, onClick = {})
+            SelectionRow(label = "앱을 선택해주세요", variant = SelectionRowVariant.Switch, switchChecked = false, onSwitchChange = {}, onClick = {})
+        }
+    }
+}
+
+@Composable
+private fun DebugFormContent() {
+    var inputValue by remember { mutableStateOf("") }
+    var errorValue by remember { mutableStateOf("user@mail.com") }
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        DebugSectionTitle("Form")
+        val hint = "영어 대/소문자 및 숫자 포함 8자리 이상"
+        ColeTextFieldDefault(value = inputValue, onValueChange = { inputValue = it }, placeholder = hint)
+        ColeTextFieldDisabled(value = "", placeholder = hint)
+        ColeTextFieldError(value = errorValue, onValueChange = { errorValue = it }, placeholder = hint)
+        ColeTextField(value = "", onValueChange = {}, placeholder = hint)
+    }
+}
+
+@Composable
+private fun DebugNavigationContent() {
+    var navIndex by remember { mutableIntStateOf(0) }
+    var tabIndex by remember { mutableIntStateOf(0) }
+    val navDestinations = listOf(
+        NavDestination("홈", Icons.Filled.Home),
+        NavDestination("챌린지", Icons.Filled.Schedule),
+        NavDestination("통계", Icons.Filled.BarChart),
+        NavDestination("마이", Icons.Filled.Person),
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        DebugSectionTitle("Navigation")
+        ColeBottomNavBar(
+            destinations = navDestinations,
+            selectedIndex = navIndex,
+            onTabSelected = { navIndex = it },
+        )
+        ColeHeaderTitleWithNotification(title = "통계", hasNotification = true)
+        ColeHeaderSub(title = "통계", backIcon = painterResource(R.drawable.ic_back), onBackClick = {}, showNotification = true, hasNotification = true)
+        ColeHeaderHome(logo = painterResource(R.drawable.ic_logo), hasNotification = true)
+        ColeSegmentedTab(items = listOf("오늘", "주간", "연간", "월간"), selectedIndex = tabIndex, onTabSelected = { tabIndex = it })
+        ColeSegmentedTab(items = listOf("주간", "월간", "연간"), selectedIndex = tabIndex.coerceAtMost(2), onTabSelected = { tabIndex = it })
+        ColeSegmentedTab(items = listOf("시간 지정 제한", "일일 제한 시간"), selectedIndex = 0, onTabSelected = {})
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(AppColors.SurfaceBackgroundCard)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("5분간 일시정지 완료", style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary))
+            Text("지금부터 5분간 앱을 사용하실 수 있어요\n이제 남은 기회는 1번이에요", style = AppTypography.BodyMedium.copy(color = AppColors.TextBody))
+            ColePrimaryButton(text = "다음", onClick = {})
+            ColeGhostButton(text = "취소", onClick = {})
+        }
+    }
+}
+
+@Composable
+private fun DebugSelectContent() {
+    var chipSelected by remember { mutableStateOf(setOf(0, 1, 2, 3)) }
+    var cardIndex by remember { mutableIntStateOf(0) }
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        DebugSectionTitle("Select")
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            ColeCheckBox(checked = true, onCheckedChange = {})
+            ColeCheckBox(checked = false, onCheckedChange = {})
+            ColeRadioButton(selected = true, onClick = {})
+            ColeRadioButton(selected = false, onClick = {})
+        }
+        ColeChipRow(labels = listOf("월", "화", "수", "목", "금", "토", "일"), selectedIndices = chipSelected, onChipClick = { i -> chipSelected = if (i in chipSelected) chipSelected - i else chipSelected + i })
+        ColeSelectionCardGroup(
+            items = listOf(
+                SelectionCardItem("즉시 차단 해제", "앱 사용 차단을 종료하고\n다시 앱을 사용할 수 있어요", "1,900원"),
+                SelectionCardItem("10분간 사용하기", "앱 사용 차단을 종료하고\n다시 앱을 사용할 수 있어요", "0/2회"),
+            ),
+            selectedIndex = cardIndex,
+            onItemSelected = { cardIndex = it },
+        )
+    }
+}
+
+@Composable
+private fun DebugIconsLabelContent() {
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        DebugSectionTitle("Icons / Label")
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            IcoAppLockOn()
+            IcoAppLabel()
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Image(painter = painterResource(R.drawable.ic_naver), contentDescription = null, modifier = Modifier.size(48.dp))
+            Image(painter = painterResource(R.drawable.ic_kakao), contentDescription = null, modifier = Modifier.size(48.dp))
+            Image(painter = painterResource(R.drawable.ic_google), contentDescription = null, modifier = Modifier.size(48.dp))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Image(painter = painterResource(R.drawable.ic_notification_on), contentDescription = null, modifier = Modifier.size(36.dp))
+            Image(painter = painterResource(R.drawable.ic_notification_off), contentDescription = null, modifier = Modifier.size(36.dp))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Image(painter = painterResource(R.drawable.ic_error_info), contentDescription = null, modifier = Modifier.size(24.dp))
+            Image(painter = painterResource(R.drawable.ic_disclaimer_info), contentDescription = null, modifier = Modifier.size(24.dp))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            LabelPro()
+            LabelWarning()
+            LabelDanger()
         }
     }
 }

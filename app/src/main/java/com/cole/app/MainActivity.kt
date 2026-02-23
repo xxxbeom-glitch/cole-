@@ -90,7 +90,7 @@ fun SignUpFlowHost() {
             onFinish = { step = SignUpStep.LOGIN },
         )
         SignUpStep.LOGIN -> LoginScreen(
-            logo = painterResource(R.drawable.ic_logo),
+            logo = painterResource(R.drawable.ic_login_logo),
             onLoginClick = { _, _ -> step = SignUpStep.MAIN },
             onSignUpClick = { showTerms = true },
             onNaverLoginClick = {},

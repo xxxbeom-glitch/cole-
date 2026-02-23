@@ -39,7 +39,7 @@ fun IcoBack(
 @Composable
 fun IcoErrorInfo(
     modifier: Modifier = Modifier,
-    tint: Color = AppColors.FormTextError,
+    tint: Color = Color.Unspecified,
     size: Dp = 20.dp,
 ) {
     Icon(
@@ -74,7 +74,7 @@ fun IcoCompleted(
 fun IcoNotification(
     modifier: Modifier = Modifier,
     hasNotification: Boolean = true,
-    tint: Color = AppColors.TextPrimary,
+    tint: Color = Color.Unspecified,
     size: Dp = 36.dp,
 ) {
     Icon(
@@ -90,7 +90,7 @@ fun IcoNotification(
 @Composable
 fun IcoDisclaimerInfo(
     modifier: Modifier = Modifier,
-    tint: Color = AppColors.TextSecondary,
+    tint: Color = Color.Unspecified,
     size: Dp = 18.dp,
 ) {
     Icon(
@@ -140,12 +140,25 @@ fun IcoAppLabel(
     modifier: Modifier = Modifier,
     size: Dp = 56.dp,
 ) {
-    Box(modifier = modifier.size(size)) {
-        IcoAppLockOn(modifier = Modifier.matchParentSize(), size = size)
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(RoundedCornerShape(6.dp))
+            .background(AppColors.TextDisabled),
+    ) {
         LabelDanger(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(top = 4.dp, start = 4.dp),
+        )
+        Icon(
+            painter = painterResource(id = R.drawable.ic_lock_app),
+            contentDescription = "잠금",
+            tint = AppColors.TextInvert,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 4.dp, end = 4.dp)
+                .size(24.dp),
         )
     }
 }
