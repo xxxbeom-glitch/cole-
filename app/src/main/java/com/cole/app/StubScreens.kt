@@ -69,18 +69,7 @@ fun SplashScreen(onFinish: () -> Unit) {
 
 @Composable
 fun OnboardingScreen(onSkipClick: () -> Unit, onStartClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AppColors.SurfaceBackgroundBackground)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("온보딩", style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary))
-        ColePrimaryButton(text = "시작하기", onClick = onStartClick, modifier = Modifier.fillMaxWidth())
-        ColeGhostButton(text = "건너뛰기", onClick = onSkipClick, modifier = Modifier.fillMaxWidth())
-    }
+    OnboardingHost(onSkipClick = onSkipClick, onStartClick = onStartClick)
 }
 
 @Composable
