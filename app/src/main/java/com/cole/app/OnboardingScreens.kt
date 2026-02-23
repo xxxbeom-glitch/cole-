@@ -43,8 +43,9 @@ private data class OnboardingPage(
     val subtitleUsesColeHighlight: Boolean = false,
 )
 
-// Figma: 상단 185px = 48dp + 텍스트 영역. 인디케이터 고정 Y
-private val IndicatorTopOffset = 48.dp + 44.dp + 8.dp + 24.dp + 14.dp // title~subtitle~indicator 중앙
+// Figma OB-01: 텍스트~인디케이터 gap 28dp, 이미지 top 480px, 가로 100% 하단 고정
+private val TitleSubtitleGap = 8.dp
+private val MessageIndicatorGap = 28.dp
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -87,75 +88,71 @@ fun OnboardingHost(
         ),
     )
 
+    // statusBars만 적용 - 이미지는 하단 끝까지 (navigationBars 미적용)
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(AppColors.SurfaceBackgroundBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .windowInsetsPadding(WindowInsets.navigationBars),
+            .windowInsetsPadding(WindowInsets.statusBars),
     ) {
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxSize(),
-            userScrollEnabled = true,
-        ) { page ->
-            val p = pages[page]
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp)
-                    .padding(top = 48.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = "${p.titleLine1}\n${p.titleLine2}",
-                        style = AppTypography.Display2.copy(color = AppColors.TextPrimary),
-                        textAlign = TextAlign.Center,
-                    )
-                    if (p.subtitleUsesColeHighlight) {
-                        Text(
-                            text = buildAnnotatedString {
-                                withStyle(SpanStyle(color = AppColors.TextHighlight)) {
-                                    append("cole")
-                                }
-                                append("은 당신이 과하게 소비하는 앱을\n효과적으로 제한해드려요")
-                            },
-                            style = AppTypography.BodyBold.copy(color = AppColors.TextSecondary),
-                            textAlign = TextAlign.Center,
-                        )
-                    } else {
-                        Text(
-                            text = "${p.subtitleLine1}\n${p.subtitleLine2}",
-                            style = AppTypography.BodyBold.copy(color = AppColors.TextSecondary),
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(28.dp))
-                Spacer(modifier = Modifier.weight(1f))
-                Image(
-                    painter = painterResource(id = p.imageResId),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(400.dp),
-                    contentScale = ContentScale.FillWidth,
-                )
-            }
-        }
-
         Column(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = IndicatorTopOffset)
-                .fillMaxWidth(),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            ColePageIndicator(pageCount = 4, currentPage = pagerState.currentPage)
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.weight(1f),
+                userScrollEnabled = true,
+            ) { page ->
+                val p = pages[page]
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(TitleSubtitleGap),
+                    ) {
+                        Text(
+                            text = "${p.titleLine1}\n${p.titleLine2}",
+                            style = AppTypography.Display2.copy(color = AppColors.TextPrimary),
+                            textAlign = TextAlign.Center,
+                        )
+                        if (p.subtitleUsesColeHighlight) {
+                            Text(
+                                text = buildAnnotatedString {
+                                    withStyle(SpanStyle(color = AppColors.TextHighlight)) {
+                                        append("cole")
+                                    }
+                                    append("은 당신이 과하게 소비하는 앱을\n효과적으로 제한해드려요")
+                                },
+                                style = AppTypography.BodyBold.copy(color = AppColors.TextSecondary),
+                                textAlign = TextAlign.Center,
+                            )
+                        } else {
+                            Text(
+                                text = "${p.subtitleLine1}\n${p.subtitleLine2}",
+                                style = AppTypography.BodyBold.copy(color = AppColors.TextSecondary),
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(MessageIndicatorGap))
+                    ColePageIndicator(pageCount = 4, currentPage = pagerState.currentPage)
+                }
+            }
+
+            Image(
+                painter = painterResource(id = pages[pagerState.currentPage].imageResId),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(400.dp),
+                contentScale = ContentScale.FillWidth,
+            )
         }
 
         if (pagerState.currentPage == 3) {
@@ -163,6 +160,7 @@ fun OnboardingHost(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),

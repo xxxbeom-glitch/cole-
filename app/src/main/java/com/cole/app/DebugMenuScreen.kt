@@ -130,6 +130,10 @@ private fun DebugScreenPreview(
             onStartClick = onBack,
             onBackClick = onBack,
         )
+        DebugScreen.Onboarding -> OnboardingScreen(
+            onSkipClick = onBack,
+            onStartClick = onBack,
+        )
         DebugScreen.SelfTestLoading -> SelfTestLoadingScreen(onFinish = onBack)
         DebugScreen.AddAppAA01 -> AddAppScreenAA01(
             onAddAppClick = onBack,
