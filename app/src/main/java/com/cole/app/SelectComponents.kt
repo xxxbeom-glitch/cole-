@@ -1,5 +1,6 @@
 package com.cole.app
 
+import com.cole.app.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,8 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -188,24 +188,13 @@ fun ColeCheckBox(
     modifier: Modifier = Modifier,
     size: Dp = 28.dp,
 ) {
-    val bgColor = if (checked) AppColors.InteractiveCheckBoxBgChecked else AppColors.InteractiveCheckBoxBgUnchecked
-    val borderColor = if (checked) AppColors.Primary300 else AppColors.InteractiveCheckBoxBorderUnchecked
-
-    Box(
+    Icon(
+        painter = painterResource(
+            id = if (checked) R.drawable.ic_checkbox_selected else R.drawable.ic_checkbox_inactive
+        ),
+        contentDescription = if (checked) "선택됨" else "선택 안됨",
         modifier = modifier
             .size(size)
-            .background(bgColor, CircleShape)
-            .border(1.5.dp, borderColor, CircleShape)
             .clickable { onCheckedChange(!checked) },
-        contentAlignment = Alignment.Center,
-    ) {
-        if (checked) {
-            Icon(
-                imageVector = Icons.Filled.Check,
-                contentDescription = "선택됨",
-                tint = Color.White,
-                modifier = Modifier.size(size * 0.55f),
-            )
-        }
-    }
+    )
 }

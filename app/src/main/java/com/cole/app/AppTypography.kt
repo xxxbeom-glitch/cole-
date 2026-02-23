@@ -1,5 +1,6 @@
 package com.cole.app
 
+import com.cole.app.R
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font

@@ -194,7 +194,6 @@ fun ColeStepBar(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // 핸들 화살표 아이콘 (텍스트 대체 — 실제 프로젝트에서는 아이콘 리소스 사용)
                     Text(
                         text = "‹",
                         style = AppTypography.Caption1.copy(color = AppColors.ChartHandleArrow),

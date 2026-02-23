@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -105,13 +108,11 @@ fun ColeCheckBox(
         contentAlignment = Alignment.Center,
     ) {
         if (checked) {
-            // 체크마크 (간단한 텍스트 대체 — 실제 프로젝트에서는 아이콘 리소스 사용 권장)
-            Text(
-                text = "✓",
-                style = AppTypography.Caption1.copy(
-                    color = AppColors.InteractiveCheckBoxBorderCheck,
-                    textAlign = TextAlign.Center,
-                ),
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = "선택됨",
+                tint = AppColors.InteractiveCheckBoxBorderCheck,
+                modifier = Modifier.size(15.dp),
             )
         }
     }

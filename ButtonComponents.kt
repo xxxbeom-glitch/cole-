@@ -1,22 +1,28 @@
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.animateColorAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.style.TextAlign
@@ -40,26 +46,42 @@ fun ColePrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val containerColor by animateColorAsState(
+        targetValue = when {
+            !enabled -> AppColors.ButtonPrimaryBgDisabled
+            isPressed -> AppColors.ButtonPrimaryBgPressed
+            else -> AppColors.ButtonPrimaryBgDefault
+        },
+        label = "primaryContainerColor",
+    )
+    val contentColor = when {
+        !enabled -> AppColors.ButtonPrimaryTextDisabled
+        else -> AppColors.ButtonPrimaryTextDefault
+    }
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(60.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = AppColors.ButtonPrimaryBgDefault,
-            contentColor = AppColors.ButtonPrimaryTextDefault,
-            disabledContainerColor = AppColors.ButtonPrimaryBgDisabled,
-            disabledContentColor = AppColors.ButtonPrimaryTextDisabled,
-        ),
-        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 16.dp),
+            .height(60.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(
+                enabled = enabled,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+            .then(Modifier.background(containerColor)),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = text,
             style = AppTypography.ButtonLarge,
+            color = contentColor,
             textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 16.dp),
         )
     }
 }
@@ -82,27 +104,43 @@ fun ColeGhostButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val containerColor = when {
+        !enabled -> AppColors.ButtonGhostBgDisabled
+        isPressed -> AppColors.ButtonGhostBgHover
+        else -> AppColors.ButtonGhostBgDefault
+    }
+    val contentColor by animateColorAsState(
+        targetValue = when {
+            !enabled -> AppColors.ButtonGhostTextDisabled
+            isPressed -> AppColors.ButtonGhostTextHover
+            else -> AppColors.ButtonGhostTextDefault
+        },
+        label = "ghostContentColor",
+    )
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(60.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = AppColors.ButtonGhostBgDefault,
-            contentColor = AppColors.ButtonGhostTextDefault,
-            disabledContainerColor = AppColors.ButtonGhostBgDisabled,
-            disabledContentColor = AppColors.ButtonGhostTextDisabled,
-        ),
-        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 16.dp),
-        elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp, 0.dp),
+            .height(60.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(
+                enabled = enabled,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+            .background(containerColor),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = text,
             style = AppTypography.ButtonLarge,
+            color = contentColor,
             textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 16.dp),
         )
     }
 }
@@ -167,27 +205,56 @@ fun ColeSecondaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    OutlinedButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.height(35.dp),
-        shape = RoundedCornerShape(6.dp),
-        colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = AppColors.ButtonSecondaryBgDefault,
-            contentColor = AppColors.ButtonSecondaryTextDefault,
-            disabledContainerColor = AppColors.ButtonSecondaryBgDisabled,
-            disabledContentColor = AppColors.ButtonSecondaryTextDisabled,
-        ),
-        border = BorderStroke(
-            width = 0.6.dp,
-            color = if (enabled) AppColors.ButtonSecondaryBorderDefault
-                    else AppColors.ButtonSecondaryBorderDisabled,
-        ),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val containerColor by animateColorAsState(
+        targetValue = when {
+            !enabled -> AppColors.ButtonSecondaryBgDisabled
+            isPressed -> AppColors.ButtonSecondaryBgHover
+            else -> AppColors.ButtonSecondaryBgDefault
+        },
+        label = "secondaryContainerColor",
+    )
+    val showBorder = enabled && !isPressed
+    val borderColor = when {
+        !enabled -> AppColors.ButtonSecondaryBorderDisabled
+        else -> AppColors.ButtonSecondaryBorderDefault
+    }
+    val contentColor = when {
+        !enabled -> AppColors.ButtonSecondaryTextDisabled
+        else -> AppColors.ButtonSecondaryTextDefault
+    }
+    val textAlpha = when {
+        !enabled || isPressed -> 0.9f
+        else -> 1f
+    }
+    Box(
+        modifier = modifier
+            .height(35.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .then(
+                if (showBorder) Modifier.border(0.6.dp, borderColor, RoundedCornerShape(6.dp))
+                else Modifier
+            )
+            .clickable(
+                enabled = enabled,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+            .background(containerColor),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = text,
             style = AppTypography.ButtonSmall,
+            color = contentColor.copy(alpha = textAlpha),
+            modifier = Modifier.padding(
+                top = 10.dp,
+                bottom = 9.dp,
+                start = 12.dp,
+                end = 12.dp,
+            ),
         )
     }
 }
@@ -210,20 +277,35 @@ fun ColeAddAppButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.height(60.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = AppColors.ButtonPrimaryBgDefault,
-            contentColor = AppColors.ButtonPrimaryTextDefault,
-            disabledContainerColor = AppColors.ButtonPrimaryBgDisabled,
-            disabledContentColor = AppColors.ButtonPrimaryTextDisabled,
-        ),
-        contentPadding = PaddingValues(horizontal = 28.dp, vertical = 20.dp),
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val containerColor by animateColorAsState(
+        targetValue = when {
+            !enabled -> AppColors.ButtonPrimaryBgDisabled
+            isPressed -> AppColors.ButtonPrimaryBgPressed
+            else -> AppColors.ButtonPrimaryBgDefault
+        },
+        label = "addAppContainerColor",
+    )
+    val contentColor = when {
+        !enabled -> AppColors.ButtonPrimaryTextDisabled
+        else -> AppColors.ButtonPrimaryTextDefault
+    }
+    Box(
+        modifier = modifier
+            .height(60.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(
+                enabled = enabled,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+            .background(containerColor),
+        contentAlignment = Alignment.Center,
     ) {
         Row(
+            modifier = Modifier.padding(horizontal = 28.dp, vertical = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
@@ -231,12 +313,13 @@ fun ColeAddAppButton(
                 painter = icon,
                 contentDescription = null,
                 modifier = Modifier.size(22.dp),
-                tint = Color.Unspecified,
+                tint = contentColor,
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = text,
                 style = AppTypography.ButtonLarge,
+                color = contentColor,
                 textAlign = TextAlign.Center,
             )
         }
@@ -260,31 +343,30 @@ fun ColeInvertButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    OutlinedButton(
-        onClick = onClick,
-        enabled = enabled,
+    val contentColor = if (enabled) AppColors.TextInvert else AppColors.TextInvert.copy(alpha = 0.4f)
+    val borderColor = if (enabled) AppColors.TextInvert else AppColors.TextInvert.copy(alpha = 0.4f)
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(53.dp),
-        shape = RoundedCornerShape(6.dp),
-        colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = Color.Transparent,
-            contentColor = AppColors.TextInvert,
-            disabledContainerColor = Color.Transparent,
-            disabledContentColor = AppColors.TextInvert.copy(alpha = 0.4f),
-        ),
-        border = BorderStroke(
-            width = 1.dp,
-            color = if (enabled) AppColors.TextInvert
-                    else AppColors.TextInvert.copy(alpha = 0.4f),
-        ),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 15.dp),
+            .height(53.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(6.dp))
+            .clickable(
+                enabled = enabled,
+                indication = null,
+                onClick = onClick,
+            )
+            .background(Color.Transparent),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = text,
             style = AppTypography.ButtonLarge,
+            color = contentColor,
             textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 15.dp, bottom = 16.dp, start = 12.dp, end = 12.dp),
         )
     }
 }

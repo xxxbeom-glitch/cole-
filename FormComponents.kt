@@ -107,7 +107,12 @@ fun ColeTextField(
     val colors = resolveColors(state)
     val shape = RoundedCornerShape(6.dp)
 
-    val textColor = if (value.isEmpty()) colors.textColor else AppColors.FormTextValue
+    val textColor = when {
+        value.isEmpty() -> colors.textColor
+        isError -> AppColors.FormTextError
+        !enabled -> AppColors.FormTextDisabled
+        else -> AppColors.FormTextValue
+    }
 
     Column(modifier = modifier) {
         BasicTextField(

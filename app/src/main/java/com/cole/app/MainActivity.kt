@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 
 @Composable
 fun ColeRootContent() {
@@ -85,9 +86,9 @@ fun SignUpFlowHost() {
             onFinish = { step = SignUpStep.LOGIN },
         )
         SignUpStep.LOGIN -> LoginScreen(
+            logo = painterResource(R.drawable.ic_logo),
             onLoginClick = { _, _ -> step = SignUpStep.MAIN },
             onSignUpClick = { showTerms = true },
-            onAddAppClick = { step = SignUpStep.ADD_APP },
             onNaverLoginClick = {},
             onKakaoLoginClick = {},
             onGoogleLoginClick = {},

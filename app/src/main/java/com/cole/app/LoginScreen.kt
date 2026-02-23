@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -41,6 +42,7 @@ import androidx.core.view.WindowCompat
 
 @Composable
 fun LoginScreen(
+    logo: Painter,
     onLoginClick: (email: String, password: String) -> Unit = { _, _ -> },
     onSignUpClick: () -> Unit = {},
     onNaverLoginClick: () -> Unit = {},
@@ -72,7 +74,7 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(80.dp))
 
         Image(
-            painter = painterResource(id = R.drawable.ic_logo),
+            painter = logo,
             contentDescription = "cole.",
             modifier = Modifier.width(280.dp).height(150.dp),
         )

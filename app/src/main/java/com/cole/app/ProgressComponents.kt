@@ -1,5 +1,6 @@
 package com.cole.app
 
+import com.cole.app.R
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -11,8 +12,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -131,21 +135,23 @@ fun ColeStepBar(
                 modifier = Modifier
                     .width(40.dp)
                     .height(24.dp)
-                    .offset(x = handleOffsetDp)
-                    .shadow(3.dp, RoundedCornerShape(12.dp), ambientColor = Color(0x0F000000), spotColor = Color(0x0F000000))
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(AppColors.ChartHandleBg)
-                    .border(1.dp, AppColors.ChartHandleBorder, RoundedCornerShape(12.dp)),
-                contentAlignment = Alignment.Center,
+                    .offset(x = handleOffsetDp),
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("‹", style = AppTypography.Caption1.copy(color = AppColors.ChartHandleArrow))
-                    Text("›", style = AppTypography.Caption1.copy(color = AppColors.ChartHandleArrow))
-                }
+                Image(
+                    painter = painterResource(id = R.drawable.ic_stepbar_handle),
+                    contentDescription = "슬라이더 핸들",
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            steps.forEach { Text(it, style = AppTypography.Caption1.copy(color = AppColors.TextCaption, textAlign = TextAlign.Center), modifier = Modifier.weight(1f)) }
+            steps.forEach { label ->
+                Text(
+                    text = label,
+                    style = AppTypography.Caption1.copy(color = AppColors.TextCaption, textAlign = TextAlign.Center),
+                    modifier = Modifier.width(40.dp),
+                )
+            }
         }
     }
 }

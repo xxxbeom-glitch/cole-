@@ -35,7 +35,7 @@ object AppTypography {
     )
     val HeadingH1 = TextStyle(
         fontFamily = SuitVariable,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.ExtraBold,
         fontSize = 24.sp,
         lineHeight = 32.sp
     )
@@ -59,7 +59,7 @@ object AppTypography {
     )
     val BodyRegular = TextStyle(
         fontFamily = SuitVariable,
-        fontWeight = FontWeight.Normal, // Assuming Regular maps to Normal
+        fontWeight = FontWeight.Medium,
         fontSize = 15.sp,
         lineHeight = 24.sp
     )
@@ -112,13 +112,13 @@ object AppTypography {
         lineHeight = 20.sp
     )
     val TabSelected = TextStyle(
-        fontFamily = FontFamily(Font(res.font.suit_variable, FontWeight.Bold)), // Assuming SUIT Bold
+        fontFamily = SuitVariable,
         fontWeight = FontWeight.Bold,
         fontSize = 14.sp,
         lineHeight = 22.sp
     )
     val TabUnselected = TextStyle(
-        fontFamily = FontFamily(Font(res.font.suit_variable, FontWeight.Medium)), // Assuming SUIT Medium
+        fontFamily = SuitVariable,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 22.sp

@@ -3,11 +3,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
-
-// Assuming AppColors and AppTypography are defined in Color.kt and Type.kt respectively
-// import com.example.cole.ui.theme.AppColors
-// import com.example.cole.ui.theme.AppTypography
 
 private val DarkColorPalette = darkColorScheme(
     primary = AppColors.Primary300,
@@ -16,11 +11,10 @@ private val DarkColorPalette = darkColorScheme(
     onSecondary = AppColors.White900,
     error = AppColors.Red300,
     onError = AppColors.White900,
-    background = AppColors.Grey900,
-    onBackground = AppColors.White900,
+    background = AppColors.SurfaceBackgroundOverlay,
+    onBackground = AppColors.TextInvert,
     surface = AppColors.Grey800,
-    onSurface = AppColors.White900,
-    // Add more colors as needed from AppColors for a complete dark theme
+    onSurface = AppColors.TextInvert,
     primaryContainer = AppColors.Primary700,
     onPrimaryContainer = AppColors.White900,
     secondaryContainer = AppColors.Grey600,
@@ -33,12 +27,10 @@ private val DarkColorPalette = darkColorScheme(
     onErrorContainer = AppColors.White900,
     surfaceVariant = AppColors.Grey700,
     onSurfaceVariant = AppColors.Grey100,
-    outline = AppColors.Grey550,
+    outline = AppColors.BorderDivider,
     inverseOnSurface = AppColors.Grey900,
     inverseSurface = AppColors.White900,
     inversePrimary = AppColors.Primary100,
-    // These colors might need further mapping to the AppColors defined.
-    // For simplicity, some are directly mapped or derived.
 )
 
 private val LightColorPalette = lightColorScheme(
@@ -48,11 +40,10 @@ private val LightColorPalette = lightColorScheme(
     onSecondary = AppColors.White900,
     error = AppColors.Red300,
     onError = AppColors.White900,
-    background = AppColors.White900,
-    onBackground = AppColors.Grey900,
-    surface = AppColors.White900,
-    onSurface = AppColors.Grey900,
-    // Add more colors as needed from AppColors for a complete light theme
+    background = AppColors.SurfaceBackgroundBackground,
+    onBackground = AppColors.TextPrimary,
+    surface = AppColors.SurfaceBackgroundCard,
+    onSurface = AppColors.TextPrimary,
     primaryContainer = AppColors.Primary100,
     onPrimaryContainer = AppColors.Primary900,
     secondaryContainer = AppColors.Grey200,
@@ -65,12 +56,10 @@ private val LightColorPalette = lightColorScheme(
     onErrorContainer = AppColors.Red900,
     surfaceVariant = AppColors.Grey100,
     onSurfaceVariant = AppColors.Grey700,
-    outline = AppColors.Grey350,
+    outline = AppColors.BorderDefault,
     inverseOnSurface = AppColors.White900,
     inverseSurface = AppColors.Grey800,
     inversePrimary = AppColors.Primary900,
-    // These colors might need further mapping to the AppColors defined.
-    // For simplicity, some are directly mapped or derived.
 )
 
 @Composable
@@ -86,14 +75,11 @@ fun ColeTheme(
 
     MaterialTheme(
         colorScheme = colors,
-        typography = AppTypography.toMaterialTypography(), // Assuming a conversion function
+        typography = AppTypography.toMaterialTypography(),
         content = content
     )
 }
 
-// Extension function to convert AppTypography to MaterialTheme Typography
-// This assumes you want to map your custom text styles to MaterialTheme's typography system.
-// You might need to adjust this mapping based on your exact design requirements.
 fun AppTypography.toMaterialTypography() = androidx.compose.material3.Typography(
     displayLarge = Display1,
     displayMedium = Display2,
@@ -101,13 +87,13 @@ fun AppTypography.toMaterialTypography() = androidx.compose.material3.Typography
     headlineLarge = HeadingH1,
     headlineMedium = HeadingH2,
     headlineSmall = HeadingH3,
-    bodyLarge = BodyRegular, // Or BodyMedium, choose the most appropriate default
+    titleLarge = HeadingH1,
+    titleMedium = HeadingH2,
+    titleSmall = HeadingH3,
+    bodyLarge = BodyRegular,
     bodyMedium = BodyMedium,
     bodySmall = Caption1,
     labelLarge = ButtonLarge,
     labelMedium = ButtonSmall,
     labelSmall = Label,
-    titleLarge = HeadingH1, // Re-using, adjust if specific title styles exist
-    titleMedium = HeadingH2, // Re-using, adjust if specific title styles exist
-    titleSmall = HeadingH3, // Re-using, adjust if specific title styles exist
 )
