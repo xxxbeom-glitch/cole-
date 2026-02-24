@@ -110,6 +110,29 @@ fun ColeAddAppButton(text: String, icon: Painter, onClick: () -> Unit, modifier:
     }
 }
 
+/**
+ * 나의 스마트폰 중독 지수 카드용 아웃라인 버튼 (Figma 619-2806)
+ * border 1dp, 배경 흰색, 60dp 높이, 12dp 라운드
+ */
+@Composable
+fun ColeOutlinedTextButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    OutlinedButton(
+        onClick = onClick, enabled = enabled,
+        modifier = modifier.fillMaxWidth().height(60.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = AppColors.White900,
+            contentColor = AppColors.TextPrimary,
+            disabledContainerColor = AppColors.SurfaceBackgroundBackground,
+            disabledContentColor = AppColors.TextDisabled,
+        ),
+        border = BorderStroke(1.dp, if (enabled) AppColors.BorderDefault else AppColors.Grey400),
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 16.dp),
+    ) {
+        Text(text = text, style = AppTypography.ButtonLarge, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+    }
+}
+
 @Composable
 fun ColeInvertButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     OutlinedButton(

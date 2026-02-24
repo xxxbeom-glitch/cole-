@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,10 +29,16 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun ColeChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun ColeChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    fillWidth: Boolean = false,
+) {
     Box(
         modifier = modifier
-            .size(40.dp)
+            .then(if (fillWidth) Modifier.fillMaxWidth().height(40.dp) else Modifier.size(40.dp))
             .clip(RoundedCornerShape(6.dp))
             .then(
                 if (selected) Modifier.background(AppColors.Primary300)
@@ -45,10 +52,27 @@ fun ColeChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Mo
 }
 
 @Composable
-fun ColeChipRow(labels: List<String>, selectedIndices: Set<Int>, onChipClick: (Int) -> Unit, modifier: Modifier = Modifier) {
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+fun ColeChipRow(
+    labels: List<String>,
+    selectedIndices: Set<Int>,
+    onChipClick: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    fillWidth: Boolean = false,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = if (fillWidth) Arrangement.spacedBy(8.dp) else Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         labels.forEachIndexed { index, label ->
-            ColeChip(label = label, selected = index in selectedIndices, onClick = { onChipClick(index) })
+            Box(modifier = if (fillWidth) Modifier.weight(1f) else Modifier) {
+                ColeChip(
+                    label = label,
+                    selected = index in selectedIndices,
+                    onClick = { onChipClick(index) },
+                    fillWidth = fillWidth,
+                )
+            }
         }
     }
 }
@@ -127,6 +151,70 @@ fun ColeSelectionCard(
 }
 
 data class SelectionCardItem(val title: String, val description: String, val trailingText: String)
+
+/**
+ * Figma: Select / SelectionCard Title Only (609-2622, 609-2623)
+ * - 제목만 있는 컴팩트 선택 카드
+ * - 패딩 16/22dp, border 1.5dp(선택) / 1dp(비선택), 12dp 라운드
+ */
+@Composable
+fun ColeSelectionCardTitleOnly(
+    title: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .then(
+                if (selected) Modifier.border(1.5.dp, AppColors.Primary300, RoundedCornerShape(12.dp))
+                else Modifier.border(1.dp, AppColors.InteractiveRadioBorderUnselected, RoundedCornerShape(12.dp))
+            )
+            .background(AppColors.SurfaceBackgroundCard)
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 22.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f),
+            ) {
+                ColeRadioButton(selected = selected, onClick = onClick)
+                Text(
+                    text = title,
+                    style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ColeSelectionCardTitleOnlyGroup(
+    options: List<String>,
+    selectedIndex: Int,
+    onOptionSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        options.forEachIndexed { index, option ->
+            ColeSelectionCardTitleOnly(
+                title = option,
+                selected = index == selectedIndex,
+                onClick = { onOptionSelected(index) },
+            )
+        }
+    }
+}
 
 @Composable
 fun ColeSelectionCardGroup(items: List<SelectionCardItem>, selectedIndex: Int, onItemSelected: (Int) -> Unit, modifier: Modifier = Modifier) {

@@ -103,6 +103,36 @@ fun AppLimitSetupDayBottomSheet(
                 selectedDays = if (i in selectedDays) selectedDays - i else selectedDays + i
             },
             modifier = Modifier.fillMaxWidth(),
+            fillWidth = true,
+        )
+    }
+}
+
+@Composable
+fun AppLimitSetupDurationBottomSheet(
+    title: String = "언제까지 할까요",
+    subtitle: String = "제한을 적용할 기간을 선택해주세요",
+    options: List<String> = listOf("1주", "2주", "4주", "8주", "무제한"),
+    initialIndex: Int = 0,
+    onDismissRequest: () -> Unit,
+    onPrimaryClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var selectedIndex by remember { mutableIntStateOf(initialIndex.coerceIn(0, options.lastIndex)) }
+
+    BaseBottomSheet(
+        title = title,
+        subtitle = subtitle,
+        onDismissRequest = onDismissRequest,
+        onPrimaryClick = { onPrimaryClick(options[selectedIndex]) },
+        primaryButtonText = "계속 진행",
+        modifier = modifier,
+    ) {
+        ColeStepBar(
+            steps = options,
+            selectedIndex = selectedIndex,
+            onStepSelected = { selectedIndex = it },
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }

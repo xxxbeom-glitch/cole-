@@ -31,7 +31,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -103,6 +106,11 @@ sealed class DebugScreen(val category: String, val label: String) {
     data object AppLimitSetupTime : DebugScreen("바텀시트", "AppLimitSetupTime (시간 슬라이더)")
     data object AppLimitSetupDay : DebugScreen("바텀시트", "AppLimitSetupDay (요일 선택)")
     data object AppLimitInfoBottomSheet : DebugScreen("바텀시트", "AppLimitInfoBottomSheet (제한 앱 정보)")
+
+    // 앱 제한 일시정지 (UL)
+    data object AppLimitPauseProposal : DebugScreen("앱 제한 일시정지", "UL-01: 제안")
+    data object AppLimitPauseConfirm : DebugScreen("앱 제한 일시정지", "UL-02: 확인")
+    data object AppLimitPauseComplete : DebugScreen("앱 제한 일시정지", "UL-03: 완료")
 }
 
 @Composable
@@ -166,6 +174,14 @@ private fun DebugScreenPreview(
             onBackClick = onBack,
         )
         DebugScreen.AddAppDaily01 -> AddAppDailyLimitScreen01(
+            selectedAppNames = emptySet(),
+            selectedDailyMinutes = null,
+            selectedDays = emptySet(),
+            selectedDuration = null,
+            onAppRowClick = { },
+            onTimeRowClick = { },
+            onDaysRowClick = { },
+            onDurationRowClick = { },
             onNextClick = { onBack() },
             onBackClick = onBack,
         )
@@ -178,19 +194,28 @@ private fun DebugScreenPreview(
             onBackClick = onBack,
         )
         DebugScreen.AddAppDaily04 -> AddAppDailyLimitScreen04(
-            limitMinutes = "30분",
-            warnEnabled = true,
+            limitMinutes = "1시간",
+            selectedDaysText = "월, 화, 수, 목",
+            duration = "4주",
             onConfirmClick = onBack,
             onBackClick = onBack,
         )
         DebugScreen.AddAppDaily05 -> AddAppDailyLimitScreen05(
             appName = "인스타그램",
+            limitMinutes = "1시간 30분",
+            selectedDaysText = "월, 화, 수, 목",
+            duration = "4주",
             onCompleteClick = onBack,
+            onAddAnotherClick = onBack,
             onBackClick = onBack,
         )
         DebugScreen.AddAppFlowHost -> AddAppFlowHost(
             onComplete = onBack,
             onBackFromFirst = onBack,
+        )
+        DebugScreen.MainFlow -> MainFlowHost(
+            onAddAppClick = onBack,
+            onLogout = onBack,
         )
         DebugScreen.BaseBottomSheet -> DebugBottomSheetPreview(onBack = onBack) { onSheetDismiss ->
             BaseBottomSheet(
@@ -239,6 +264,34 @@ private fun DebugScreenPreview(
                 onDismissRequest = onSheetDismiss,
                 onDetailClick = onSheetDismiss,
                 onPrimaryClick = onSheetDismiss,
+            )
+        }
+        DebugScreen.AppLimitPauseProposal -> DebugBottomSheetPreview(onBack = onBack) { onSheetDismiss ->
+            AppLimitPauseProposalBottomSheet(
+                onDismissRequest = onSheetDismiss,
+                onContinueClick = onSheetDismiss,
+                onBackClick = onSheetDismiss,
+            )
+        }
+        DebugScreen.AppLimitPauseConfirm -> DebugBottomSheetPreview(onBack = onBack) { onSheetDismiss ->
+            AppLimitPauseConfirmBottomSheet(
+                appName = "넷플릭스",
+                appIcon = painterResource(R.drawable.ic_app_placeholder),
+                usageText = "14분/30분",
+                usageLabel = "사용 중",
+                onDismissRequest = onSheetDismiss,
+                onPauseClick = onSheetDismiss,
+                onBackClick = onSheetDismiss,
+                onDetailClick = onSheetDismiss,
+            )
+        }
+        DebugScreen.AppLimitPauseComplete -> DebugBottomSheetPreview(onBack = onBack) { onSheetDismiss ->
+            AppLimitPauseCompleteBottomSheet(
+                appName = "넷플릭스",
+                appIcon = painterResource(R.drawable.ic_app_placeholder),
+                remainingChances = 1,
+                onDismissRequest = onSheetDismiss,
+                onLaunchAppClick = onSheetDismiss,
             )
         }
         else -> DebugPlaceholderScreen(screen = screen, onBack = onBack)
@@ -292,6 +345,7 @@ private fun DebugBottomSheetPreview(
     content: @Composable (onSheetDismiss: () -> Unit) -> Unit,
 ) {
     var showSheet by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -309,7 +363,12 @@ private fun DebugBottomSheetPreview(
     }
 
     if (showSheet) {
-        content { showSheet = false }
+        content {
+            scope.launch {
+                delay(350)
+                showSheet = false
+            }
+        }
     }
 }
 
@@ -533,7 +592,7 @@ private fun DebugScreenListSection(
         }
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 앱 제한: 작업 중인 플로우만 (이전 개별 화면은 제외)
+        // 앱 제한: 작업 중인 플로우만 (바텀시트/앱 제한 일시정지 → 디자인시스템 탭에서)
         val allScreens = listOf(
             DebugScreen.Splash,
             DebugScreen.Login,
@@ -546,13 +605,8 @@ private fun DebugScreenListSection(
             DebugScreen.SelfTest,
             DebugScreen.SelfTestLoading,
             DebugScreen.SelfTestResult,
-            DebugScreen.AddAppFlowHost,  // 앱 제한: 통합 플로우만
+            DebugScreen.AddAppFlowHost,
             DebugScreen.MainFlow,
-            DebugScreen.BaseBottomSheet,
-            DebugScreen.TermsBottomSheet,
-            DebugScreen.AppLimitSetupTime,
-            DebugScreen.AppLimitSetupDay,
-            DebugScreen.AppLimitInfoBottomSheet,
         )
         val grouped = allScreens.groupBy { it.category }
 
@@ -592,6 +646,7 @@ private sealed class DesignSystemSection(val label: String) {
     data object Navigation : DesignSystemSection("네비게이션")
     data object Select : DesignSystemSection("선택")
     data object IconsLabel : DesignSystemSection("아이콘/라벨")
+    data object BottomSheets : DesignSystemSection("바텀시트")
 }
 
 @Composable
@@ -625,6 +680,7 @@ private fun DebugDesignSystemSection() {
                 DesignSystemSection.Navigation,
                 DesignSystemSection.Select,
                 DesignSystemSection.IconsLabel,
+                DesignSystemSection.BottomSheets,
             ).forEach { section ->
                 Box(
                     modifier = Modifier
@@ -667,6 +723,54 @@ private fun DebugDesignSystemDetailSection(
             DesignSystemSection.Navigation -> DebugNavigationContent()
             DesignSystemSection.Select -> DebugSelectContent()
             DesignSystemSection.IconsLabel -> DebugIconsLabelContent()
+            DesignSystemSection.BottomSheets -> DebugBottomSheetsContent(onBack = onBack)
+        }
+    }
+}
+
+@Composable
+private fun DebugBottomSheetsContent(onBack: () -> Unit) {
+    var selectedSheet by remember { mutableStateOf<DebugScreen?>(null) }
+
+    if (selectedSheet != null) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            DebugScreenPreview(
+                screen = selectedSheet!!,
+                onBack = { selectedSheet = null },
+            )
+        }
+    } else {
+        // 부모 DebugDesignSystemDetailSection에 이미 verticalScroll 있음 → 중첩 스크롤 금지
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ColeGhostButton(text = "← 목차로", onClick = onBack)
+            DebugSectionTitle("바텀시트")
+            listOf(
+                DebugScreen.BaseBottomSheet,
+                DebugScreen.TermsBottomSheet,
+                DebugScreen.AppLimitSetupTime,
+                DebugScreen.AppLimitSetupDay,
+                DebugScreen.AppLimitInfoBottomSheet,
+                DebugScreen.AppLimitPauseProposal,
+                DebugScreen.AppLimitPauseConfirm,
+                DebugScreen.AppLimitPauseComplete,
+            ).forEach { screen ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AppColors.SurfaceBackgroundCard)
+                        .clickable { selectedSheet = screen }
+                        .padding(16.dp),
+                ) {
+                    Text(
+                        text = screen.label,
+                        style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
+                    )
+                }
+            }
         }
     }
 }
@@ -736,7 +840,7 @@ private fun DebugButtonsContent() {
             ColeTwoLineButton("계속 진행", "돌아가기", onPrimaryClick = {}, onGhostClick = {}, enabled = false)
             ColeGhostButton(text = "자세히 보기", onClick = {})
             ColeGhostButton(text = "자세히 보기", onClick = {}, enabled = false)
-            ColeAddAppButton(text = "잠시만 멀어질 앱 추가하기", icon = painterResource(R.drawable.ic_add), onClick = {})
+            ColeAddAppButton(text = "사용제한 앱 추가", icon = painterResource(R.drawable.ic_add_circle), onClick = {})
         }
     }
 }
@@ -844,10 +948,10 @@ private fun DebugNavigationContent() {
     var tabIndex by remember { mutableIntStateOf(0) }
     var tabIndexLimit by remember { mutableIntStateOf(0) }
     val navDestinations = listOf(
-        NavDestination("홈", R.drawable.ic_nav_home),
-        NavDestination("챌린지", R.drawable.ic_nav_challenge),
-        NavDestination("통계", R.drawable.ic_nav_stats),
-        NavDestination("마이", R.drawable.ic_nav_mypage),
+        NavDestination("홈", R.drawable.ic_nav_home_inactive, R.drawable.ic_nav_home_active),
+        NavDestination("챌린지", R.drawable.ic_nav_challenge_inactive, R.drawable.ic_nav_challenge_active),
+        NavDestination("통계", R.drawable.ic_nav_stats_inactive, R.drawable.ic_nav_stats_active),
+        NavDestination("마이", R.drawable.ic_nav_mypage_inactive, R.drawable.ic_nav_mypage_active),
     )
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
         DebugSectionTitle("Navigation")

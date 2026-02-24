@@ -62,9 +62,9 @@ fun ColeBottomNavBar(
                 .fillMaxWidth()
                 .height(79.dp)
                 .background(AppColors.SurfaceBackgroundCard)
-                .padding(start = 42.dp, end = 42.dp, top = 13.dp),
-            horizontalArrangement = Arrangement.spacedBy(36.dp),
-            verticalAlignment = Alignment.Top,
+                .padding(top = 13.dp),
+            horizontalArrangement = Arrangement.spacedBy(42.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             destinations.forEachIndexed { index, destination ->
                 val isSelected = index == selectedIndex
@@ -81,7 +81,7 @@ fun ColeBottomNavBar(
                         ),
                         contentDescription = destination.label,
                         tint = Color.Unspecified,
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(36.dp),
                     )
                     Text(
                         text = destination.label,

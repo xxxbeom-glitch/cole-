@@ -90,11 +90,9 @@ fun SelfTestScreen(
             .windowInsetsPadding(WindowInsets.navigationBars),
         containerColor = AppColors.SurfaceBackgroundBackground,
         topBar = {
-            ColeHeaderSub(
+            ColeHeaderTitleWithNotification(
                 title = "스마트폰 중독 자가 테스트",
-                backIcon = painterResource(id = R.drawable.ic_back),
-                onBackClick = onBackClick,
-                showNotification = true,
+                hasNotification = true,
                 modifier = Modifier.fillMaxWidth(),
             )
         },
@@ -137,13 +135,13 @@ fun SelfTestScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 ColePrimaryButton(
-                    text = if (isLastStep) "테스트 결과 확인 하기" else "계속 진행",
+                    text = if (isLastStep) "테스트 결과 확인 하기" else "다음",
                     onClick = { commitAndProceed() },
                     enabled = selectedOption != null,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 ColeGhostButton(
-                    text = "돌아가기",
+                    text = "뒤로",
                     onClick = onBackClick,
                     modifier = Modifier.fillMaxWidth(),
                 )

@@ -56,7 +56,8 @@ import kotlinx.coroutines.withContext
 // AA-02A-03, AA-03-01 공통 화면 재사용
 // ─────────────────────────────────────────────
 
-/** 앱 제한 플로우 헤더 상단 여백 (status bar 아래) — 전체 화면 통일 */
+/** 앱 제한 플로우 헤더 상단 여백 (status bar 아래) — 메인 화면과 동일하게 18dp */
+// 회원가입 플로우와 헤더 위치 통일 (10dp)
 private val AddAppHeaderTopPadding = 10.dp
 
 /** 제한 앱 추가 플로우 단계 */
@@ -65,6 +66,7 @@ enum class AddAppStep {
     AA_02A_01,       // 제한 방식 선택 (일일/시간지정/차단) — 앱 선택 후
     // 일일사용량 제한 플로우 (5화면)
     AA_DAILY_01, AA_DAILY_02, AA_DAILY_03, AA_DAILY_04, AA_DAILY_05,
+    AA_DAILY_DURATION,  // AA-02B-05: 몇 주 동안 진행할까요 (전체화면)
     // 시간지정제한 플로우
     AA_02A_TIME_01,  // 잠깐 확인 + 앱/제한시간 row (241-3287, 241-3341)
     AA_02A_TIME_05,  // 설정 요약 (241-3084)
@@ -486,13 +488,14 @@ fun AddAppScreenAA02ATimeSetup(
 }
 
 // ─────────────────────────────────────────────
-// AA-02A-05: 설정 요약 (Figma 241-3084) — 선택된 앱, 제한 시간 2개만
+// AA-02A-05: 공통 설정 요약 (Figma 241-3084)
+// 시간지정/일일 공통 레이아웃, summaryContent만 플로우별 상이
 // ─────────────────────────────────────────────
 
 @Composable
-fun AddAppScreenAA02ATimeSummary(
-    selectedAppName: String,
-    selectedTimeLimit: String,
+fun AddAppCommonConfirmSummaryScreen(
+    headerTitle: String,
+    summaryContent: @Composable () -> Unit,
     onNextClick: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -508,7 +511,7 @@ fun AddAppScreenAA02ATimeSummary(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         ColeHeaderSub(
-            title = "앱 제한",
+            title = headerTitle,
             backIcon = painterResource(R.drawable.ic_back),
             onBackClick = onBackClick,
             showNotification = true,
@@ -539,29 +542,41 @@ fun AddAppScreenAA02ATimeSummary(
                 )
             }
             Spacer(modifier = Modifier.height(36.dp))
-            AddAppTimeSummaryBox(
-                selectedAppName = selectedAppName,
-                selectedTimeLimit = selectedTimeLimit,
-            )
+            summaryContent()
         }
         Spacer(modifier = Modifier.weight(1f))
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(
-                    start = 16.dp,
-                    top = 0.dp,
-                    end = 16.dp,
-                    bottom = 24.dp,
-                ),
+                .padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 24.dp)
+                .windowInsetsPadding(WindowInsets.navigationBars),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            ColePrimaryButton(
-                text = "계속 진행",
-                onClick = onNextClick,
-            )
+            ColePrimaryButton(text = "계속 진행", onClick = onNextClick)
         }
     }
+}
+
+@Composable
+fun AddAppScreenAA02ATimeSummary(
+    selectedAppName: String,
+    selectedTimeLimit: String,
+    onNextClick: () -> Unit,
+    onBackClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AddAppCommonConfirmSummaryScreen(
+        headerTitle = "앱 제한",
+        summaryContent = {
+            AddAppTimeSummaryBox(
+                selectedAppName = selectedAppName,
+                selectedTimeLimit = selectedTimeLimit,
+            )
+        },
+        onNextClick = onNextClick,
+        onBackClick = onBackClick,
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -580,6 +595,53 @@ fun AddAppTimeSummaryBox(
     ) {
         AddAppSummaryRow(label = "선택된 앱", value = selectedAppName)
         AddAppSummaryRow(label = "제한 시간", value = selectedTimeLimit)
+    }
+}
+
+@Composable
+fun AddAppDailySummaryBox(
+    limitMinutes: String,
+    selectedDaysText: String,
+    duration: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(AppColors.SurfaceBackgroundInfoBox, RoundedCornerShape(12.dp))
+            .border(0.5.dp, AppColors.BorderInfoBox, RoundedCornerShape(12.dp))
+            .padding(horizontal = 16.dp, vertical = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        AddAppSummaryRow(label = "사용 시간", value = "$limitMinutes/일")
+        AddAppSummaryRow(label = "적용 요일", value = selectedDaysText)
+        AddAppSummaryRow(label = "적용 기간", value = duration)
+    }
+}
+
+/** Figma 241-3538 AA-03-01 완료 화면용 인포박스: 선택된 앱, 일일 사용시간, 반복 요일, 적용 기간, 시작 시기 */
+@Composable
+fun AddAppDailyCompleteSummaryBox(
+    appName: String,
+    limitMinutes: String,
+    selectedDaysText: String,
+    duration: String,
+    startTiming: String = "지금 즉시",
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(AppColors.SurfaceBackgroundInfoBox, RoundedCornerShape(12.dp))
+            .border(0.5.dp, AppColors.BorderInfoBox, RoundedCornerShape(12.dp))
+            .padding(horizontal = 16.dp, vertical = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        AddAppSummaryRow(label = "선택된 앱", value = appName)
+        AddAppSummaryRow(label = "일일 사용시간", value = limitMinutes)
+        AddAppSummaryRow(label = "반복 요일", value = selectedDaysText)
+        AddAppSummaryRow(label = "적용 기간", value = duration)
+        AddAppSummaryRow(label = "시작 시기", value = startTiming)
     }
 }
 
@@ -607,18 +669,36 @@ fun AddAppSummaryRow(
 }
 
 // ─────────────────────────────────────────────
-// 일일사용량 제한 플로우 (5화면)
-// Figma 304-1507, 258-2392, 304-1760, 241-3409, 243-6318
+// 일일사용량 제한 플로우 (AA-02B-02)
+// Figma 258-2392, 304-1760, 241-3409, 243-6318
+// 스크린샷: 헤더 "일일 사용량 제한", 4개 SelectionRow, "다음" 버튼
 // ─────────────────────────────────────────────
+
+private val DAILY_TIME_STEPS = listOf("30분", "1시간", "2시간", "3시간", "4시간")
+private val DAILY_DAY_LABELS = listOf("월", "화", "수", "목", "금", "토", "일")
+private val DAILY_DURATION_OPTIONS = listOf("오늘 하루만", "1주", "2주", "3주", "4주")
+
+private fun formatSelectedDays(selectedDays: Set<Int>, labels: List<String>): String =
+    selectedDays.sorted().joinToString(", ") { labels.getOrElse(it) { "" } }
 
 @Composable
 fun AddAppDailyLimitScreen01(
-    onNextClick: (minutes: String) -> Unit,
+    selectedAppNames: Set<String>,
+    selectedDailyMinutes: String?,
+    selectedDays: Set<Int>,
+    selectedDuration: String?,
+    onAppRowClick: () -> Unit,
+    onTimeRowClick: () -> Unit,
+    onDaysRowClick: () -> Unit,
+    onDurationRowClick: () -> Unit,
+    onNextClick: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val timeSteps = listOf("30분", "1시간", "2시간", "3시간", "4시간")
-    var selectedIndex by remember { mutableIntStateOf(0) }
+    val canProceed = selectedAppNames.isNotEmpty() &&
+        selectedDailyMinutes != null &&
+        selectedDays.isNotEmpty() &&
+        selectedDuration != null
 
     Column(
         modifier = modifier
@@ -626,24 +706,68 @@ fun AddAppDailyLimitScreen01(
             .background(AppColors.SurfaceBackgroundBackground)
             .windowInsetsPadding(WindowInsets.statusBars)
             .padding(top = AddAppHeaderTopPadding)
-            .windowInsetsPadding(WindowInsets.navigationBars),
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
+        ColeHeaderSub(
+            title = "일일 사용량 제한",
+            backIcon = painterResource(R.drawable.ic_back),
+            onBackClick = onBackClick,
+            showNotification = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
         Column(
             modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+                .fillMaxWidth()
+                .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
-            Text("일일 사용 한도를 설정해주세요", style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary))
-            Text("하루 동안 사용할 수 있는 최대 시간을 선택하세요", style = AppTypography.BodyMedium.copy(color = AppColors.TextBody))
-            Text("사용 시간", style = AppTypography.BodyMedium.copy(color = AppColors.FormTextLabel))
-            ColeStepBar(steps = timeSteps, selectedIndex = selectedIndex, onStepSelected = { selectedIndex = it })
-            Spacer(modifier = Modifier.height(24.dp))
-            Column(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ColePrimaryButton(text = "다음", onClick = { onNextClick(timeSteps[selectedIndex]) })
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(
+                text = "아래 내용을 선택해주세요",
+                style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
+            )
+            Spacer(modifier = Modifier.height(36.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                SelectionRow(
+                    label = "앱을 선택해주세요",
+                    variant = if (selectedAppNames.isNotEmpty()) SelectionRowVariant.Selected else SelectionRowVariant.Default,
+                    selectedValue = selectedAppNames.joinToString(", "),
+                    onClick = onAppRowClick,
+                )
+                SelectionRow(
+                    label = "하루에 얼마나 사용하실건가요",
+                    variant = if (selectedDailyMinutes != null) SelectionRowVariant.Selected else SelectionRowVariant.Default,
+                    selectedValue = selectedDailyMinutes ?: "",
+                    onClick = onTimeRowClick,
+                )
+                SelectionRow(
+                    label = "언제 반복할까요",
+                    variant = if (selectedDays.isNotEmpty()) SelectionRowVariant.Selected else SelectionRowVariant.Default,
+                    selectedValue = formatSelectedDays(selectedDays, DAILY_DAY_LABELS),
+                    onClick = onDaysRowClick,
+                )
+                SelectionRow(
+                    label = "언제까지 할까요",
+                    variant = if (selectedDuration != null) SelectionRowVariant.Selected else SelectionRowVariant.Default,
+                    selectedValue = selectedDuration ?: "",
+                    onClick = onDurationRowClick,
+                )
             }
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            ColePrimaryButton(
+                text = "다음",
+                onClick = onNextClick,
+                enabled = canProceed,
+            )
         }
     }
 }
@@ -727,70 +851,55 @@ fun AddAppDailyLimitScreen03(
 @Composable
 fun AddAppDailyLimitScreen04(
     limitMinutes: String,
-    warnEnabled: Boolean,
+    selectedDaysText: String,
+    duration: String,
     onConfirmClick: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(AppColors.SurfaceBackgroundBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(top = AddAppHeaderTopPadding)
-            .windowInsetsPadding(WindowInsets.navigationBars),
-    ) {
-        ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-        ) {
-            Text("설정 내용을 확인해주세요", style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary))
-            ColeInfoBox(
-                text = "• 일일 사용 한도: $limitMinutes\n• 80% 도달 알림: ${if (warnEnabled) "ON" else "OFF"}",
+    AddAppCommonConfirmSummaryScreen(
+        headerTitle = "일일 사용량 제한",
+        summaryContent = {
+            AddAppDailySummaryBox(
+                limitMinutes = limitMinutes,
+                selectedDaysText = selectedDaysText,
+                duration = duration,
             )
-            Spacer(modifier = Modifier.height(24.dp))
-            Column(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ColePrimaryButton(text = "확인", onClick = onConfirmClick)
-            }
-        }
-    }
+        },
+        onNextClick = onConfirmClick,
+        onBackClick = onBackClick,
+        modifier = modifier,
+    )
 }
 
 @Composable
 fun AddAppDailyLimitScreen05(
     appName: String,
+    limitMinutes: String,
+    selectedDaysText: String,
+    duration: String,
     onCompleteClick: () -> Unit,
+    onAddAnotherClick: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(AppColors.SurfaceBackgroundBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(top = AddAppHeaderTopPadding)
-            .windowInsetsPadding(WindowInsets.navigationBars),
-    ) {
-        ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-        ) {
-            Text("설정이 완료되었습니다", style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary))
-            ColeInfoBox(text = "$appName 앱에 일일 사용량 제한이 적용되었습니다.")
-            Spacer(modifier = Modifier.height(24.dp))
-            Column(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ColePrimaryButton(text = "완료", onClick = onCompleteClick)
-            }
-        }
-    }
+    AddAppCommonCompleteScreen(
+        headerTitle = "일일 사용량 제한",
+        summaryContent = {
+            AddAppDailyCompleteSummaryBox(
+                appName = appName,
+                limitMinutes = limitMinutes,
+                selectedDaysText = selectedDaysText,
+                duration = duration,
+            )
+        },
+        primaryButtonText = "홈으로 가기",
+        secondaryButtonText = "다른 앱 추가하기",
+        onPrimaryClick = onCompleteClick,
+        onSecondaryClick = onAddAnotherClick,
+        onBackClick = onBackClick,
+        modifier = modifier,
+    )
 }
 
 // ─────────────────────────────────────────────
@@ -842,14 +951,90 @@ fun AddAppCommonTimeScheduleScreen(
 }
 
 // ─────────────────────────────────────────────
-// AA-03-01 공통: 완료 확인 화면 (Figma 238-2311, 304-1974)
+// AA-02B-05: 몇 주 동안 진행할까요 (Figma 스크린샷)
 // ─────────────────────────────────────────────
 
 @Composable
-fun AddAppCommonConfirmScreen(
-    appName: String,
-    limitDescription: String,
-    onCompleteClick: () -> Unit,
+fun AddAppDailyDurationScreen(
+    options: List<String> = DAILY_DURATION_OPTIONS,
+    initialIndex: Int = 0,
+    onComplete: (String) -> Unit,
+    onBackClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var selectedIndex by remember { mutableIntStateOf(initialIndex.coerceIn(0, options.lastIndex)) }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = AddAppHeaderTopPadding)
+            .windowInsetsPadding(WindowInsets.navigationBars),
+    ) {
+        ColeHeaderSub(
+            title = "일일 사용량 제한",
+            backIcon = painterResource(R.drawable.ic_back),
+            onBackClick = onBackClick,
+            showNotification = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "몇 주 동안 진행할까요",
+                    style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
+                )
+                Text(
+                    text = "처음이라면 짧게 진행하시는게 좋아요",
+                    style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+                )
+                Text(
+                    text = "오늘 하루 먼저 해보시고 천천히 늘려가세요",
+                    style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            ColeSelectionCardTitleOnlyGroup(
+                options = options,
+                selectedIndex = selectedIndex,
+                onOptionSelected = { selectedIndex = it },
+            )
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 24.dp)
+                .windowInsetsPadding(WindowInsets.navigationBars),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            ColePrimaryButton(
+                text = "완료",
+                onClick = { onComplete(options[selectedIndex]) },
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+// AA-03-01 공통: 설정 완료 화면 (Figma 241-3538)
+// 하단 버튼 2단: Primary + Ghost, 12dp 간격
+// ─────────────────────────────────────────────
+
+@Composable
+fun AddAppCommonCompleteScreen(
+    headerTitle: String,
+    summaryContent: @Composable () -> Unit,
+    primaryButtonText: String,
+    secondaryButtonText: String,
+    onPrimaryClick: () -> Unit,
+    onSecondaryClick: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -859,22 +1044,38 @@ fun AddAppCommonConfirmScreen(
             .background(AppColors.SurfaceBackgroundBackground)
             .windowInsetsPadding(WindowInsets.statusBars)
             .padding(top = AddAppHeaderTopPadding)
-            .windowInsetsPadding(WindowInsets.navigationBars),
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
+        ColeHeaderSub(
+            title = headerTitle,
+            backIcon = painterResource(R.drawable.ic_back),
+            onBackClick = onBackClick,
+            showNotification = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
         Column(
             modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+                .fillMaxWidth()
+                .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
+            Spacer(modifier = Modifier.height(20.dp))
             Text("설정이 완료되었습니다", style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary))
-            ColeInfoBox(text = "$appName 앱에 $limitDescription 가 적용되었습니다.")
             Spacer(modifier = Modifier.height(24.dp))
-            Column(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ColePrimaryButton(text = "완료", onClick = onCompleteClick)
-            }
+            summaryContent()
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 24.dp)
+                .windowInsetsPadding(WindowInsets.navigationBars),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            ColePrimaryButton(text = primaryButtonText, onClick = onPrimaryClick)
+            ColeGhostButton(text = secondaryButtonText, onClick = onSecondaryClick)
         }
     }
 }
@@ -891,10 +1092,14 @@ fun AddAppFlowHost(
     var selectedTimeLimit by remember { mutableStateOf<String?>(null) }
     var showAppSelectSheet by remember { mutableStateOf(false) }
     var showTimeLimitSheet by remember { mutableStateOf(false) }
+    var showDailyAppSelectSheet by remember { mutableStateOf(false) }
+    var showDailyTimeSheet by remember { mutableStateOf(false) }
+    var showDailyDaysSheet by remember { mutableStateOf(false) }
     val timeSteps = listOf("30분", "60분", "90분", "120분", "150분", "180분")
     // 일일사용량 제한 플로우 상태
-    var dailyLimitMinutes by remember { mutableStateOf("30분") }
-    var dailyWarnEnabled by remember { mutableStateOf(true) }
+    var dailyLimitMinutes by remember { mutableStateOf<String?>(null) }
+    var dailySelectedDays by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var dailySelectedDuration by remember { mutableStateOf<String?>(null) }
 
     when (step) {
         AddAppStep.AA_01 -> AddAppScreenAA01(
@@ -909,27 +1114,82 @@ fun AddAppFlowHost(
             onBackClick = { step = AddAppStep.AA_01 },
         )
         // 일일사용량 제한 플로우 (5화면)
-        AddAppStep.AA_DAILY_01 -> AddAppDailyLimitScreen01(
-            onNextClick = { mins -> dailyLimitMinutes = mins; step = AddAppStep.AA_DAILY_02 },
-            onBackClick = { step = AddAppStep.AA_02A_01 },
-        )
-        AddAppStep.AA_DAILY_02 -> AddAppDailyLimitScreen02(
-            onNextClick = { enabled -> dailyWarnEnabled = enabled; step = AddAppStep.AA_DAILY_03 },
+        AddAppStep.AA_DAILY_01 -> {
+            AddAppDailyLimitScreen01(
+                selectedAppNames = selectedAppNames,
+                selectedDailyMinutes = dailyLimitMinutes,
+                selectedDays = dailySelectedDays,
+                selectedDuration = dailySelectedDuration,
+                onAppRowClick = { showDailyAppSelectSheet = true },
+                onTimeRowClick = { showDailyTimeSheet = true },
+                onDaysRowClick = { showDailyDaysSheet = true },
+                onDurationRowClick = { step = AddAppStep.AA_DAILY_DURATION },
+                onNextClick = { step = AddAppStep.AA_DAILY_04 },
+                onBackClick = { step = AddAppStep.AA_01 },
+            )
+            if (showDailyAppSelectSheet) {
+                AddAppSelectBottomSheet(
+                    initialSelected = selectedAppNames,
+                    onDismissRequest = { showDailyAppSelectSheet = false },
+                    onSelectComplete = { names ->
+                        selectedAppNames = names
+                        showDailyAppSelectSheet = false
+                    },
+                )
+            }
+            if (showDailyTimeSheet) {
+                AppLimitSetupTimeBottomSheet(
+                    title = "하루에 얼마나 사용하실건가요",
+                    subtitle = "하루 동안 사용할 수 있는 최대 시간을 선택하세요",
+                    steps = DAILY_TIME_STEPS,
+                    initialIndex = dailyLimitMinutes?.let { DAILY_TIME_STEPS.indexOf(it) }?.takeIf { it >= 0 } ?: 0,
+                    onDismissRequest = { showDailyTimeSheet = false },
+                    onPrimaryClick = { _, mins ->
+                        dailyLimitMinutes = mins
+                        showDailyTimeSheet = false
+                    },
+                )
+            }
+            if (showDailyDaysSheet) {
+                AppLimitSetupDayBottomSheet(
+                    title = "언제 반복할까요",
+                    subtitle = "제한할 요일을 선택해주세요",
+                    dayLabels = DAILY_DAY_LABELS,
+                    initialSelected = dailySelectedDays,
+                    onDismissRequest = { showDailyDaysSheet = false },
+                    onPrimaryClick = { days ->
+                        dailySelectedDays = days
+                        showDailyDaysSheet = false
+                    },
+                )
+            }
+        }
+        AddAppStep.AA_DAILY_02, AddAppStep.AA_DAILY_03 -> {
+            LaunchedEffect(Unit) { step = AddAppStep.AA_DAILY_01 }
+        }
+        AddAppStep.AA_DAILY_DURATION -> AddAppDailyDurationScreen(
+            options = DAILY_DURATION_OPTIONS,
+            initialIndex = dailySelectedDuration?.let { DAILY_DURATION_OPTIONS.indexOf(it) }?.takeIf { it >= 0 } ?: 0,
+            onComplete = { duration ->
+                dailySelectedDuration = duration
+                step = AddAppStep.AA_DAILY_01
+            },
             onBackClick = { step = AddAppStep.AA_DAILY_01 },
         )
-        AddAppStep.AA_DAILY_03 -> AddAppDailyLimitScreen03(
-            onNextClick = { step = AddAppStep.AA_DAILY_04 },
-            onBackClick = { step = AddAppStep.AA_DAILY_02 },
-        )
         AddAppStep.AA_DAILY_04 -> AddAppDailyLimitScreen04(
-            limitMinutes = dailyLimitMinutes,
-            warnEnabled = dailyWarnEnabled,
+            limitMinutes = dailyLimitMinutes ?: "30분",
+            selectedDaysText = formatSelectedDays(dailySelectedDays, DAILY_DAY_LABELS),
+            duration = dailySelectedDuration ?: "",
             onConfirmClick = { step = AddAppStep.AA_DAILY_05 },
-            onBackClick = { step = AddAppStep.AA_DAILY_03 },
+            onBackClick = { step = AddAppStep.AA_DAILY_01 },
         )
         AddAppStep.AA_DAILY_05 -> AddAppDailyLimitScreen05(
             appName = selectedAppNames.joinToString(", ").ifEmpty { "앱" },
+            limitMinutes = dailyLimitMinutes ?: "30분",
+            selectedDaysText = formatSelectedDays(dailySelectedDays, DAILY_DAY_LABELS),
+            duration = dailySelectedDuration ?: "",
             onCompleteClick = onComplete,
+            onAddAnotherClick = { step = AddAppStep.AA_01 },
             onBackClick = { step = AddAppStep.AA_DAILY_04 },
         )
         // 시간지정제한 플로우
@@ -979,10 +1239,18 @@ fun AddAppFlowHost(
             onPrimaryClick = { previousStepBeforeConfirm = AddAppStep.AA_02B_02; step = AddAppStep.AA_03_01 },
             onBackClick = { step = AddAppStep.AA_02A_01 },
         )
-        AddAppStep.AA_03_01 -> AddAppCommonConfirmScreen(
-            appName = selectedAppNames.joinToString(", ").ifEmpty { "앱" },
-            limitDescription = "시간지정제한",
-            onCompleteClick = onComplete,
+        AddAppStep.AA_03_01 -> AddAppCommonCompleteScreen(
+            headerTitle = "앱 제한",
+            summaryContent = {
+                AddAppTimeSummaryBox(
+                    selectedAppName = selectedAppNames.joinToString(", ").ifEmpty { "앱" },
+                    selectedTimeLimit = selectedTimeLimit ?: "",
+                )
+            },
+            primaryButtonText = "홈으로 가기",
+            secondaryButtonText = "다른 앱 추가하기",
+            onPrimaryClick = onComplete,
+            onSecondaryClick = { step = AddAppStep.AA_01 },
             onBackClick = { step = previousStepBeforeConfirm },
         )
     }
