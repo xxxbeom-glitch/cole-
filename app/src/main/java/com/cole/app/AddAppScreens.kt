@@ -4,41 +4,60 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.widget.ImageView
+import android.widget.Toast
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 // ─────────────────────────────────────────────
 // AA-01: 제한 앱 추가 플로우
 // AA-02A-03, AA-03-01 공통 화면 재사용
 // ─────────────────────────────────────────────
+
+/** 앱 제한 플로우 헤더 상단 여백 (status bar 아래) — 전체 화면 통일 */
+private val AddAppHeaderTopPadding = 10.dp
 
 /** 제한 앱 추가 플로우 단계 */
 enum class AddAppStep {
@@ -77,60 +96,41 @@ fun AddAppScreenAA01(
             "",
         ),
     )
-    var selected by remember { mutableIntStateOf(0) }
+    var selected by remember { mutableIntStateOf(-1) }
 
-    Scaffold(
-        modifier = modifier.windowInsetsPadding(WindowInsets.statusBars),
-        containerColor = AppColors.SurfaceBackgroundBackground,
-        topBar = {
-            ColeHeaderSub(
-                title = "제한 방법 선택",
-                backIcon = painterResource(R.drawable.ic_back),
-                onBackClick = onBackClick,
-                showNotification = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-    ) { innerPadding ->
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = AddAppHeaderTopPadding)
+            .windowInsetsPadding(WindowInsets.navigationBars),
+    ) {
+        ColeHeaderSub(
+            title = "제한 방법 선택",
+            backIcon = painterResource(R.drawable.ic_back),
+            onBackClick = onBackClick,
+            showNotification = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, top = 44.dp, end = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(start = 16.dp, top = 44.dp, end = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp),
-            ) {
-                Text(
-                    text = "아래 내용을 선택해주세요",
-                    style = AppTypography.Display3.copy(color = AppColors.TextPrimary),
-                )
-                ColeSelectionCardGroup(
-                    items = options,
-                    selectedIndex = selected,
-                    onItemSelected = { selected = it },
-                )
-            }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, top = 24.dp, end = 16.dp)
-                    .windowInsetsPadding(WindowInsets.navigationBars),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                ColePrimaryButton(
-                    text = "다음",
-                    onClick = {
-                        when (selected) {
-                            0 -> onTimeSpecifiedClick()
-                            else -> onDailyLimitClick()
-                        }
-                    },
-                )
-            }
+            ColeSelectionCardGroup(
+                items = options,
+                selectedIndex = selected,
+                onItemSelected = { index ->
+                    selected = index
+                    when (index) {
+                        0 -> onTimeSpecifiedClick()
+                        else -> onDailyLimitClick()
+                    }
+                },
+            )
         }
     }
 }
@@ -145,30 +145,31 @@ fun AddAppScreenAppSelect(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Scaffold(
-        modifier = modifier.windowInsetsPadding(WindowInsets.statusBars),
-        containerColor = AppColors.SurfaceBackgroundBackground,
-        topBar = {
-            ColeHeaderSub(
-                title = "앱 제한",
-                backIcon = painterResource(R.drawable.ic_back),
-                onBackClick = onBackClick,
-                showNotification = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-    ) { innerPadding ->
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = AddAppHeaderTopPadding)
+            .windowInsetsPadding(WindowInsets.navigationBars),
+    ) {
+        ColeHeaderSub(
+            title = "앱 제한",
+            backIcon = painterResource(R.drawable.ic_back),
+            onBackClick = onBackClick,
+            showNotification = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             Text(
                 text = "제한할 앱을 선택해주세요",
-                style = AppTypography.Display3.copy(color = AppColors.TextPrimary),
+                style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
             )
             ColeInfoBox(
                 text = "선택한 앱에 사용 시간 제한이나 차단을 설정할 수 있습니다.",
@@ -204,22 +205,23 @@ fun AddAppScreenAA02A01(
     )
     var selected by remember { mutableIntStateOf(0) }
 
-    Scaffold(
-        modifier = modifier.windowInsetsPadding(WindowInsets.statusBars),
-        containerColor = AppColors.SurfaceBackgroundBackground,
-        topBar = {
-            ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
-        },
-    ) { innerPadding ->
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = AddAppHeaderTopPadding)
+            .windowInsetsPadding(WindowInsets.navigationBars),
+    ) {
+        ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            Text("제한 방식을 선택해주세요", style = AppTypography.Display3.copy(color = AppColors.TextPrimary))
+            Text("제한 방식을 선택해주세요", style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary))
             ColeSelectionCardGroup(
                 items = limitOptions,
                 selectedIndex = selected,
@@ -243,50 +245,153 @@ fun AddAppScreenAA02A01(
 }
 
 // ─────────────────────────────────────────────
-// AA-02A-03: 앱 선택 바텀시트 (Figma 238-2311) — 최소 구현
+// AA-02A-03: 앱 선택 바텀시트 (Figma 238-2311)
+// 검색 필드 + 스크롤 리스트, 최대 3개 선택
 // ─────────────────────────────────────────────
+
+private const val MAX_APP_SELECTION = 1
+
+/** 앱 선택 아이템 (name: 표시명, packageName: 아이콘 로드용, null이면 placeholder) */
+private data class AppSelectItem(val name: String, val packageName: String?)
+
+/** 앱 선택용 mock 리스트 (~20개). PackageManager 로드 실패 시 사용 */
+private val APP_SELECT_MOCK_LIST = listOf(
+    "인스타그램", "유튜브", "틱톡", "넷플릭스", "페이스북",
+    "카카오톡", "배달의민족", "당근마켓", "쿠팡", "네이버",
+    "토스", "람보르기니", "쇼핑", "게임", "뮤직",
+    "지도", "메시지", "카메라", "갤러리", "설정",
+).map { AppSelectItem(it, null) }
 
 @Composable
 fun AddAppSelectBottomSheet(
-    initialSelected: String? = null,
+    initialSelected: Set<String> = emptySet(),
     onDismissRequest: () -> Unit,
-    onSelectComplete: (String) -> Unit,
+    onSelectComplete: (Set<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val sampleApps = listOf("인스타그램", "유튜브", "틱톡", "넷플릭스", "페이스북")
-    var selected by remember { mutableStateOf(initialSelected ?: "") }
+    val context = LocalContext.current
+    var selected by remember { mutableStateOf(initialSelected) }
+    var searchQuery by remember { mutableStateOf("") }
+    var appList by remember { mutableStateOf(APP_SELECT_MOCK_LIST) }
+
+    LaunchedEffect(Unit) {
+        val items = withContext(Dispatchers.Default) {
+            @Suppress("DEPRECATION")
+            runCatching {
+                val pm = context.packageManager
+                val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                pm.queryIntentActivities(intent, 0)
+                    .mapNotNull { ri ->
+                        runCatching {
+                            val pkg = ri.activityInfo.packageName
+                            val appInfo = pm.getApplicationInfo(pkg, 0)
+                            val label = (pm.getApplicationLabel(appInfo) as? String)?.takeIf { it.isNotBlank() }
+                            label?.let { AppSelectItem(it, pkg) }
+                        }.getOrNull()
+                    }
+                    .distinctBy { it.name }
+                    .sortedBy { it.name }
+                    .takeIf { it.isNotEmpty() }
+            }.getOrNull()
+        }
+        if (items != null) appList = items
+    }
+
+    val filteredApps = remember(searchQuery, appList) {
+        if (searchQuery.isBlank()) appList
+        else appList.filter { it.name.contains(searchQuery, ignoreCase = true) }
+    }
+
+    fun tryToggleApp(appName: String) {
+        when {
+            appName in selected -> selected = selected - appName
+            selected.size >= MAX_APP_SELECTION -> {
+                Toast.makeText(context, "최대 1개까지만 선택 가능합니다", Toast.LENGTH_SHORT).show()
+            }
+            else -> selected = selected + appName
+        }
+    }
 
     BaseBottomSheet(
         title = "앱을 선택해주세요",
-        subtitle = "앱은 최대 3개까지 선택 가능합니다",
+        subtitle = "제한할 앱 1개를 선택해주세요",
         onDismissRequest = onDismissRequest,
         onPrimaryClick = { if (selected.isNotEmpty()) onSelectComplete(selected) },
         primaryButtonText = "선택완료",
         primaryButtonEnabled = selected.isNotEmpty(),
-        secondaryButtonText = "돌아가기",
-        onSecondaryClick = onDismissRequest,
         modifier = modifier,
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 400.dp),
         ) {
-            sampleApps.forEach { appName ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { selected = appName },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        text = appName,
-                        style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
-                    )
-                    ColeCheckBox(
-                        checked = selected == appName,
-                        onCheckedChange = { if (it) selected = appName },
-                    )
+            ColeTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = "앱 검색",
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(filteredApps) { item ->
+                    val appName = item.name
+                    val isDisabled = selected.size >= MAX_APP_SELECTION && appName !in selected
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (isDisabled) Modifier.alpha(0.5f) else Modifier
+                            )
+                            .clickable { tryToggleApp(appName) },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(RoundedCornerShape(6.dp)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (item.packageName != null) {
+                                    AndroidView(
+                                        factory = { ctx ->
+                                            ImageView(ctx).apply {
+                                                setImageDrawable(ctx.packageManager.getApplicationIcon(item.packageName))
+                                                scaleType = ImageView.ScaleType.FIT_CENTER
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .size(56.dp)
+                                            .clip(RoundedCornerShape(6.dp)),
+                                    )
+                                } else {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_app_placeholder),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(56.dp),
+                                        tint = AppColors.TextBody,
+                                    )
+                                }
+                            }
+                            Text(
+                                text = appName,
+                                style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
+                            )
+                        }
+                        ColeCheckBox(
+                            checked = appName in selected,
+                            onCheckedChange = { tryToggleApp(appName) },
+                            size = 32.dp,
+                        )
+                    }
                 }
             }
         }
@@ -300,7 +405,7 @@ fun AddAppSelectBottomSheet(
 
 @Composable
 fun AddAppScreenAA02ATimeSetup(
-    selectedAppName: String?,
+    selectedAppNames: Set<String>,
     selectedTimeLimit: String?,
     onAppRowClick: () -> Unit,
     onTimeRowClick: () -> Unit,
@@ -308,84 +413,74 @@ fun AddAppScreenAA02ATimeSetup(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val canProceed = selectedAppName != null && selectedTimeLimit != null
+    val canProceed = selectedAppNames.isNotEmpty() && selectedTimeLimit != null
 
-    Scaffold(
-        modifier = modifier.windowInsetsPadding(WindowInsets.statusBars),
-        containerColor = AppColors.SurfaceBackgroundBackground,
-        topBar = {
-            ColeHeaderSub(
-                title = "앱 제한",
-                backIcon = painterResource(R.drawable.ic_back),
-                onBackClick = onBackClick,
-                showNotification = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-    ) { innerPadding ->
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = AddAppHeaderTopPadding)
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        ColeHeaderSub(
+            title = "앱 제한",
+            backIcon = painterResource(R.drawable.ic_back),
+            onBackClick = onBackClick,
+            showNotification = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+                .fillMaxWidth()
+                .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(start = 16.dp, top = 44.dp, end = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = "잠깐! 확인하세요",
-                        style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
-                    )
-                    Text(
-                        text = buildAnnotatedString {
-                            append("한 번 설정하면 되돌릴 수 없고, ")
-                            append("해제를 원하시면 ")
-                            pushStyle(SpanStyle(color = AppColors.TextHighlight, fontSize = 14.sp))
-                            append("1,900원 결제 후 앱 사용")
-                            pop()
-                            append("이 가능해요")
-                        },
-                        style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
-                    )
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    SelectionRow(
-                        label = "앱을 선택해주세요",
-                        variant = if (selectedAppName != null) SelectionRowVariant.Selected else SelectionRowVariant.Default,
-                        selectedValue = selectedAppName ?: "",
-                        onClick = onAppRowClick,
-                    )
-                    SelectionRow(
-                        label = "제한 시간을 지정해주세요",
-                        variant = if (selectedTimeLimit != null) SelectionRowVariant.Selected else SelectionRowVariant.Default,
-                        selectedValue = selectedTimeLimit ?: "",
-                        onClick = onTimeRowClick,
-                    )
-                }
-                Text(
-                    text = "※ 사용 시간을 1시간 이하를 선택하시면 '10분간 사용하기'를 이용하실 수 없어요",
-                    style = AppTypography.Caption1.copy(color = AppColors.TextDisclaimer),
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(
+                text = "아래 내용을 선택해주세요",
+                style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
+            )
+            Spacer(modifier = Modifier.height(36.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                SelectionRow(
+                    label = "앱을 선택해주세요",
+                    variant = if (selectedAppNames.isNotEmpty()) SelectionRowVariant.Selected else SelectionRowVariant.Default,
+                    selectedValue = selectedAppNames.joinToString(", "),
+                    onClick = onAppRowClick,
+                )
+                SelectionRow(
+                    label = "제한 시간을 지정해주세요",
+                    variant = if (selectedTimeLimit != null) SelectionRowVariant.Selected else SelectionRowVariant.Default,
+                    selectedValue = selectedTimeLimit ?: "",
+                    onClick = onTimeRowClick,
                 )
             }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 24.dp)
-                    .windowInsetsPadding(WindowInsets.navigationBars),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                ColeTwoLineButton(
-                    primaryText = "계속 진행",
-                    ghostText = "돌아가기",
-                    onPrimaryClick = onNextClick,
-                    onGhostClick = onBackClick,
-                    enabled = canProceed,
-                )
-            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "※ 사용 시간을 1시간 이하를 선택하시면 '10분간 사용하기'를 이용하실 수 없어요",
+                style = AppTypography.Caption1.copy(color = AppColors.TextDisclaimer),
+            )
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = 16.dp,
+                    top = 0.dp,
+                    end = 16.dp,
+                    bottom = 24.dp,
+                ),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            ColePrimaryButton(
+                text = "계속 진행",
+                onClick = onNextClick,
+                enabled = canProceed,
+            )
         }
     }
 }
@@ -402,67 +497,69 @@ fun AddAppScreenAA02ATimeSummary(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Scaffold(
-        modifier = modifier.windowInsetsPadding(WindowInsets.statusBars),
-        containerColor = AppColors.SurfaceBackgroundBackground,
-        topBar = {
-            ColeHeaderSub(
-                title = "앱 제한",
-                backIcon = painterResource(R.drawable.ic_back),
-                onBackClick = onBackClick,
-                showNotification = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-    ) { innerPadding ->
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = AddAppHeaderTopPadding)
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        ColeHeaderSub(
+            title = "앱 제한",
+            backIcon = painterResource(R.drawable.ic_back),
+            onBackClick = onBackClick,
+            showNotification = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+                .fillMaxWidth()
+                .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(start = 16.dp, top = 44.dp, end = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = "잠깐! 확인하세요",
-                        style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
-                    )
-                    Text(
-                        text = buildAnnotatedString {
-                            append("한 번 설정하면 되돌릴 수 없고, ")
-                            append("해제를 원하시면 ")
-                            pushStyle(SpanStyle(color = AppColors.TextHighlight, fontSize = 14.sp))
-                            append("1,900원 결제 후 앱 사용")
-                            pop()
-                            append("이 가능해요")
-                        },
-                        style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
-                    )
-                }
-                AddAppTimeSummaryBox(
-                    selectedAppName = selectedAppName,
-                    selectedTimeLimit = selectedTimeLimit,
+            Spacer(modifier = Modifier.height(20.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = "잠깐! 확인하세요",
+                    style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
+                )
+                Text(
+                    text = buildAnnotatedString {
+                        append("한 번 설정하면 되돌릴 수 없고, ")
+                        append("해제를 원하시면 ")
+                        pushStyle(SpanStyle(color = AppColors.TextHighlight, fontSize = 14.sp))
+                        append("1,900원 결제 후 앱 사용")
+                        pop()
+                        append("이 가능해요")
+                    },
+                    style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
                 )
             }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, top = 24.dp, end = 16.dp)
-                    .windowInsetsPadding(WindowInsets.navigationBars),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                ColeTwoLineButton(
-                    primaryText = "계속 진행",
-                    ghostText = "돌아가기",
-                    onPrimaryClick = onNextClick,
-                    onGhostClick = onBackClick,
-                )
-            }
+            Spacer(modifier = Modifier.height(36.dp))
+            AddAppTimeSummaryBox(
+                selectedAppName = selectedAppName,
+                selectedTimeLimit = selectedTimeLimit,
+            )
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = 16.dp,
+                    top = 0.dp,
+                    end = 16.dp,
+                    bottom = 24.dp,
+                ),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            ColePrimaryButton(
+                text = "계속 진행",
+                onClick = onNextClick,
+            )
         }
     }
 }
@@ -523,22 +620,23 @@ fun AddAppDailyLimitScreen01(
     val timeSteps = listOf("30분", "1시간", "2시간", "3시간", "4시간")
     var selectedIndex by remember { mutableIntStateOf(0) }
 
-    Scaffold(
-        modifier = modifier.windowInsetsPadding(WindowInsets.statusBars),
-        containerColor = AppColors.SurfaceBackgroundBackground,
-        topBar = {
-            ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
-        },
-    ) { innerPadding ->
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = AddAppHeaderTopPadding)
+            .windowInsetsPadding(WindowInsets.navigationBars),
+    ) {
+        ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            Text("일일 사용 한도를 설정해주세요", style = AppTypography.Display3.copy(color = AppColors.TextPrimary))
+            Text("일일 사용 한도를 설정해주세요", style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary))
             Text("하루 동안 사용할 수 있는 최대 시간을 선택하세요", style = AppTypography.BodyMedium.copy(color = AppColors.TextBody))
             Text("사용 시간", style = AppTypography.BodyMedium.copy(color = AppColors.FormTextLabel))
             ColeStepBar(steps = timeSteps, selectedIndex = selectedIndex, onStepSelected = { selectedIndex = it })
@@ -558,22 +656,23 @@ fun AddAppDailyLimitScreen02(
 ) {
     var warnAt80 by remember { mutableStateOf(true) }
 
-    Scaffold(
-        modifier = modifier.windowInsetsPadding(WindowInsets.statusBars),
-        containerColor = AppColors.SurfaceBackgroundBackground,
-        topBar = {
-            ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
-        },
-    ) { innerPadding ->
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = AddAppHeaderTopPadding)
+            .windowInsetsPadding(WindowInsets.navigationBars),
+    ) {
+        ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            Text("사용량 경고 알림", style = AppTypography.Display3.copy(color = AppColors.TextPrimary))
+            Text("사용량 경고 알림", style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary))
             Text("설정한 한도의 80%에 도달하면 알림을 보냅니다.", style = AppTypography.BodyMedium.copy(color = AppColors.TextBody))
             SelectionRow(
                 label = "80% 도달 시 알림",
@@ -598,22 +697,23 @@ fun AddAppDailyLimitScreen03(
     var selectedDays by remember { mutableStateOf(emptySet<Int>()) }
     val dayLabels = listOf("월", "화", "수", "목", "금", "토", "일")
 
-    Scaffold(
-        modifier = modifier.windowInsetsPadding(WindowInsets.statusBars),
-        containerColor = AppColors.SurfaceBackgroundBackground,
-        topBar = {
-            ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
-        },
-    ) { innerPadding ->
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = AddAppHeaderTopPadding)
+            .windowInsetsPadding(WindowInsets.navigationBars),
+    ) {
+        ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            Text("적용 요일을 선택해주세요", style = AppTypography.Display3.copy(color = AppColors.TextPrimary))
+            Text("적용 요일을 선택해주세요", style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary))
             Text("선택한 요일에만 일일 사용 한도가 적용됩니다.", style = AppTypography.BodyMedium.copy(color = AppColors.TextBody))
             ColeChipRow(labels = dayLabels, selectedIndices = selectedDays, onChipClick = { i -> selectedDays = if (i in selectedDays) selectedDays - i else selectedDays + i })
             Spacer(modifier = Modifier.height(24.dp))
@@ -632,22 +732,23 @@ fun AddAppDailyLimitScreen04(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Scaffold(
-        modifier = modifier.windowInsetsPadding(WindowInsets.statusBars),
-        containerColor = AppColors.SurfaceBackgroundBackground,
-        topBar = {
-            ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
-        },
-    ) { innerPadding ->
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = AddAppHeaderTopPadding)
+            .windowInsetsPadding(WindowInsets.navigationBars),
+    ) {
+        ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            Text("설정 내용을 확인해주세요", style = AppTypography.Display3.copy(color = AppColors.TextPrimary))
+            Text("설정 내용을 확인해주세요", style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary))
             ColeInfoBox(
                 text = "• 일일 사용 한도: $limitMinutes\n• 80% 도달 알림: ${if (warnEnabled) "ON" else "OFF"}",
             )
@@ -666,22 +767,23 @@ fun AddAppDailyLimitScreen05(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Scaffold(
-        modifier = modifier.windowInsetsPadding(WindowInsets.statusBars),
-        containerColor = AppColors.SurfaceBackgroundBackground,
-        topBar = {
-            ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
-        },
-    ) { innerPadding ->
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = AddAppHeaderTopPadding)
+            .windowInsetsPadding(WindowInsets.navigationBars),
+    ) {
+        ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            Text("설정이 완료되었습니다", style = AppTypography.Display3.copy(color = AppColors.TextPrimary))
+            Text("설정이 완료되었습니다", style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary))
             ColeInfoBox(text = "$appName 앱에 일일 사용량 제한이 적용되었습니다.")
             Spacer(modifier = Modifier.height(24.dp))
             Column(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -710,22 +812,23 @@ fun AddAppCommonTimeScheduleScreen(
     var timeIndex by remember { mutableIntStateOf(initialTimeIndex) }
     var selectedDays by remember { mutableStateOf(emptySet<Int>()) }
 
-    Scaffold(
-        modifier = modifier.windowInsetsPadding(WindowInsets.statusBars),
-        containerColor = AppColors.SurfaceBackgroundBackground,
-        topBar = {
-            ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
-        },
-    ) { innerPadding ->
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = AddAppHeaderTopPadding)
+            .windowInsetsPadding(WindowInsets.navigationBars),
+    ) {
+        ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            Text(title, style = AppTypography.Display3.copy(color = AppColors.TextPrimary))
+            Text(title, style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary))
             Text("사용 시간", style = AppTypography.BodyMedium.copy(color = AppColors.FormTextLabel))
             ColeStepBar(steps = timeSteps, selectedIndex = timeIndex, onStepSelected = { timeIndex = it })
             Text("적용 요일", style = AppTypography.BodyMedium.copy(color = AppColors.FormTextLabel))
@@ -750,22 +853,23 @@ fun AddAppCommonConfirmScreen(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Scaffold(
-        modifier = modifier.windowInsetsPadding(WindowInsets.statusBars),
-        containerColor = AppColors.SurfaceBackgroundBackground,
-        topBar = {
-            ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
-        },
-    ) { innerPadding ->
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = AddAppHeaderTopPadding)
+            .windowInsetsPadding(WindowInsets.navigationBars),
+    ) {
+        ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            Text("설정이 완료되었습니다", style = AppTypography.Display3.copy(color = AppColors.TextPrimary))
+            Text("설정이 완료되었습니다", style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary))
             ColeInfoBox(text = "$appName 앱에 $limitDescription 가 적용되었습니다.")
             Spacer(modifier = Modifier.height(24.dp))
             Column(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -783,7 +887,7 @@ fun AddAppFlowHost(
 ) {
     var step by remember { mutableStateOf(AddAppStep.AA_01) }
     var previousStepBeforeConfirm by remember { mutableStateOf(AddAppStep.AA_02A_TIME_05) }
-    var selectedAppName by remember { mutableStateOf<String?>(null) }
+    var selectedAppNames by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selectedTimeLimit by remember { mutableStateOf<String?>(null) }
     var showAppSelectSheet by remember { mutableStateOf(false) }
     var showTimeLimitSheet by remember { mutableStateOf(false) }
@@ -824,14 +928,14 @@ fun AddAppFlowHost(
             onBackClick = { step = AddAppStep.AA_DAILY_03 },
         )
         AddAppStep.AA_DAILY_05 -> AddAppDailyLimitScreen05(
-            appName = selectedAppName ?: "앱",
+            appName = selectedAppNames.joinToString(", ").ifEmpty { "앱" },
             onCompleteClick = onComplete,
             onBackClick = { step = AddAppStep.AA_DAILY_04 },
         )
         // 시간지정제한 플로우
         AddAppStep.AA_02A_TIME_01 -> {
             AddAppScreenAA02ATimeSetup(
-                selectedAppName = selectedAppName,
+                selectedAppNames = selectedAppNames,
                 selectedTimeLimit = selectedTimeLimit,
                 onAppRowClick = { showAppSelectSheet = true },
                 onTimeRowClick = { showTimeLimitSheet = true },
@@ -840,10 +944,10 @@ fun AddAppFlowHost(
             )
             if (showAppSelectSheet) {
                 AddAppSelectBottomSheet(
-                    initialSelected = selectedAppName,
+                    initialSelected = selectedAppNames,
                     onDismissRequest = { showAppSelectSheet = false },
-                    onSelectComplete = { name ->
-                        selectedAppName = name
+                    onSelectComplete = { names ->
+                        selectedAppNames = names
                         showAppSelectSheet = false
                     },
                 )
@@ -863,7 +967,7 @@ fun AddAppFlowHost(
             }
         }
         AddAppStep.AA_02A_TIME_05 -> AddAppScreenAA02ATimeSummary(
-            selectedAppName = selectedAppName ?: "",
+            selectedAppName = selectedAppNames.joinToString(", "),
             selectedTimeLimit = selectedTimeLimit ?: "",
             onNextClick = { previousStepBeforeConfirm = AddAppStep.AA_02A_TIME_05; step = AddAppStep.AA_03_01 },
             onBackClick = { step = AddAppStep.AA_02A_TIME_01 },
@@ -876,7 +980,7 @@ fun AddAppFlowHost(
             onBackClick = { step = AddAppStep.AA_02A_01 },
         )
         AddAppStep.AA_03_01 -> AddAppCommonConfirmScreen(
-            appName = selectedAppName ?: "앱",
+            appName = selectedAppNames.joinToString(", ").ifEmpty { "앱" },
             limitDescription = "시간지정제한",
             onCompleteClick = onComplete,
             onBackClick = { step = previousStepBeforeConfirm },

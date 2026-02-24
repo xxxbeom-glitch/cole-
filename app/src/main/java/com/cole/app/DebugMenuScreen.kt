@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,6 +49,7 @@ fun DebugFlowHost(
     modifier: Modifier = Modifier,
 ) {
     var selectedScreen by remember { mutableStateOf<DebugScreen?>(null) }
+    val menuScrollState = rememberScrollState()
 
     if (selectedScreen != null) {
         Box(modifier = modifier.fillMaxSize()) {
@@ -60,6 +62,7 @@ fun DebugFlowHost(
         DebugMenuScreen(
             onScreenSelect = { selectedScreen = it },
             onStartNormalFlow = onStartNormalFlow,
+            menuScrollState = menuScrollState,
             modifier = modifier.fillMaxSize(),
         )
     }
@@ -81,13 +84,14 @@ sealed class DebugScreen(val category: String, val label: String) {
     data object SelfTestResult : DebugScreen("인증/온보딩", "자가테스트 결과")
 
     // 앱 제한
-    data object AddAppAA01 : DebugScreen("앱 제한", "앱 선택 (AA-01)")
-    data object AddAppAA02A01 : DebugScreen("앱 제한", "제한 방식 선택 (AA-02A-01)")
-    data object AddAppDaily01 : DebugScreen("앱 제한", "일일 사용 한도 (Daily 01)")
-    data object AddAppDaily02 : DebugScreen("앱 제한", "사용량 경고 (Daily 02)")
-    data object AddAppDaily03 : DebugScreen("앱 제한", "적용 요일 (Daily 03)")
-    data object AddAppDaily04 : DebugScreen("앱 제한", "설정 요약 (Daily 04)")
-    data object AddAppDaily05 : DebugScreen("앱 제한", "완료 (Daily 05)")
+    data object AddAppAA01 : DebugScreen("앱 제한", "AA-01: 제한 방법 선택")
+    data object AddAppAppSelect : DebugScreen("앱 제한", "앱 선택")
+    data object AddAppAA02A01 : DebugScreen("앱 제한", "AA-02A-01: 제한 방식 (3가지)")
+    data object AddAppDaily01 : DebugScreen("앱 제한", "AA-02B: 일일 사용 한도")
+    data object AddAppDaily02 : DebugScreen("앱 제한", "AA-02B: 사용량 경고")
+    data object AddAppDaily03 : DebugScreen("앱 제한", "AA-02B: 적용 요일")
+    data object AddAppDaily04 : DebugScreen("앱 제한", "AA-02B: 설정 요약")
+    data object AddAppDaily05 : DebugScreen("앱 제한", "AA-02B: 완료")
     data object AddAppFlowHost : DebugScreen("앱 제한", "앱 제한 플로우 전체")
 
     // 메인
@@ -143,10 +147,15 @@ private fun DebugScreenPreview(
             resultType = SelfTestResultType.MIDDLE,
             onStartClick = onBack,
             onBackClick = onBack,
-            rawScore = 12,
-            userName = "디버그",
+            rawScore = 23,
+            userName = "장원영",
         )
         DebugScreen.AddAppAA01 -> AddAppScreenAA01(
+            onTimeSpecifiedClick = onBack,
+            onDailyLimitClick = onBack,
+            onBackClick = onBack,
+        )
+        DebugScreen.AddAppAppSelect -> AddAppScreenAppSelect(
             onAddAppClick = onBack,
             onBackClick = onBack,
         )
@@ -365,6 +374,7 @@ private fun DebugPlaceholderScreen(screen: DebugScreen, onBack: () -> Unit) {
 private fun DebugMenuScreen(
     onScreenSelect: (DebugScreen) -> Unit,
     onStartNormalFlow: () -> Unit,
+    menuScrollState: ScrollState,
     modifier: Modifier = Modifier,
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -374,6 +384,7 @@ private fun DebugMenuScreen(
         modifier = modifier
             .fillMaxSize()
             .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
             .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
         // 헤더
@@ -420,10 +431,13 @@ private fun DebugMenuScreen(
             }
         }
 
-        // 컨텐츠 (스크롤)
+        // 컨텐츠
         Box(modifier = Modifier.weight(1f)) {
             when (selectedTab) {
-                0 -> DebugScreenListSection(onScreenSelect = onScreenSelect)
+                0 -> DebugScreenListSection(
+                    onScreenSelect = onScreenSelect,
+                    scrollState = menuScrollState,
+                )
                 1 -> DebugDesignSystemSection()
                 2 -> DebugTestSettingsSection()
             }
@@ -452,15 +466,18 @@ private fun DebugMenuScreen(
 }
 
 @Composable
-private fun DebugScreenListSection(onScreenSelect: (DebugScreen) -> Unit) {
+private fun DebugScreenListSection(
+    onScreenSelect: (DebugScreen) -> Unit,
+    scrollState: ScrollState,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .verticalScroll(scrollState)
+            .padding(top = 48.dp, bottom = 8.dp, start = 16.dp, end = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        // 앱 스플래시·로그인 바로가기
+        // 바로가기
         Text(
             text = "바로가기",
             style = AppTypography.Caption2.copy(color = AppColors.TextHighlight),
@@ -488,7 +505,6 @@ private fun DebugScreenListSection(onScreenSelect: (DebugScreen) -> Unit) {
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        // 자가테스트 플로우 바로가기
         Text(
             text = "자가테스트 플로우",
             style = AppTypography.Caption2.copy(color = AppColors.TextHighlight),
@@ -517,6 +533,7 @@ private fun DebugScreenListSection(onScreenSelect: (DebugScreen) -> Unit) {
         }
         Spacer(modifier = Modifier.height(12.dp))
 
+        // 앱 제한: 작업 중인 플로우만 (이전 개별 화면은 제외)
         val allScreens = listOf(
             DebugScreen.Splash,
             DebugScreen.Login,
@@ -529,14 +546,7 @@ private fun DebugScreenListSection(onScreenSelect: (DebugScreen) -> Unit) {
             DebugScreen.SelfTest,
             DebugScreen.SelfTestLoading,
             DebugScreen.SelfTestResult,
-            DebugScreen.AddAppAA01,
-            DebugScreen.AddAppAA02A01,
-            DebugScreen.AddAppDaily01,
-            DebugScreen.AddAppDaily02,
-            DebugScreen.AddAppDaily03,
-            DebugScreen.AddAppDaily04,
-            DebugScreen.AddAppDaily05,
-            DebugScreen.AddAppFlowHost,
+            DebugScreen.AddAppFlowHost,  // 앱 제한: 통합 플로우만
             DebugScreen.MainFlow,
             DebugScreen.BaseBottomSheet,
             DebugScreen.TermsBottomSheet,

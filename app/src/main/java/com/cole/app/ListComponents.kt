@@ -184,7 +184,9 @@ fun SelectionRow(
                 Text(
                     text = selectedValue,
                     style = AppTypography.BodyMedium.copy(color = AppColors.TextHighlight, textAlign = TextAlign.End),
-                    modifier = Modifier.wrapContentWidth(),
+                    modifier = Modifier.width(100.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             Icon(

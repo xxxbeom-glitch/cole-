@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.Image
@@ -17,8 +18,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -82,7 +85,10 @@ fun ColeStepBar(
 ) {
     if (steps.isEmpty()) return
     val clampedIndex = selectedIndex.coerceIn(0, steps.lastIndex)
-    val progress = if (steps.size > 1) clampedIndex.toFloat() / steps.lastIndex.toFloat() else 0f
+    val atEnd = clampedIndex == steps.lastIndex
+    // Figma: 각 segment 40px 균등분배. segment 중심 = (i + 0.5) / n
+    val segmentCenterFraction = if (steps.size > 1) (clampedIndex + 0.5f) / steps.size else 0.5f
+    val fillProgress = if (atEnd) 1f else segmentCenterFraction
     var trackWidthPx by remember { mutableFloatStateOf(0f) }
     val density = LocalDensity.current
 
@@ -95,70 +101,92 @@ fun ColeStepBar(
                     change.consume()
                     if (trackWidthPx > 0f) {
                         val ratio = (change.position.x / trackWidthPx).coerceIn(0f, 1f)
-                        onStepSelected((ratio * steps.lastIndex).roundToInt())
+                        val segment = (ratio * steps.size).toInt().coerceIn(0, steps.lastIndex)
+                        onStepSelected(segment)
                     }
                 }
             },
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        // 상단: 각 숫자 위치에 dot 균등 분배
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            repeat(steps.size) { index ->
-                val isActive = index <= clampedIndex
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(
-                                if (isActive) AppColors.ChartTrackFill
-                                else AppColors.ChartTrackDotInactive
-                            ),
-                    )
-                }
-            }
-        }
-
-        // 중단: track + fill (track 10dp, handle 24dp 수용)
+        // track + dot을 같은 영역에 겹쳐서 배치 (dot이 track 위에 올라감)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(24.dp),
+                .height(32.dp),
         ) {
+            // track과 fill을 하나의 클립된 Box 안에 겹쳐서
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(10.dp)
                     .align(Alignment.Center)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(AppColors.ChartTrackBackground),
-            )
-            Box(
+                    .clip(RoundedCornerShape(6.dp)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(AppColors.ChartTrackBackground),
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(fillProgress)
+                        .fillMaxHeight()
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = 6.dp,
+                                bottomStart = 6.dp,
+                                topEnd = if (atEnd) 6.dp else 2.dp,
+                                bottomEnd = if (atEnd) 6.dp else 2.dp,
+                            )
+                        )
+                        .background(AppColors.ChartTrackFill),
+                )
+            }
+            // dot을 track과 동일한 세로 위치에 겹쳐서 배치
+            Row(
                 modifier = Modifier
-                    .fillMaxWidth(progress)
-                    .height(10.dp)
-                    .align(Alignment.CenterStart)
-                    .clip(RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = 2.dp, bottomEnd = 2.dp))
-                    .background(AppColors.ChartTrackFill),
-            )
+                    .fillMaxWidth()
+                    .align(Alignment.Center),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                repeat(steps.size) { index ->
+                    val isActive = index <= clampedIndex
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(4.dp)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(
+                                    if (isActive) AppColors.ChartTrackDotActive
+                                    else AppColors.ChartTrackDotInactive
+                                ),
+                        )
+                    }
+                }
+            }
+            // 핸들: 40dp, dot·라벨과 동일한 segment 중심에 정렬 (각 40px 영역 균등분배)
+            val handleWidthDp = 40.dp
             val handleOffsetDp = with(density) {
-                val handleWidthPx = 40.dp.toPx()
-                (trackWidthPx * progress - handleWidthPx / 2f).coerceIn(0f, (trackWidthPx - handleWidthPx).coerceAtLeast(0f)).toDp()
+                val handleWidthPx = handleWidthDp.toPx()
+                val centerX = trackWidthPx * segmentCenterFraction - handleWidthPx / 2f
+                centerX.coerceIn(0f, (trackWidthPx - handleWidthPx).coerceAtLeast(0f)).toDp()
             }
             Box(
                 modifier = Modifier
-                    .width(40.dp)
+                    .width(handleWidthDp)
                     .height(24.dp)
                     .offset(x = handleOffsetDp)
-                    .align(Alignment.CenterStart),
+                    .align(Alignment.CenterStart)
+                    .shadow(
+                        elevation = 6.dp,
+                        shape = RoundedCornerShape(12.dp),
+                        clip = false,
+                        ambientColor = Color.Black.copy(alpha = 0.06f),
+                        spotColor = Color.Black.copy(alpha = 0.06f),
+                    ),
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.ic_stepbar_handle),
@@ -168,15 +196,15 @@ fun ColeStepBar(
             }
         }
 
-        // 하단: 각 숫자 라벨 균등 분배 (dot과 동일한 위치)
+        // 하단: 라벨을 dot과 동일한 grid로 중앙정렬
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             steps.forEach { label ->
-                Box(
+                Column(
                     modifier = Modifier.weight(1f),
-                    contentAlignment = Alignment.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
                         text = label,

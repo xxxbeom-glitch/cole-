@@ -1,0 +1,20 @@
+# Cole 프로젝트 Cursor 규칙
+
+- 내가 명시한 파일만 수정할 것
+- 요청하지 않은 파일 생성 및 삭제 금지
+- 수정 전에 어떤 파일 바꿀건지 먼저 말하고 확인받을 것
+- 피그마 수치 그대로 적용할 것
+- 텍스트 크기, 간격 임의로 바꾸지 말 것
+
+## 앱 제한 플로우 헤더 규칙
+- 앱 제한 플로우(AA-01, AA-02A-01, AA-02A-05, AA-DAILY, Common 등) 전체 화면은 동일한 레이아웃을 사용한다.
+- 루트: `windowInsetsPadding(statusBars)` → `padding(top = AddAppHeaderTopPadding)` → `windowInsetsPadding(navigationBars)`
+- 헤더 위치: status bar 바로 아래 10dp (AddAppHeaderTopPadding 상수 사용, 회원가입과 동일)
+- 구조: Column + ColeHeaderSub + content + button(해당 시)
+
+## 버튼 가이드
+- 버튼 배치의 **기준점은 하단**이다.
+- 버튼이 1라인이어도 하단에 여백을 비우지 말 것. 버튼·링크 등 최하단 요소를 화면 하단에 밀착시킬 것.
+
+## Git 커밋
+- 커밋 메시지는 `yyyy-mm-dd hh:mm` 형식으로 작성할 것 (예: 2025-02-23 14:30)

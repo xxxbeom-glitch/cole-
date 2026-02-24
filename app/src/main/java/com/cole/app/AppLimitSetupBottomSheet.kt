@@ -48,8 +48,6 @@ fun AppLimitSetupTimeBottomSheet(
         onDismissRequest = onDismissRequest,
         onPrimaryClick = { onPrimaryClick(selectedIndex, steps[selectedIndex]) },
         primaryButtonText = "계속 진행",
-        secondaryButtonText = "돌아가기",
-        onSecondaryClick = onDismissRequest,
         modifier = modifier,
     ) {
         Column(
@@ -96,8 +94,6 @@ fun AppLimitSetupDayBottomSheet(
         onDismissRequest = onDismissRequest,
         onPrimaryClick = { onPrimaryClick(selectedDays) },
         primaryButtonText = "계속 진행",
-        secondaryButtonText = "돌아가기",
-        onSecondaryClick = onDismissRequest,
         modifier = modifier,
     ) {
         ColeChipRow(

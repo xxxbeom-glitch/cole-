@@ -91,7 +91,7 @@ fun ColeSelectionCard(
             )
             .background(AppColors.SurfaceBackgroundCard)
             .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 22.dp),
+            .padding(horizontal = 16.dp, vertical = 28.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -113,13 +113,15 @@ fun ColeSelectionCard(
                     )
                 }
             }
-            Text(
-                text = trailingText,
-                style = AppTypography.BodyBold.copy(color = AppColors.TextHighlight, textAlign = TextAlign.End),
-                modifier = Modifier.width(64.dp),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (trailingText.isNotEmpty()) {
+                Text(
+                    text = trailingText,
+                    style = AppTypography.BodyBold.copy(color = AppColors.TextHighlight, textAlign = TextAlign.End),
+                    modifier = Modifier.width(64.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

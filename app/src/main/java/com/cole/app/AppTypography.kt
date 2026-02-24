@@ -64,7 +64,7 @@ object AppTypography {
     val Display1  = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight.ExtraBold, fontSize = 48.sp, lineHeight = 62.sp)
     val Display2  = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight.SemiBold,  fontSize = 32.sp, lineHeight = 44.sp)
     val Display3  = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight.ExtraBold, fontSize = 26.sp, lineHeight = 36.sp)
-    val HeadingH1 = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight.Bold,      fontSize = 24.sp, lineHeight = 32.sp)
+    val HeadingH1 = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, lineHeight = 32.sp)
     val HeadingH2 = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight.SemiBold,  fontSize = 22.sp, lineHeight = 32.sp)
     val HeadingH3 = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight.SemiBold,  fontSize = 18.sp, lineHeight = 26.sp)
     val BodyMedium  = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight.Medium,   fontSize = 15.sp, lineHeight = 24.sp)

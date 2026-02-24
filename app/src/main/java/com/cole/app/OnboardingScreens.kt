@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 // ─────────────────────────────────────────────
@@ -41,14 +42,17 @@ private data class OnboardingPage(
     val titleLine2: String,
     val subtitleLine1: String,
     val subtitleLine2: String,
-    val imageResId: Int,
+    val backgroundResId: Int,
     val subtitleUsesColeHighlight: Boolean = false,
 )
 
-// Figma OB-01: 텍스트~인디케이터 gap 28dp, 이미지 top 480px, 가로 100% 하단 고정
-private val TitleSubtitleGap = 8.dp
-private val MessageIndicatorGap = 28.dp
+// 이미지 상단 60~70% 흑색 영역에 텍스트·인디케이터 고정 (겹치지 않도록)
+private val TextTop = 120.dp
+private val IndicatorTop = 300.dp
 
+// Figma: 타이틀-서브 간격 8dp, 텍스트~인디케이터 28dp
+private val TitleLineGap = 8.dp
+private val TitleSubtitleGap = 8.dp
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun OnboardingHost(
@@ -90,13 +94,9 @@ fun OnboardingHost(
         ),
     )
 
-    // statusBars만 적용 - 이미지는 하단 끝까지 (navigationBars 미적용)
-    // 전체 화면 스와이프: HorizontalPager가 fillMaxSize로 전체 터치 영역 확보
-    // 인디케이터: pager 밖에 오버레이로 고정
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(AppColors.SurfaceBackgroundBackground)
             .windowInsetsPadding(WindowInsets.statusBars)
             .padding(top = 10.dp),
     ) {
@@ -107,31 +107,49 @@ fun OnboardingHost(
         ) { page ->
             val p = pages[page]
             val isPage4 = page == 3
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp)
-                    .then(
-                        if (isPage4) Modifier.windowInsetsPadding(WindowInsets.navigationBars)
-                        else Modifier
-                    ),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                // 텍스트: 상단 영역에 배치 (weight로 여백 차지)
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
+            Box(modifier = Modifier.fillMaxSize()) {
+                // 1. 최하단: PNG 투명 영역용 배경색 (F5F5F5)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFFF5F5F5)),
+                )
+                // 2. 이미지: 가로 360dp 기준, 하단 고정 (확대 없이 FitWidth)
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.BottomCenter,
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(TitleSubtitleGap),
-                    ) {
-                        Text(
-                            text = "${p.titleLine1}\n${p.titleLine2}",
-                            style = AppTypography.Display2.copy(color = AppColors.TextPrimary),
-                            textAlign = TextAlign.Center,
-                        )
+                    Image(
+                        painter = painterResource(id = p.backgroundResId),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxWidth(),
+                        contentScale = ContentScale.FillWidth,
+                    )
+                }
+                // 2. 텍스트: 상단 흑색 영역에 고정 위치 (이미지와 겹치지 않음)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = TextTop)
+                        .padding(horizontal = 16.dp)
+                        .then(
+                            if (isPage4) Modifier.windowInsetsPadding(WindowInsets.navigationBars)
+                            else Modifier
+                        ),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = p.titleLine1,
+                        style = AppTypography.Display2.copy(color = AppColors.TextPrimary),
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(modifier = Modifier.height(TitleLineGap))
+                    Text(
+                        text = p.titleLine2,
+                        style = AppTypography.Display2.copy(color = AppColors.TextPrimary),
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(modifier = Modifier.height(TitleSubtitleGap))
                     if (p.subtitleUsesColeHighlight) {
                         Text(
                             text = buildAnnotatedString {
@@ -150,27 +168,15 @@ fun OnboardingHost(
                             textAlign = TextAlign.Center,
                         )
                     }
-                    Spacer(modifier = Modifier.height(MessageIndicatorGap))
                 }
-                }
-                Spacer(modifier = Modifier.height(24.dp))
-                // 이미지: 하단 고정 (가로 100%, Figma OB-01~04)
-                Image(
-                    painter = painterResource(id = p.imageResId),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(400.dp),
-                    contentScale = if (page == 3) ContentScale.Fit else ContentScale.FillWidth,
-                )
             }
         }
 
-        // 인디케이터: 고정 위치 오버레이 (스와이프해도 움직이지 않음, 터치 통과)
+        // 인디케이터: 상단 흑색 영역에 고정 (이미지와 겹치지 않음)
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 280.dp)
+                .padding(top = IndicatorTop)
                 .fillMaxWidth()
                 .pointerInteropFilter { false },
             contentAlignment = Alignment.Center,

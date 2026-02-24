@@ -58,7 +58,7 @@ fun BaseBottomSheet(
                 .padding(horizontal = 16.dp)
                 .windowInsetsPadding(WindowInsets.navigationBars),
         ) {
-            // 상단 패딩 56dp, 하단 36dp (Figma pt-56, pb-36)
+            // 상단 패딩 56dp (Figma pt-56)
             Spacer(modifier = Modifier.height(40.dp))
 
             // 헤더: title + subtitle
@@ -80,9 +80,11 @@ fun BaseBottomSheet(
             content()
             Spacer(modifier = Modifier.height(46.dp))
 
-            // 버튼 영역 (gap 12dp)
+            // 버튼 영역 (회원가입 플로우와 동일: bottom 24.dp + windowInsets)
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 ColePrimaryButton(
@@ -107,7 +109,6 @@ fun BaseBottomSheet(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(36.dp))
         }
     }
 }
