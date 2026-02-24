@@ -31,7 +31,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 private val CardShape = RoundedCornerShape(12.dp)
-private val CardElevation = 2.dp
+// Figma: X=0, Y=0, Blur=6, Spread=0, #000000 6%
+private val CardShadowElevation = 6.dp
+private val CardShadowColor = Color.Black.copy(alpha = 0.06f)
 
 @Composable
 fun ColeSwitch(
@@ -158,7 +160,13 @@ fun SelectionRow(
         modifier = modifier
             .fillMaxWidth()
             .height(68.dp)
-            .shadow(elevation = CardElevation, shape = CardShape, clip = false)
+            .shadow(
+                elevation = CardShadowElevation,
+                shape = CardShape,
+                clip = false,
+                ambientColor = CardShadowColor,
+                spotColor = CardShadowColor,
+            )
             .clip(CardShape)
             .background(AppColors.SurfaceBackgroundCard)
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
