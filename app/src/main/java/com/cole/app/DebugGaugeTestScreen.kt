@@ -77,12 +77,8 @@ fun DebugGaugeTestScreen(onBack: () -> Unit) {
                 .padding(horizontal = 16.dp, vertical = 16.dp),
         )
 
-        // 게이지 본체
-        ResultGaugeGraph(
-            fillProgress = fillProgress,
-            displayScore = displayScore,
-            interpretation = interpretation,
-        )
+        // 게이지 본체 (전체 원형, 4색 그라데이션)
+        SimpleFullCircleGauge(progress = fillProgress)
 
         // 수치 정보 표시
         Column(
