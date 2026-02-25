@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,8 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
@@ -69,45 +69,32 @@ fun ResultGaugeGraph(
         ) {
             // 1층: 배경 (Box 위에서 적용됨)
 
-            // 2층: 게이지 아크 208×104 고정 (Figma, 라인 16px) - 세로값 지정으로 찌그러짐 방지
+            // 2층: 게이지 아크 208×104 (Figma, 라인 16px) - aspectRatio(2f)로 반원 비율 강제
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .width(ResultGaugeGraph.ArcWidth)
-                    .height(ResultGaugeGraph.ArcHeight),
+                    .aspectRatio(2f),
             ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val arcW = size.width
-                    val arcH = size.height
+                    val actualW = size.width
+                    val actualH = size.height
+                    val targetRatio = 2f
+                    val (arcW, arcH) = if (actualH * targetRatio > actualW) {
+                        Pair(actualW, actualW / targetRatio)
+                    } else {
+                        Pair(actualH * targetRatio, actualH)
+                    }
+                    val topLeft = Offset((actualW - arcW) / 2, (actualH - arcH) / 2)
                     val strokePx = ResultGaugeGraph.ArcStrokeWidth.toPx()
-                    val centerY = arcH / 2
 
-                    val gradientBrush = Brush.linearGradient(
-                        colorStops = arrayOf(
-                            0f to Color(0xFFFF6B6B),
-                            0.34f to Color(0xFFFFD93D),
-                            0.67f to Color(0xFF6BCBFF),
-                            1f to Color(0xFF4EEEBD),
-                        ),
-                        start = Offset(0f, centerY),
-                        end = Offset(arcW, centerY),
-                    )
                     drawArc(
                         color = AppColors.Grey300.copy(alpha = 0.6f),
                         startAngle = 180f,
                         sweepAngle = 180f,
                         useCenter = false,
-                        topLeft = Offset(0f, 0f),
-                        size = androidx.compose.ui.geometry.Size(arcW, arcH),
-                        style = Stroke(width = strokePx, cap = StrokeCap.Round),
-                    )
-                    drawArc(
-                        brush = gradientBrush,
-                        startAngle = 180f,
-                        sweepAngle = 180f * clampedProgress,
-                        useCenter = false,
-                        topLeft = Offset(0f, 0f),
-                        size = androidx.compose.ui.geometry.Size(arcW, arcH),
+                        topLeft = topLeft,
+                        size = Size(arcW, arcH),
                         style = Stroke(width = strokePx, cap = StrokeCap.Round),
                     )
                 }

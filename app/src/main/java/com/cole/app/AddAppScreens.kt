@@ -66,7 +66,6 @@ enum class AddAppStep {
     AA_02A_01,       // 제한 방식 선택 (일일/시간지정/차단) — 앱 선택 후
     // 일일사용량 제한 플로우 (5화면)
     AA_DAILY_01, AA_DAILY_02, AA_DAILY_03, AA_DAILY_04, AA_DAILY_05,
-    AA_DAILY_DURATION,  // AA-02B-05: 몇 주 동안 진행할까요 (전체화면)
     // 시간지정제한 플로우
     AA_02A_TIME_01,  // 잠깐 확인 + 앱/제한시간 row (241-3287, 241-3341)
     AA_02A_TIME_05,  // 설정 요약 (241-3084)
@@ -951,7 +950,43 @@ fun AddAppCommonTimeScheduleScreen(
 }
 
 // ─────────────────────────────────────────────
-// AA-02B-05: 몇 주 동안 진행할까요 (Figma 스크린샷)
+// AA-02B-05: 몇 주 동안 진행할까요 (Figma 243-6318, 바텀시트)
+// ─────────────────────────────────────────────
+
+@Composable
+fun AddAppDailyDurationBottomSheet(
+    options: List<String> = DAILY_DURATION_OPTIONS,
+    initialIndex: Int = 0,
+    onDismissRequest: () -> Unit,
+    onPrimaryClick: (String) -> Unit,
+    onSecondaryClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var selectedIndex by remember { mutableIntStateOf(initialIndex.coerceIn(0, options.lastIndex)) }
+
+    BaseBottomSheet(
+        title = "몇 주 동안 진행할까요",
+        subtitle = "처음이라면 짧게 진행하시는게 좋아요\n오늘 하루 먼저 해보시고 천천히 늘려가세요",
+        onDismissRequest = onDismissRequest,
+        onPrimaryClick = { onPrimaryClick(options[selectedIndex]) },
+        primaryButtonText = "계속 진행",
+        secondaryButtonText = "돌아가기",
+        onSecondaryClick = onSecondaryClick,
+        modifier = modifier,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+            ColeSelectionCardTitleOnlyGroup(
+                options = options,
+                selectedIndex = selectedIndex,
+                onOptionSelected = { selectedIndex = it },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+// AA-02B-05 (구 full screen — 디버그/레거시용)
 // ─────────────────────────────────────────────
 
 @Composable
@@ -1095,6 +1130,7 @@ fun AddAppFlowHost(
     var showDailyAppSelectSheet by remember { mutableStateOf(false) }
     var showDailyTimeSheet by remember { mutableStateOf(false) }
     var showDailyDaysSheet by remember { mutableStateOf(false) }
+    var showDailyDurationSheet by remember { mutableStateOf(false) }
     val timeSteps = listOf("30분", "60분", "90분", "120분", "150분", "180분")
     // 일일사용량 제한 플로우 상태
     var dailyLimitMinutes by remember { mutableStateOf<String?>(null) }
@@ -1123,7 +1159,7 @@ fun AddAppFlowHost(
                 onAppRowClick = { showDailyAppSelectSheet = true },
                 onTimeRowClick = { showDailyTimeSheet = true },
                 onDaysRowClick = { showDailyDaysSheet = true },
-                onDurationRowClick = { step = AddAppStep.AA_DAILY_DURATION },
+                onDurationRowClick = { showDailyDurationSheet = true },
                 onNextClick = { step = AddAppStep.AA_DAILY_04 },
                 onBackClick = { step = AddAppStep.AA_01 },
             )
@@ -1163,19 +1199,22 @@ fun AddAppFlowHost(
                     },
                 )
             }
+            if (showDailyDurationSheet) {
+                AddAppDailyDurationBottomSheet(
+                    options = DAILY_DURATION_OPTIONS,
+                    initialIndex = dailySelectedDuration?.let { DAILY_DURATION_OPTIONS.indexOf(it) }?.takeIf { it >= 0 } ?: 0,
+                    onDismissRequest = { showDailyDurationSheet = false },
+                    onPrimaryClick = { duration ->
+                        dailySelectedDuration = duration
+                        showDailyDurationSheet = false
+                    },
+                    onSecondaryClick = { showDailyDurationSheet = false },
+                )
+            }
         }
         AddAppStep.AA_DAILY_02, AddAppStep.AA_DAILY_03 -> {
             LaunchedEffect(Unit) { step = AddAppStep.AA_DAILY_01 }
         }
-        AddAppStep.AA_DAILY_DURATION -> AddAppDailyDurationScreen(
-            options = DAILY_DURATION_OPTIONS,
-            initialIndex = dailySelectedDuration?.let { DAILY_DURATION_OPTIONS.indexOf(it) }?.takeIf { it >= 0 } ?: 0,
-            onComplete = { duration ->
-                dailySelectedDuration = duration
-                step = AddAppStep.AA_DAILY_01
-            },
-            onBackClick = { step = AddAppStep.AA_DAILY_01 },
-        )
         AddAppStep.AA_DAILY_04 -> AddAppDailyLimitScreen04(
             limitMinutes = dailyLimitMinutes ?: "30분",
             selectedDaysText = formatSelectedDays(dailySelectedDays, DAILY_DAY_LABELS),

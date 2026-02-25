@@ -22,6 +22,7 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -39,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
@@ -99,6 +101,10 @@ sealed class DebugScreen(val category: String, val label: String) {
 
     // 메인
     data object MainFlow : DebugScreen("메인", "메인 (홈/챌린지/통계/마이)")
+
+    // 테스트
+    data object SpacingTest : DebugScreen("테스트", "간격테스트 (헤더~콘텐츠 38/36/32/28/26dp)")
+    data object GaugeTest : DebugScreen("테스트", "게이지 테스트 (ResultGaugeGraph)")
 
     // 바텀시트
     data object BaseBottomSheet : DebugScreen("바텀시트", "BaseBottomSheet (기본형)")
@@ -217,6 +223,8 @@ private fun DebugScreenPreview(
             onAddAppClick = onBack,
             onLogout = onBack,
         )
+        DebugScreen.SpacingTest -> DebugSpacingTestScreen(onBack = onBack)
+        DebugScreen.GaugeTest -> DebugGaugeTestScreen(onBack = onBack)
         DebugScreen.BaseBottomSheet -> DebugBottomSheetPreview(onBack = onBack) { onSheetDismiss ->
             BaseBottomSheet(
                 title = "앱을 선택해주세요",
@@ -338,7 +346,6 @@ private fun DebugLoginPreview(onBack: () -> Unit) {
     }
 }
 
-/** 바텀시트 미리보기: "바텀시트 열기" 버튼 탭 시 바텀시트 표시 */
 @Composable
 private fun DebugBottomSheetPreview(
     onBack: () -> Unit,
@@ -596,6 +603,8 @@ private fun DebugScreenListSection(
         val allScreens = listOf(
             DebugScreen.Splash,
             DebugScreen.Login,
+            DebugScreen.SpacingTest,
+            DebugScreen.GaugeTest,
             DebugScreen.SignUpEmail,
             DebugScreen.SignUpPassword,
             DebugScreen.SignUpNameBirthPhone,

@@ -1,13 +1,10 @@
 package com.cole.app
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.WindowInsets
@@ -58,8 +55,6 @@ fun BaseBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.55f)
-                .heightIn(min = 100.dp)
                 .padding(horizontal = 16.dp)
                 .windowInsetsPadding(WindowInsets.navigationBars),
         ) {
@@ -67,7 +62,7 @@ fun BaseBottomSheet(
             Spacer(modifier = Modifier.height(40.dp))
 
             // 헤더: title + subtitle
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = title,
                     style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
@@ -80,13 +75,10 @@ fun BaseBottomSheet(
                 }
             }
 
-            // 컨텐츠와 버튼 사이 gap 46dp (Figma)
-            // weight(1f)로 유한 높이를 부여해 verticalScroll 가능
+            // 컨텐츠와 버튼 사이 gap
             Spacer(modifier = Modifier.height(22.dp))
-            Box(modifier = Modifier.weight(1f)) {
-                content()
-            }
-            Spacer(modifier = Modifier.height(46.dp))
+            content()
+            Spacer(modifier = Modifier.height(36.dp))
 
             // 버튼 영역 (회원가입 플로우와 동일: bottom 24.dp + windowInsets)
             Column(

@@ -6,7 +6,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.Image
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -25,10 +28,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 private val CardShape = RoundedCornerShape(12.dp)
 // Figma: X=0, Y=0, Blur=6, Spread=0, #000000 6%
@@ -200,4 +205,213 @@ fun SelectionRow(
             }
         }
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 설정 메뉴 리스트 컴포넌트 (Figma MY-02~07)
+// ─────────────────────────────────────────────────────────────────────────────
+
+private val SettingsDividerColor = Color(0xFFF3F3F3)
+private val SettingsBadgeAllowed = Color(0xFF616bff)   // 허용됨
+private val SettingsBadgeRequired = Color(0xFFe44242)  // 필요
+
+@Composable
+fun SettingsRow(
+    iconResId: Int,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(AppColors.Primary200),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(iconResId),
+                contentDescription = label,
+                contentScale = ContentScale.None,
+            )
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = label,
+            style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            painter = painterResource(R.drawable.ic_chevron_right),
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            tint = AppColors.TextPrimary,
+        )
+    }
+}
+
+@Composable
+fun SettingsRowWithBadge(
+    iconResId: Int,
+    label: String,
+    badgeText: String,
+    badgeAllowed: Boolean,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(AppColors.Primary200),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(iconResId),
+                contentDescription = label,
+                contentScale = ContentScale.None,
+            )
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = label,
+                    style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(if (badgeAllowed) SettingsBadgeAllowed else SettingsBadgeRequired)
+                        .padding(horizontal = 4.dp, vertical = 3.dp),
+                ) {
+                    Text(
+                        text = badgeText,
+                        style = AppTypography.Label.copy(color = AppColors.TextInvert, fontSize = 9.sp),
+                    )
+                }
+            }
+            Text(
+                text = subtitle,
+                style = AppTypography.Caption1.copy(color = AppColors.TextCaption),
+            )
+        }
+        Icon(
+            painter = painterResource(R.drawable.ic_chevron_right),
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            tint = AppColors.TextPrimary,
+        )
+    }
+}
+
+@Composable
+fun SettingsRowWithValue(
+    iconResId: Int,
+    label: String,
+    value: String? = null,
+    showChevron: Boolean = true,
+    onClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(AppColors.Primary200),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(iconResId),
+                contentDescription = label,
+                contentScale = ContentScale.None,
+            )
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = label,
+            style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
+            modifier = Modifier.weight(1f),
+        )
+        if (value != null) {
+            Text(
+                text = value,
+                style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
+            )
+        } else if (showChevron) {
+            Icon(
+                painter = painterResource(R.drawable.ic_chevron_right),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = AppColors.TextPrimary,
+            )
+        }
+    }
+}
+
+@Composable
+fun SimpleTextRow(
+    text: String,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = text,
+            style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
+        )
+    }
+}
+
+@Composable
+fun SettingsListCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(AppColors.SurfaceBackgroundCard)
+            .padding(horizontal = 18.dp, vertical = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        content = content,
+    )
+}
+
+@Composable
+fun SettingsDivider(modifier: Modifier = Modifier) {
+    Spacer(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(SettingsDividerColor),
+    )
 }

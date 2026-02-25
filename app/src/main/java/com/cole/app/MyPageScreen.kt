@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 
@@ -50,7 +51,7 @@ fun MyPageScreen(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         // 내 계정
         MyPageSection(title = "내 계정") {
@@ -125,6 +126,7 @@ private fun MyPageSection(
         Text(
             text = title,
             style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
+            modifier = Modifier.padding(start = 18.dp),
         )
         Column(
             modifier = Modifier
@@ -161,8 +163,7 @@ private fun MyPageRowItem(
             Image(
                 painter = painterResource(iconResId),
                 contentDescription = label,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.size(18.dp),
+                contentScale = ContentScale.None,
             )
         }
         Spacer(modifier = Modifier.width(10.dp))
@@ -186,6 +187,6 @@ private fun MyPageDivider() {
         modifier = Modifier
             .fillMaxWidth()
             .height(1.dp)
-            .background(AppColors.BorderDivider),
+            .background(Color(0xFFF3F3F3)),
     )
 }

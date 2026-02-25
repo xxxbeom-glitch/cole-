@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -267,9 +268,18 @@ private fun MainAddictionCard(
     }
 }
 
+private sealed class SettingsDetail(val title: String) {
+    data object AccountManage : SettingsDetail("계정관리")
+    data object Subscription : SettingsDetail("구독관리")
+    data object Permission : SettingsDetail("권한설정")
+    data object AppInfo : SettingsDetail("정보")
+    data object OpenSource : SettingsDetail("오픈소스 라이센스")
+}
+
 @Composable
 fun MainFlowHost(onAddAppClick: () -> Unit, onLogout: () -> Unit) {
     var navIndex by remember { mutableIntStateOf(0) }
+    var settingsDetail by remember { mutableStateOf<SettingsDetail?>(null) }
     val navDestinations = listOf(
         NavDestination("홈", R.drawable.ic_nav_home_inactive, R.drawable.ic_nav_home_active),
         NavDestination("챌린지", R.drawable.ic_nav_challenge_inactive, R.drawable.ic_nav_challenge_active),
@@ -300,9 +310,23 @@ fun MainFlowHost(onAddAppClick: () -> Unit, onLogout: () -> Unit) {
             .padding(top = 18.dp)
             .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
-        when (navIndex) {
-            0 -> ColeHeaderHome(logo = painterResource(R.drawable.ic_logo), hasNotification = true)
-            3 -> ColeHeaderTitleWithNotification(title = "마이", hasNotification = true)
+        when {
+            settingsDetail != null -> ColeHeaderSub(
+                title = settingsDetail!!.title,
+                backIcon = painterResource(R.drawable.ic_back),
+                onBackClick = { settingsDetail = null },
+                showNotification = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            navIndex == 0 -> ColeHeaderHome(logo = painterResource(R.drawable.ic_logo), hasNotification = true)
+            navIndex == 2 -> ColeHeaderSub(
+                title = "통계",
+                backIcon = painterResource(R.drawable.ic_back),
+                onBackClick = { },
+                showNotification = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            navIndex == 3 -> ColeHeaderTitleWithNotification(title = "설정", hasNotification = true)
             else -> ColeHeaderHome(logo = painterResource(R.drawable.ic_logo), hasNotification = true)
         }
         when (navIndex) {
@@ -336,21 +360,54 @@ fun MainFlowHost(onAddAppClick: () -> Unit, onLogout: () -> Unit) {
                     Spacer(modifier = Modifier.height(24.dp))
                 }
             }
+            2 -> {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                ) {
+                    StatisticsScreen()
+                }
+            }
             3 -> {
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth(),
                 ) {
-                    MyPageScreen(
-                        onAccountManageClick = { },
-                        onSubscriptionManageClick = { },
-                        onNotificationClick = { },
-                        onPermissionClick = { },
-                        onAppInfoClick = { },
-                        onOpenSourceClick = { },
-                        onWithdrawClick = { },
-                    )
+                    when (settingsDetail) {
+                        SettingsDetail.AccountManage -> AccountManageScreen(
+                            onBack = { settingsDetail = null },
+                            onProfileClick = { },
+                            onSocialClick = { },
+                            onPasswordClick = { },
+                        )
+                        SettingsDetail.Subscription -> SubscriptionManageScreen(
+                            onBack = { settingsDetail = null },
+                            onPaymentClick = { },
+                        )
+                        SettingsDetail.Permission -> PermissionSettingsScreen(
+                            onBack = { settingsDetail = null },
+                            onAccessibilityClick = { },
+                            onUsageStatsClick = { },
+                            onOverlayClick = { },
+                        )
+                        SettingsDetail.AppInfo -> AppInfoScreen(
+                            onBack = { settingsDetail = null },
+                            onTermsClick = { },
+                            onPrivacyClick = { },
+                        )
+                        SettingsDetail.OpenSource -> OpenSourceScreen(onBack = { settingsDetail = null })
+                        null -> MyPageScreen(
+                            onAccountManageClick = { settingsDetail = SettingsDetail.AccountManage },
+                            onSubscriptionManageClick = { settingsDetail = SettingsDetail.Subscription },
+                            onNotificationClick = { },
+                            onPermissionClick = { settingsDetail = SettingsDetail.Permission },
+                            onAppInfoClick = { settingsDetail = SettingsDetail.AppInfo },
+                            onOpenSourceClick = { settingsDetail = SettingsDetail.OpenSource },
+                            onWithdrawClick = { },
+                        )
+                    }
                 }
             }
             else -> {
