@@ -160,8 +160,9 @@ private fun TimeSlotBarChart(
         Box(modifier = Modifier.fillMaxWidth().height(BarChartHeight)) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
-                for (i in 1..4) {
-                    val y = size.height * (i / 5f)
+                // 가이드라인 7개: 최상단(0) ~ 최하단(6) 포함, 차트가 그 안에 표시됨
+                for (i in 0..6) {
+                    val y = size.height * (i / 6f)
                     drawLine(
                         color = AppColors.ChartGuideline,
                         start = Offset(0f, y),
@@ -274,7 +275,7 @@ private fun StatsAppRow(
         IcoAppLockOn(modifier = Modifier.size(56.dp))
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
             Text(
                 text = name,

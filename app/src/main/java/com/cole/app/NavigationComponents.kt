@@ -62,7 +62,7 @@ fun ColeBottomNavBar(
                 .fillMaxWidth()
                 .height(79.dp)
                 .background(AppColors.SurfaceBackgroundCard)
-                .padding(top = 13.dp),
+                .padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(42.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -73,7 +73,7 @@ fun ColeBottomNavBar(
                         .width(42.dp)
                         .clickable { onTabSelected(index) },
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     Icon(
                         painter = painterResource(

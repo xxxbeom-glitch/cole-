@@ -267,7 +267,7 @@ private fun MainPermissionBanner(
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Icon(
             painter = painterResource(R.drawable.ic_permission_denied),
@@ -498,6 +498,11 @@ fun MainFlowHost(onAddAppClick: () -> Unit, onLogout: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
             )
             navIndex == 0 -> ColeHeaderHome(logo = painterResource(R.drawable.ic_logo), hasNotification = true)
+            navIndex == 1 -> ColeHeaderTitleWithNotification(
+                title = "챌린지",
+                hasNotification = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
             navIndex == 2 -> ColeHeaderSub(
                 title = "통계",
                 backIcon = painterResource(R.drawable.ic_back),
@@ -512,6 +517,15 @@ fun MainFlowHost(onAddAppClick: () -> Unit, onLogout: () -> Unit) {
             0 -> {
                 Box(modifier = Modifier.weight(1f)) {
                     MainScreenMA01(onAddAppClick = onAddAppClick)
+                }
+            }
+            1 -> {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                ) {
+                    ChallengeScreen()
                 }
             }
             2 -> {

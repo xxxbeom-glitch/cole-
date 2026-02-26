@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.dp
 
 /**
  * 앱 아이콘 테스트 화면 (디버그 전용)
- * Squircle + #000000 50% 오버레이 + 중앙 자물쇠 스타일 앱 아이콘을 테스트.
+ * Squircle + #000000 40% 오버레이 + 중앙 자물쇠 스타일 앱 아이콘을 테스트.
  * 넷플릭스 앱 아이콘을 사용.
  */
 @Composable
@@ -49,7 +49,7 @@ fun DebugAppIconTestScreen(onBack: () -> Unit) {
             style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
         )
         Text(
-            text = "Squircle + #000000 50% 오버레이 + 중앙 자물쇠 (넷플릭스)",
+            text = "Squircle + #000000 40% 오버레이 + 중앙 자물쇠 (넷플릭스)",
             style = AppTypography.Caption1.copy(color = AppColors.TextSecondary),
         )
 
@@ -72,15 +72,15 @@ fun DebugAppIconTestScreen(onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    AppIconSquircleLock(appIcon = netflixPainter, iconSize = 40.dp)
+                    AppIconSquircleLock(appIcon = netflixPainter, iconSize = 40.dp, overlayAlpha = 0.4f)
                     Text(text = "40dp", style = AppTypography.Caption2.copy(color = AppColors.TextCaption))
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    AppIconSquircleLock(appIcon = netflixPainter, iconSize = 48.dp)
+                    AppIconSquircleLock(appIcon = netflixPainter, iconSize = 48.dp, overlayAlpha = 0.4f)
                     Text(text = "48dp", style = AppTypography.Caption2.copy(color = AppColors.TextCaption))
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    AppIconSquircleLock(appIcon = netflixPainter, iconSize = 56.dp)
+                    AppIconSquircleLock(appIcon = netflixPainter, iconSize = 56.dp, overlayAlpha = 0.4f)
                     Text(text = "56dp", style = AppTypography.Caption2.copy(color = AppColors.TextCaption))
                 }
             }
@@ -104,7 +104,7 @@ fun DebugAppIconTestScreen(onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                AppIconSquircleLock(appIcon = netflixPainter, iconSize = 56.dp)
+                AppIconSquircleLock(appIcon = netflixPainter, iconSize = 56.dp, overlayAlpha = 0.4f)
                 Column(modifier = Modifier.weight(1f)) {
                     Text("넷플릭스", style = AppTypography.BodyMedium.copy(color = AppColors.TextBody))
                     Text("14분/30분 사용 중", style = AppTypography.Caption2.copy(color = AppColors.TextHighlight))
@@ -115,7 +115,7 @@ fun DebugAppIconTestScreen(onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                AppIconSquircleLock(appIcon = netflixPainter, iconSize = 56.dp)
+                AppIconSquircleLock(appIcon = netflixPainter, iconSize = 56.dp, overlayAlpha = 0.4f)
                 Column(modifier = Modifier.weight(1f)) {
                     Text("넷플릭스", style = AppTypography.BodyMedium.copy(color = AppColors.TextBody))
                     Text("09:50 일시 정지 중", style = AppTypography.Caption2.copy(color = AppColors.Red300))
@@ -139,6 +139,7 @@ fun DebugAppIconTestScreen(onBack: () -> Unit) {
             AppIconSquircleLock(
                 appIcon = painterResource(R.drawable.ic_app_placeholder),
                 iconSize = 56.dp,
+                overlayAlpha = 0.4f,
             )
         }
 

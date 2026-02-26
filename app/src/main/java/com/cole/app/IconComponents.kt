@@ -185,8 +185,9 @@ fun rememberDeviceIconMaskShape(): Shape {
 }
 
 /**
- * 앱 아이콘 (기기 기본 쉐이프 + #000000 50% 오버레이 + 중앙 자물쇠)
+ * 앱 아이콘 (기기 기본 쉐이프 + #000000 오버레이 + 중앙 자물쇠)
  * 아이콘·오버레이 모두 기기 마스크로 클리핑
+ * @param overlayAlpha 오버레이 불투명도 (기본 50%)
  */
 @Composable
 fun AppIconSquircleLock(
@@ -194,6 +195,7 @@ fun AppIconSquircleLock(
     modifier: Modifier = Modifier,
     iconSize: Dp = 56.dp,
     lockIconResId: Int = R.drawable.ic_lock_center,
+    overlayAlpha: Float = 0.5f,
 ) {
     val maskShape = rememberDeviceIconMaskShape()
     Box(
@@ -210,7 +212,7 @@ fun AppIconSquircleLock(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .background(Color.Black.copy(alpha = 0.5f)),
+                .background(Color.Black.copy(alpha = overlayAlpha)),
         )
         Icon(
             painter = painterResource(id = lockIconResId),

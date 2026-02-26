@@ -104,7 +104,7 @@ fun AppStatusRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
                     text = appName,
                     style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),

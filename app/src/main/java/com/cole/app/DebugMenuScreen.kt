@@ -705,6 +705,7 @@ private sealed class DesignSystemSection(val label: String) {
     data object Select : DesignSystemSection("선택")
     data object IconsLabel : DesignSystemSection("아이콘/라벨")
     data object BottomSheets : DesignSystemSection("바텀시트")
+    data object Dialogs : DesignSystemSection("다이얼로그")
 }
 
 @Composable
@@ -739,6 +740,7 @@ private fun DebugDesignSystemSection() {
                 DesignSystemSection.Select,
                 DesignSystemSection.IconsLabel,
                 DesignSystemSection.BottomSheets,
+                DesignSystemSection.Dialogs,
             ).forEach { section ->
                 Box(
                     modifier = Modifier
@@ -782,6 +784,7 @@ private fun DebugDesignSystemDetailSection(
             DesignSystemSection.Select -> DebugSelectContent()
             DesignSystemSection.IconsLabel -> DebugIconsLabelContent()
             DesignSystemSection.BottomSheets -> DebugBottomSheetsContent(onBack = onBack)
+            DesignSystemSection.Dialogs -> DebugDialogsContent()
         }
     }
 }
@@ -830,6 +833,34 @@ private fun DebugBottomSheetsContent(onBack: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DebugDialogsContent() {
+    var showDialog by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        DebugSectionTitle("다이얼로그")
+        Text(
+            text = "ColeGuideDialog (Figma 310:2725) — 아이콘 + 제목 + 부제 + 날짜 + 2줄 버튼",
+            style = AppTypography.Caption1.copy(color = AppColors.TextBody),
+        )
+        ColePrimaryButton(
+            text = "다이얼로그 미리보기",
+            onClick = { showDialog = true },
+        )
+    }
+    if (showDialog) {
+        ColeGuideDialog(
+            onDismissRequest = { showDialog = false },
+            title = "꾸준한 실천",
+            subtitle = "오늘도 목표를 향해 한 걸음 더 나아갔어요.",
+            date = "2025.02.25",
+            primaryButtonText = "계속 진행",
+            secondaryButtonText = "돌아가기",
+            onPrimaryClick = { showDialog = false },
+            onSecondaryClick = { showDialog = false },
+        )
     }
 }
 
