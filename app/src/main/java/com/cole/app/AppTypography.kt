@@ -55,6 +55,11 @@ val SuitVariable = FontFamily(
     ),
     Font(
         resId = R.font.suit_variable,
+        weight = FontWeight(760),
+        variationSettings = FontVariation.Settings(FontVariation.weight(760)),
+    ),
+    Font(
+        resId = R.font.suit_variable,
         weight = FontWeight.ExtraBold,
         variationSettings = FontVariation.Settings(FontVariation.weight(800)),
     ),
@@ -70,7 +75,7 @@ object AppTypography {
     val Display2  = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight.SemiBold,  fontSize = 32.sp, lineHeight = 44.sp)
     val Display3  = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight.ExtraBold, fontSize = 26.sp, lineHeight = 36.sp)
     val HeadingH1 = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, lineHeight = 32.sp)
-    val HeadingH2 = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight(720), fontSize = 22.sp, lineHeight = 32.sp)
+    val HeadingH2 = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight(760), fontSize = 22.sp, lineHeight = 32.sp)
     val HeadingH3 = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight(720), fontSize = 18.sp, lineHeight = 26.sp)
     val BodyMedium  = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight.Medium,   fontSize = 15.sp, lineHeight = 24.sp)
     val BodyRegular = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight.Normal,   fontSize = 15.sp, lineHeight = 24.sp)

@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -99,15 +100,19 @@ private val MainCardShadowColor = Color.Black.copy(alpha = 0.06f)
 // 목업: 일별 완료(이모지) / 미완료(날짜숫자)
 private data class MainDayItem(val label: String, val isCompleted: Boolean, val emojiOrDay: String)
 
-// 목업: 앱 제한 행 (appIconResId: 기기 앱 아이콘, usageLabelColor: "일시 정지 중" 등 Red300)
+// 목업: 앱 제한 행 (usageTextColor/usageLabelColor: 일시정지중일 때 Red300)
 private data class MainAppRestrictionItem(
     val appName: String,
     val usageText: String,
     val usageLabel: String,
     val showDetailButton: Boolean,
     val appIconResId: Int = R.drawable.ic_app_placeholder,
+    val usageTextColor: Color? = null,
     val usageLabelColor: Color? = null,
 )
+
+private val MainDayAreaSize = 42.dp
+private val MainDayCircleSize = 32.dp
 
 @Composable
 private fun MainDailyProgressSection(
@@ -124,19 +129,24 @@ private fun MainDailyProgressSection(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(RoundedCornerShape(21.dp))
-                            .background(if (item.isCompleted) AppColors.Primary300 else AppColors.Primary200),
+                        modifier = Modifier.size(MainDayAreaSize),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            text = item.emojiOrDay,
-                            style = AppTypography.Caption1.copy(
-                                color = if (item.isCompleted) AppColors.TextInvert else AppColors.TextBody,
-                                textAlign = TextAlign.Center,
-                            ),
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(MainDayCircleSize)
+                                .clip(CircleShape)
+                                .background(if (item.isCompleted) AppColors.Primary300 else AppColors.Primary200),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = item.emojiOrDay,
+                                style = AppTypography.Caption1.copy(
+                                    color = if (item.isCompleted) AppColors.TextInvert else AppColors.TextBody,
+                                    textAlign = TextAlign.Center,
+                                ),
+                            )
+                        }
                     }
                     Text(
                         text = label,
@@ -160,7 +170,7 @@ private fun MainAppRestrictionRow(
             .fillMaxWidth()
             .height(56.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(9.dp),
     ) {
         RestrictedAppIconBox(
             appIcon = if (item.appIconResId == R.drawable.ic_app_placeholder) {
@@ -177,7 +187,10 @@ private fun MainAppRestrictionRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(text = item.usageText, style = AppTypography.Caption2.copy(color = AppColors.TextHighlight))
+                Text(
+                    text = item.usageText,
+                    style = AppTypography.Caption2.copy(color = item.usageTextColor ?: AppColors.TextHighlight),
+                )
                 if (item.usageLabel.isNotEmpty()) {
                     Text(
                         text = item.usageLabel,
@@ -206,6 +219,7 @@ private fun MainAppRestrictionCard(
     apps: List<MainAppRestrictionItem>,
     onAddAppClick: () -> Unit,
     modifier: Modifier = Modifier,
+    addButtonText: String = "사용제한 앱 추가",
 ) {
     Column(
         modifier = modifier
@@ -213,14 +227,14 @@ private fun MainAppRestrictionCard(
             .shadow(6.dp, MainCardShape, false, MainCardShadowColor, MainCardShadowColor)
             .clip(MainCardShape)
             .background(AppColors.SurfaceBackgroundCard)
-            .padding(start = 16.dp, top = 32.dp, end = 16.dp, bottom = 26.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
+            .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         Text(
             text = "진행 중인 앱",
             style = AppTypography.HeadingH2.copy(color = AppColors.TextSecondary),
         )
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             apps.forEach { item ->
                 MainAppRestrictionRow(item = item)
             }
@@ -230,7 +244,94 @@ private fun MainAppRestrictionCard(
             horizontalArrangement = Arrangement.Center,
         ) {
             ColeAddAppButton(
-                text = "사용제한 앱 추가",
+                text = addButtonText,
+                icon = painterResource(R.drawable.ic_add_circle),
+                onClick = onAddAppClick,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/** MA-01: 접근권한 허용 카드 (Figma 336:2910, 회색 배경) */
+@Composable
+private fun MainPermissionBanner(
+    onClick: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MainCardShape)
+            .background(AppColors.Grey200)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_permission_denied),
+            contentDescription = null,
+            tint = Color.Unspecified,
+            modifier = Modifier.size(24.dp),
+        )
+        Text(
+            text = "접근권한을 허용해주세요",
+            style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            painter = painterResource(R.drawable.ic_chevron_right),
+            contentDescription = null,
+            tint = AppColors.TextSecondary,
+        )
+    }
+}
+
+/** MA-02: 진행 중인 앱 빈 상태 (Figma 662:2907) */
+@Composable
+private fun MainAppRestrictionCardEmpty(
+    onAddAppClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    addButtonText: String = "잠시만 멀어질 앱 추가하기",
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(6.dp, MainCardShape, false, MainCardShadowColor, MainCardShadowColor)
+            .clip(MainCardShape)
+            .background(AppColors.SurfaceBackgroundCard)
+            .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        Text(
+            text = "진행 중인 앱",
+            style = AppTypography.HeadingH2.copy(color = AppColors.TextSecondary),
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "아직 진행중인 앱이 없어요",
+                style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = "잠시 제한하고 싶은 앱을 추가해보세요",
+                style = AppTypography.Caption1.copy(color = AppColors.TextSecondary),
+                textAlign = TextAlign.Center,
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            ColeAddAppButton(
+                text = addButtonText,
                 icon = painterResource(R.drawable.ic_add_circle),
                 onClick = onAddAppClick,
                 modifier = Modifier.fillMaxWidth(),
@@ -276,6 +377,99 @@ private sealed class SettingsDetail(val title: String) {
     data object OpenSource : SettingsDetail("오픈소스 라이센스")
 }
 
+/** MA-01 메인 화면 (Figma 336:2910): 기본 페이지, 데이터 있을 때 */
+@Composable
+fun MainScreenMA01(
+    onAddAppClick: () -> Unit,
+    onPermissionClick: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    val mockDaysMA01 = listOf(
+        MainDayItem("수", true, "👍"),
+        MainDayItem("목", true, "👍"),
+        MainDayItem("금", true, "😥"),
+        MainDayItem("토", true, "👍"),
+        MainDayItem("일", false, "15"),
+        MainDayItem("월", false, "16"),
+        MainDayItem("화", false, "17"),
+    )
+    val mockAppsMA01 = listOf(
+        MainAppRestrictionItem("인스타그램", "14분/30분", "사용 중", true),
+        MainAppRestrictionItem("인스타그램", "15분/30분", "사용 중", true),
+        MainAppRestrictionItem("인스타그램", "09:50", "일시 정지 중", false, usageTextColor = AppColors.Red300, usageLabelColor = AppColors.Red300),
+    )
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        Spacer(modifier = Modifier.height(20.dp))
+        MainPermissionBanner(onClick = onPermissionClick)
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(6.dp, MainCardShape, false, MainCardShadowColor, MainCardShadowColor)
+                    .clip(MainCardShape)
+                    .background(AppColors.SurfaceBackgroundCard)
+                    .padding(16.dp),
+            ) {
+                MainDailyProgressSection(days = mockDaysMA01)
+            }
+        }
+        MainAppRestrictionCard(
+            apps = mockAppsMA01,
+            onAddAppClick = onAddAppClick,
+            addButtonText = "잠시만 멀어질 앱 추가하기",
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+    }
+}
+
+/** MA-02 메인 화면 (Figma 662:2907): 데이터 없을 때 */
+@Composable
+fun MainScreenMA02(
+    onAddAppClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val mockDaysMA02 = listOf(
+        MainDayItem("수", false, "11"),
+        MainDayItem("목", false, "12"),
+        MainDayItem("금", false, "13"),
+        MainDayItem("토", false, "14"),
+        MainDayItem("일", false, "15"),
+        MainDayItem("월", false, "16"),
+        MainDayItem("화", false, "17"),
+    )
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        Spacer(modifier = Modifier.height(20.dp))
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(6.dp, MainCardShape, false, MainCardShadowColor, MainCardShadowColor)
+                    .clip(MainCardShape)
+                    .background(AppColors.SurfaceBackgroundCard)
+                    .padding(16.dp),
+            ) {
+                MainDailyProgressSection(days = mockDaysMA02)
+            }
+        }
+        MainAppRestrictionCardEmpty(onAddAppClick = onAddAppClick)
+        Spacer(modifier = Modifier.height(20.dp))
+    }
+}
+
 @Composable
 fun MainFlowHost(onAddAppClick: () -> Unit, onLogout: () -> Unit) {
     var navIndex by remember { mutableIntStateOf(0) }
@@ -285,21 +479,6 @@ fun MainFlowHost(onAddAppClick: () -> Unit, onLogout: () -> Unit) {
         NavDestination("챌린지", R.drawable.ic_nav_challenge_inactive, R.drawable.ic_nav_challenge_active),
         NavDestination("통계", R.drawable.ic_nav_stats_inactive, R.drawable.ic_nav_stats_active),
         NavDestination("마이", R.drawable.ic_nav_mypage_inactive, R.drawable.ic_nav_mypage_active),
-    )
-
-    val mockDays = listOf(
-        MainDayItem("수", true, "👍"),
-        MainDayItem("목", true, "👍"),
-        MainDayItem("금", true, "😥"),
-        MainDayItem("토", true, "👍"),
-        MainDayItem("일", false, "15"),
-        MainDayItem("월", false, "16"),
-        MainDayItem("화", false, "17"),
-    )
-    val mockApps = listOf(
-        MainAppRestrictionItem("넷플릭스", "32분 후 제한 해제", "", true),
-        MainAppRestrictionItem("넷플릭스", "14분/30분", "사용 중", true),
-        MainAppRestrictionItem("넷플릭스", "09:50", "일시 정지 중", false, usageLabelColor = AppColors.Red300),
     )
 
     Column(
@@ -331,33 +510,8 @@ fun MainFlowHost(onAddAppClick: () -> Unit, onLogout: () -> Unit) {
         }
         when (navIndex) {
             0 -> {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(26.dp),
-                ) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(6.dp, MainCardShape, false, MainCardShadowColor, MainCardShadowColor)
-                                .clip(MainCardShape)
-                                .background(AppColors.SurfaceBackgroundCard)
-                                .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 10.dp),
-                        ) {
-                            MainDailyProgressSection(days = mockDays)
-                        }
-                    }
-                    MainAppRestrictionCard(apps = mockApps, onAddAppClick = onAddAppClick)
-                    MainAddictionCard(
-                        score = 430,
-                        message = "스마트폰 사용 습관이 건강해요!",
-                        onPrimaryClick = { },
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
+                Box(modifier = Modifier.weight(1f)) {
+                    MainScreenMA01(onAddAppClick = onAddAppClick)
                 }
             }
             2 -> {

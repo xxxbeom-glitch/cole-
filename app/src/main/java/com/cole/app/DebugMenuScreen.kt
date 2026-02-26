@@ -101,12 +101,15 @@ sealed class DebugScreen(val category: String, val label: String) {
 
     // 메인
     data object MainFlow : DebugScreen("메인", "메인 (홈/챌린지/통계/마이)")
+    data object MainMA01 : DebugScreen("메인", "MA-01: 메인 (데이터 있음)")
+    data object MainMA02 : DebugScreen("메인", "MA-02: 메인 (데이터 없음)")
 
     // 테스트
     data object SpacingTest : DebugScreen("테스트", "간격테스트 (헤더~콘텐츠 38/36/32/28/26dp)")
     data object GaugeTest : DebugScreen("테스트", "게이지 테스트 (ResultGaugeGraph)")
     data object GaugeTest2 : DebugScreen("테스트", "게이지테스트 2 (5등분 세그먼트)")
     data object LoadingAnimation : DebugScreen("테스트", "로딩 애니메이션 (3dot → 체크)")
+    data object AppIconTest : DebugScreen("테스트", "앱 아이콘 테스트")
 
     // 바텀시트
     data object BaseBottomSheet : DebugScreen("바텀시트", "BaseBottomSheet (기본형)")
@@ -222,13 +225,20 @@ private fun DebugScreenPreview(
             onBackFromFirst = onBack,
         )
         DebugScreen.MainFlow -> MainFlowHost(
-            onAddAppClick = onBack,
-            onLogout = onBack,
+            onAddAppClick = { },
+            onLogout = { },
         )
+        DebugScreen.MainMA01 -> DebugMainScreenWrapper(onBack = onBack) {
+            MainScreenMA01(onAddAppClick = { })
+        }
+        DebugScreen.MainMA02 -> DebugMainScreenWrapper(onBack = onBack) {
+            MainScreenMA02(onAddAppClick = { })
+        }
         DebugScreen.SpacingTest -> DebugSpacingTestScreen(onBack = onBack)
         DebugScreen.GaugeTest -> DebugGaugeTestScreen(onBack = onBack)
         DebugScreen.GaugeTest2 -> DebugGaugeTest2Screen(onBack = onBack)
         DebugScreen.LoadingAnimation -> DebugLoadingAnimationTestScreen(onBack = onBack)
+        DebugScreen.AppIconTest -> DebugAppIconTestScreen(onBack = onBack)
         DebugScreen.BaseBottomSheet -> DebugBottomSheetPreview(onBack = onBack) { onSheetDismiss ->
             BaseBottomSheet(
                 title = "앱을 선택해주세요",
@@ -321,6 +331,36 @@ private fun DebugSplashPreview(onBack: () -> Unit) {
                 .align(Alignment.TopStart)
                 .padding(16.dp)
                 .windowInsetsPadding(WindowInsets.statusBars)
+                .widthIn(max = 120.dp),
+        )
+    }
+}
+
+@Composable
+private fun DebugMainScreenWrapper(
+    onBack: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.navigationBars),
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            ColeHeaderHome(logo = painterResource(R.drawable.ic_logo), hasNotification = true)
+            Box(modifier = Modifier.weight(1f)) {
+                content()
+            }
+        }
+        ColeGhostButton(
+            text = "돌아가기",
+            onClick = onBack,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(16.dp)
+                .padding(top = 18.dp)
                 .widthIn(max = 120.dp),
         )
     }
@@ -611,6 +651,7 @@ private fun DebugScreenListSection(
             DebugScreen.GaugeTest,
             DebugScreen.GaugeTest2,
             DebugScreen.LoadingAnimation,
+            DebugScreen.AppIconTest,
             DebugScreen.SignUpEmail,
             DebugScreen.SignUpPassword,
             DebugScreen.SignUpNameBirthPhone,
@@ -622,6 +663,8 @@ private fun DebugScreenListSection(
             DebugScreen.SelfTestResult,
             DebugScreen.AddAppFlowHost,
             DebugScreen.MainFlow,
+            DebugScreen.MainMA01,
+            DebugScreen.MainMA02,
         )
         val grouped = allScreens.groupBy { it.category }
 
