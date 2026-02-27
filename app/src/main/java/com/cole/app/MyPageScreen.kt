@@ -48,11 +48,10 @@ fun MyPageScreen(
         modifier = Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp)
+            .padding(top = 10.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        Spacer(modifier = Modifier.height(24.dp))
-
         // 내 계정
         MyPageSection(title = "내 계정") {
             MyPageRowItem(
@@ -113,7 +112,7 @@ fun MyPageScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(18.dp))
     }
 }
 

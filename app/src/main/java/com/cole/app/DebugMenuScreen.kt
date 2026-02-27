@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
@@ -87,6 +88,9 @@ sealed class DebugScreen(val category: String, val label: String) {
     data object SelfTest : DebugScreen("인증/온보딩", "자가테스트")
     data object SelfTestLoading : DebugScreen("인증/온보딩", "자가테스트 로딩")
     data object SelfTestResult : DebugScreen("인증/온보딩", "자가테스트 결과")
+    data object PasswordResetEmail : DebugScreen("인증/온보딩", "비밀번호 재설정 - RS-01")
+    data object PasswordResetCode : DebugScreen("인증/온보딩", "비밀번호 재설정 - RS-02")
+    data object PasswordResetNew : DebugScreen("인증/온보딩", "비밀번호 재설정 - RS-03")
 
     // 앱 제한
     data object AddAppAA01 : DebugScreen("앱 제한", "AA-01: 제한 방법 선택")
@@ -100,7 +104,7 @@ sealed class DebugScreen(val category: String, val label: String) {
     data object AddAppFlowHost : DebugScreen("앱 제한", "앱 제한 플로우 전체")
 
     // 메인
-    data object MainFlow : DebugScreen("메인", "메인 (홈/챌린지/통계/마이)")
+    data object MainFlow : DebugScreen("메인", "메인 (홈/챌린지/통계/설정)")
     data object MainMA01 : DebugScreen("메인", "MA-01: 메인 (데이터 있음)")
     data object MainMA02 : DebugScreen("메인", "MA-02: 메인 (데이터 없음)")
 
@@ -108,6 +112,7 @@ sealed class DebugScreen(val category: String, val label: String) {
     data object SpacingTest : DebugScreen("테스트", "간격테스트 (헤더~콘텐츠 38/36/32/28/26dp)")
     data object GaugeTest : DebugScreen("테스트", "게이지 테스트 (ResultGaugeGraph)")
     data object GaugeTest2 : DebugScreen("테스트", "게이지테스트 2 (5등분 세그먼트)")
+    data object SelfTestResultST10 : DebugScreen("테스트", "자가테스트 결과 ST-10 (반원형 게이지)")
     data object LoadingAnimation : DebugScreen("테스트", "로딩 애니메이션 (3dot → 체크)")
     data object AppIconTest : DebugScreen("테스트", "앱 아이콘 테스트")
 
@@ -163,11 +168,24 @@ private fun DebugScreenPreview(
         )
         DebugScreen.SelfTestLoading -> SelfTestLoadingScreen(onFinish = onBack)
         DebugScreen.SelfTestResult -> SelfTestResultScreen(
-            resultType = SelfTestResultType.MIDDLE,
+            resultType = SelfTestResultType.CAUTION,
             onStartClick = onBack,
             onBackClick = onBack,
             rawScore = 23,
             userName = "장원영",
+        )
+        DebugScreen.PasswordResetEmail -> PasswordResetEmailScreen(
+            onNextClick = { onBack() },
+            onBackClick = onBack,
+        )
+        DebugScreen.PasswordResetCode -> PasswordResetCodeScreen(
+            onNextClick = { onBack() },
+            onBackClick = onBack,
+            onResendClick = {},
+        )
+        DebugScreen.PasswordResetNew -> PasswordResetNewPasswordScreen(
+            onNextClick = { onBack() },
+            onBackClick = onBack,
         )
         DebugScreen.AddAppAA01 -> AddAppScreenAA01(
             onTimeSpecifiedClick = onBack,
@@ -237,6 +255,13 @@ private fun DebugScreenPreview(
         DebugScreen.SpacingTest -> DebugSpacingTestScreen(onBack = onBack)
         DebugScreen.GaugeTest -> DebugGaugeTestScreen(onBack = onBack)
         DebugScreen.GaugeTest2 -> DebugGaugeTest2Screen(onBack = onBack)
+        DebugScreen.SelfTestResultST10 -> SelfTestResultScreenST10(
+            resultType = SelfTestResultType.CAUTION,
+            onStartClick = onBack,
+            onBackClick = onBack,
+            rawScore = 23,
+            userName = "장원영",
+        )
         DebugScreen.LoadingAnimation -> DebugLoadingAnimationTestScreen(onBack = onBack)
         DebugScreen.AppIconTest -> DebugAppIconTestScreen(onBack = onBack)
         DebugScreen.BaseBottomSheet -> DebugBottomSheetPreview(onBack = onBack) { onSheetDismiss ->
@@ -358,9 +383,8 @@ private fun DebugMainScreenWrapper(
             text = "돌아가기",
             onClick = onBack,
             modifier = Modifier
-                .align(Alignment.TopStart)
+                .align(Alignment.BottomStart)
                 .padding(16.dp)
-                .padding(top = 18.dp)
                 .widthIn(max = 120.dp),
         )
     }
@@ -650,6 +674,7 @@ private fun DebugScreenListSection(
             DebugScreen.SpacingTest,
             DebugScreen.GaugeTest,
             DebugScreen.GaugeTest2,
+            DebugScreen.SelfTestResultST10,
             DebugScreen.LoadingAnimation,
             DebugScreen.AppIconTest,
             DebugScreen.SignUpEmail,
@@ -661,6 +686,9 @@ private fun DebugScreenListSection(
             DebugScreen.SelfTest,
             DebugScreen.SelfTestLoading,
             DebugScreen.SelfTestResult,
+            DebugScreen.PasswordResetEmail,
+            DebugScreen.PasswordResetCode,
+            DebugScreen.PasswordResetNew,
             DebugScreen.AddAppFlowHost,
             DebugScreen.MainFlow,
             DebugScreen.MainMA01,
@@ -987,9 +1015,26 @@ private fun DebugInfoboxContent() {
 
 @Composable
 private fun DebugListsContent() {
+    var switchOff by remember { mutableStateOf(false) }
+    var switchOn by remember { mutableStateOf(true) }
+    var selectionRowSwitch by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
         DebugSectionTitle("Lists")
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("스위치 (ColeSwitch / ColeToggleSwitch)", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
+            Row(
+                modifier = Modifier.height(56.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(modifier = Modifier.wrapContentSize()) {
+                    ColeSwitch(checked = switchOff, onCheckedChange = { switchOff = it })
+                }
+                Box(modifier = Modifier.wrapContentSize()) {
+                    ColeSwitch(checked = switchOn, onCheckedChange = { switchOn = it })
+                }
+            }
+            Text("AppStatusRow", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
             AppStatusRow(appName = "인스타그램", appIcon = painterResource(R.drawable.ic_app_placeholder))
             AppStatusRow(
                 appName = "인스타그램",
@@ -1006,13 +1051,10 @@ private fun DebugListsContent() {
                 usageMinutes = "144분",
                 sessionCount = "12회",
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                ColeSwitch(checked = false, onCheckedChange = {})
-                ColeSwitch(checked = true, onCheckedChange = {})
-            }
+            Text("SelectionRow", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
             SelectionRow(label = "앱을 선택해주세요", variant = SelectionRowVariant.Selected, selectedValue = "인스타그램", onClick = {})
             SelectionRow(label = "앱을 선택해주세요", variant = SelectionRowVariant.Default, onClick = {})
-            SelectionRow(label = "앱을 선택해주세요", variant = SelectionRowVariant.Switch, switchChecked = false, onSwitchChange = {}, onClick = {})
+            SelectionRow(label = "앱을 선택해주세요", variant = SelectionRowVariant.Switch, switchChecked = selectionRowSwitch, onSwitchChange = { selectionRowSwitch = it }, onClick = {})
         }
     }
 }
@@ -1040,7 +1082,7 @@ private fun DebugNavigationContent() {
         NavDestination("홈", R.drawable.ic_nav_home_inactive, R.drawable.ic_nav_home_active),
         NavDestination("챌린지", R.drawable.ic_nav_challenge_inactive, R.drawable.ic_nav_challenge_active),
         NavDestination("통계", R.drawable.ic_nav_stats_inactive, R.drawable.ic_nav_stats_active),
-        NavDestination("마이", R.drawable.ic_nav_mypage_inactive, R.drawable.ic_nav_mypage_active),
+        NavDestination("설정", R.drawable.ic_nav_mypage_inactive, R.drawable.ic_nav_mypage_active),
     )
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
         DebugSectionTitle("Navigation")
@@ -1080,6 +1122,8 @@ private fun DebugSelectContent() {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
             ColeCheckBox(checked = true, onCheckedChange = {})
             ColeCheckBox(checked = false, onCheckedChange = {})
+            ColeSwitch(checked = true, onCheckedChange = {})
+            ColeSwitch(checked = false, onCheckedChange = {})
             ColeRadioButton(selected = true, onClick = {})
             ColeRadioButton(selected = false, onClick = {})
         }

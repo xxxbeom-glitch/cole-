@@ -2,8 +2,9 @@ package com.cole.app
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -18,11 +19,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
+// ─────────────────────────────────────────────
+// ST-09 자가테스트 로딩 화면 여백
+// ─────────────────────────────────────────────
+private val TopTextsGap = 8.dp        // 잠시만 기다려주세요 ~ 작성하신~입니다
+private val TextToAnimationGap = 10.dp // 작성하신~ ~ 애니메이션 (그대로)
+private val AnimationToQuoteGap = 40.dp // 애니메이션 ~ 인용문
+private val QuoteToSourceGap = 10.dp   // 인용문 ~ 출처
+
 /**
  * ST-09: 자가테스트 결과 로딩 화면
- * - 잠시만 기다려주세요 / 작성하신 자가진단표를 분석중입니다
- * - 로딩 애니메이션 (3 dot 웨이브 → 합쳐짐 → 체크)
- * - 하단 인용문
+ * - 잠시만 기다려주세요 / 작성하신~입니다 / 애니메이션 / 인용문 — 중앙정렬
  */
 @Composable
 fun SelfTestLoadingScreen(
@@ -33,60 +40,47 @@ fun SelfTestLoadingScreen(
         modifier = modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.statusBars),
+        contentAlignment = Alignment.Center,
     ) {
-        BoxWithConstraints(
+        Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(vertical = 48.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween,
+            Text(
+                text = "잠시만 기다려주세요",
+                style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(TopTextsGap))
+            Text(
+                text = "작성하신 자가진단표를\n분석중입니다",
+                style = AppTypography.HeadingH2.copy(color = AppColors.TextPrimary),
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(TextToAnimationGap))
+            Box(
+                modifier = Modifier.size(120.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                // 상단: 잠시만 기다려주세요
+                LoadingToCheckAnimation(onComplete = onFinish)
+            }
+            Spacer(modifier = Modifier.height(AnimationToQuoteGap))
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(QuoteToSourceGap),
+            ) {
                 Text(
-                    text = "잠시만 기다려주세요",
+                    text = "SNS는 인생의 낭비다. 그 시간에 책을 읽어라.",
                     style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
                     textAlign = TextAlign.Center,
                 )
-
-                // 메인: 작성하신 자가진단표를 분석중입니다 + 로딩→체크 애니메이션
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(32.dp),
-                ) {
-                    Text(
-                        text = "작성하신 자가진단표를\n분석중입니다",
-                        style = AppTypography.HeadingH2.copy(color = AppColors.TextPrimary),
-                        textAlign = TextAlign.Center,
-                    )
-                    Box(
-                        modifier = Modifier.size(120.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        LoadingToCheckAnimation(onComplete = onFinish)
-                    }
-                }
-
-                // 하단: 인용문 + 출처
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = "SNS는 인생의 낭비다. 그 시간에 책을 읽어라.",
-                        style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
-                        textAlign = TextAlign.Center,
-                    )
-                    Text(
-                        text = "알렉스 퍼거슨 (Sir Alex Ferguson)",
-                        style = AppTypography.Caption1.copy(color = AppColors.TextCaption),
-                        textAlign = TextAlign.Center,
-                    )
-                }
+                Text(
+                    text = "알렉스 퍼거슨 (Sir Alex Ferguson)",
+                    style = AppTypography.Caption1.copy(color = AppColors.TextCaption),
+                    textAlign = TextAlign.Center,
+                )
             }
         }
     }

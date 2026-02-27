@@ -2,7 +2,9 @@ package com.cole.app
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,16 +17,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -35,7 +43,7 @@ import androidx.compose.ui.unit.dp
 // ─────────────────────────────────────────────
 // 회원가입 플로우 간격 (스크린샷 기준 재조정)
 // ─────────────────────────────────────────────
-private val SignUpSpacing = object {
+internal object SignUpSpacing {
     val headerToContent: Dp = 20.dp     // 헤더 ~ 콘텐츠
     val titleToSubtitle: Dp = 8.dp      // 메인 타이틀 ~ 서브타이틀 (타이트)
     val subtitleToContent: Dp = 36.dp  // 서브타이틀 ~ 첫 입력 섹션
@@ -61,7 +69,7 @@ private val SignUpSpacing = object {
 fun SignUpHeader(
     title: String,
     onBackClick: (() -> Unit)? = null,
-    showNotification: Boolean = true,
+    showNotification: Boolean = false, // 회원가입·비밀번호재설정 플로우는 알림 숨김
     modifier: Modifier = Modifier,
 ) {
     ColeHeaderSub(
@@ -145,7 +153,6 @@ fun SignUpEmailScreen(
                     end = SignUpSpacing.contentPaddingHorizontal,
                     bottom = SignUpSpacing.bottomButtonPadding,
                 ),
-            verticalArrangement = Arrangement.spacedBy(SignUpSpacing.buttonGap),
         ) {
             ColePrimaryButton(
                 text = "다음",
@@ -153,7 +160,6 @@ fun SignUpEmailScreen(
                 enabled = isValid,
                 modifier = Modifier.fillMaxWidth(),
             )
-            ColeGhostButton(text = "돌아가기", onClick = onBackClick, modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -261,7 +267,6 @@ fun SignUpPasswordScreen(
                     end = SignUpSpacing.contentPaddingHorizontal,
                     bottom = SignUpSpacing.bottomButtonPadding,
                 ),
-            verticalArrangement = Arrangement.spacedBy(SignUpSpacing.buttonGap),
         ) {
             ColePrimaryButton(
                 text = "다음",
@@ -269,7 +274,6 @@ fun SignUpPasswordScreen(
                 enabled = canProceed,
                 modifier = Modifier.fillMaxWidth(),
             )
-            ColeGhostButton(text = "돌아가기", onClick = onBackClick, modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -366,7 +370,6 @@ fun SignUpNameBirthPhoneScreen(
                     end = SignUpSpacing.contentPaddingHorizontal,
                     bottom = SignUpSpacing.bottomButtonPadding,
                 ),
-            verticalArrangement = Arrangement.spacedBy(SignUpSpacing.buttonGap),
         ) {
             ColePrimaryButton(
                 text = "인증문자 발송",
@@ -374,7 +377,6 @@ fun SignUpNameBirthPhoneScreen(
                 enabled = canProceed,
                 modifier = Modifier.fillMaxWidth(),
             )
-            ColeGhostButton(text = "돌아가기", onClick = onBackClick, modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -391,7 +393,19 @@ fun SignUpVerificationCodeScreen(
     modifier: Modifier = Modifier,
 ) {
     var code by remember { mutableStateOf("") }
+    var remainSeconds by remember { mutableIntStateOf(180) } // 3분
     val isValid = code.length == 6
+
+    LaunchedEffect(Unit) {
+        while (remainSeconds > 0) {
+            delay(1000)
+            remainSeconds -= 1
+        }
+    }
+
+    val minutes = remainSeconds / 60
+    val seconds = remainSeconds % 60
+    val timerText = "%02d:%02d".format(minutes, seconds)
 
     Column(
         modifier = modifier
@@ -430,13 +444,50 @@ fun SignUpVerificationCodeScreen(
                     "받으신 인증번호를 입력해주세요",
                     style = AppTypography.BodyMedium.copy(color = AppColors.FormTextLabel),
                 )
-                ColeTextField(
-                    value = code,
-                    onValueChange = { code = it },
-                    placeholder = "인증번호 6자리",
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                // 인풋박스 안에 타이머 (우측)
+                val shape = RoundedCornerShape(6.dp)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(58.dp)
+                        .clip(shape)
+                        .background(AppColors.FormInputBgDefault)
+                        .padding(horizontal = 20.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        BasicTextField(
+                            value = code,
+                            onValueChange = { code = it },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            textStyle = AppTypography.Input.copy(
+                                color = if (code.isEmpty()) AppColors.FormTextPlaceholder else AppColors.FormTextValue,
+                            ),
+                            cursorBrush = SolidColor(AppColors.FormBorderFocus),
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            decorationBox = { innerTextField ->
+                                Box {
+                                    if (code.isEmpty()) {
+                                        Text(
+                                            "인증번호 6자리",
+                                            style = AppTypography.Input.copy(color = AppColors.FormTextPlaceholder),
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            },
+                        )
+                        Text(
+                            timerText,
+                            style = AppTypography.Caption1.copy(color = AppColors.FormTextError),
+                        )
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(SignUpSpacing.resendToButton))
             Row(
@@ -467,7 +518,6 @@ fun SignUpVerificationCodeScreen(
                     end = SignUpSpacing.contentPaddingHorizontal,
                     bottom = SignUpSpacing.bottomButtonPadding,
                 ),
-            verticalArrangement = Arrangement.spacedBy(SignUpSpacing.buttonGap),
         ) {
             ColePrimaryButton(
                 text = "다음",
@@ -475,7 +525,6 @@ fun SignUpVerificationCodeScreen(
                 enabled = isValid,
                 modifier = Modifier.fillMaxWidth(),
             )
-            ColeGhostButton(text = "돌아가기", onClick = onBackClick, modifier = Modifier.fillMaxWidth())
         }
     }
 }

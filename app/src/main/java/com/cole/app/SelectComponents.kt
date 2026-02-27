@@ -1,9 +1,12 @@
 package com.cole.app
 
 import com.cole.app.R
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,9 +24,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -77,21 +84,90 @@ fun ColeChipRow(
     }
 }
 
+/**
+ * Figma 352-3425, 352-3527: List / Switch Button
+ * - Off: 52x30dp, 회색 pill, 흰 원형 thumb 좌측
+ * - On: 52x30dp, 보라 pill, 흰 원형 thumb 우측 + 체크 아이콘
+ */
+@Composable
+fun ColeListSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val thumbPosition by animateFloatAsState(
+        targetValue = if (checked) 1f else 0f,
+        animationSpec = tween(durationMillis = 200),
+        label = "switch_thumb",
+    )
+    val trackColor = if (checked) AppColors.InteractiveRadioBgSelected else AppColors.Grey250
+    val thumbSize = 22.dp
+    val trackHeight = 30.dp
+    val trackWidth = 52.dp
+    val thumbPadding = 4.dp
+    val maxOffset = trackWidth - thumbSize - thumbPadding * 2
+
+    Box(
+        modifier = modifier
+            .width(trackWidth)
+            .height(trackHeight)
+            .minimumInteractiveComponentSize()
+            .clip(RoundedCornerShape(15.dp))
+            .background(trackColor)
+            .then(
+                if (enabled) Modifier.pointerInput(Unit) { detectTapGestures { onCheckedChange(!checked) } }
+                else Modifier
+            ),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(start = thumbPadding + maxOffset * thumbPosition)
+                .size(thumbSize)
+                .clip(CircleShape)
+                .background(Color.White),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (checked) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_switch_check),
+                    contentDescription = "선택됨",
+                    modifier = Modifier.size(14.dp),
+                    tint = AppColors.Primary300,
+                )
+            }
+        }
+    }
+}
+
+/** 라디오 버튼 (원형, 선택 시 내부 점) - SelectionCard 등에서 사용
+ * 터치 영역 28dp, 실제 원 22dp */
+private val RadioButtonTouchSize = 28.dp
+private val RadioButtonCircleSize = 22.dp
+private val RadioButtonInnerDotSize = 8.dp
+
 @Composable
 fun ColeRadioButton(selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     Box(
         modifier = modifier
-            .size(28.dp)
-            .clip(CircleShape)
-            .then(
-                if (selected) Modifier.background(AppColors.InteractiveRadioBgSelected)
-                else Modifier.background(AppColors.White900).border(1.5.dp, AppColors.InteractiveRadioBorderUnselected, CircleShape)
-            )
+            .size(RadioButtonTouchSize)
             .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
-        if (selected) {
-            Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(AppColors.InteractiveRadioBorderSelected))
+        Box(
+            modifier = Modifier
+                .size(RadioButtonCircleSize)
+                .clip(CircleShape)
+                .then(
+                    if (selected) Modifier.background(AppColors.InteractiveRadioBgSelected)
+                    else Modifier.background(AppColors.White900).border(1.5.dp, AppColors.InteractiveRadioBorderUnselected, CircleShape)
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) {
+                Box(modifier = Modifier.size(RadioButtonInnerDotSize).clip(CircleShape).background(AppColors.InteractiveRadioBorderSelected))
+            }
         }
     }
 }
@@ -113,7 +189,7 @@ fun ColeSelectionCard(
                 if (selected) Modifier.border(1.5.dp, AppColors.Primary300, RoundedCornerShape(12.dp))
                 else Modifier.border(1.dp, AppColors.InteractiveRadioBorderUnselected, RoundedCornerShape(12.dp))
             )
-            .background(AppColors.SurfaceBackgroundCard)
+            .background(Color.Transparent)
             .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 28.dp),
     ) {
@@ -162,6 +238,8 @@ fun ColeSelectionCardTitleOnly(
     title: String,
     selected: Boolean,
     onClick: () -> Unit,
+    titleStyle: TextStyle = AppTypography.HeadingH3,
+    titleColor: Color = AppColors.TextPrimary,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -172,7 +250,7 @@ fun ColeSelectionCardTitleOnly(
                 if (selected) Modifier.border(1.5.dp, AppColors.Primary300, RoundedCornerShape(12.dp))
                 else Modifier.border(1.dp, AppColors.InteractiveRadioBorderUnselected, RoundedCornerShape(12.dp))
             )
-            .background(AppColors.SurfaceBackgroundCard)
+            .background(Color.Transparent)
             .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 22.dp),
     ) {
@@ -189,7 +267,7 @@ fun ColeSelectionCardTitleOnly(
                 ColeRadioButton(selected = selected, onClick = onClick)
                 Text(
                     text = title,
-                    style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary),
+                    style = titleStyle.copy(color = titleColor),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -203,6 +281,8 @@ fun ColeSelectionCardTitleOnlyGroup(
     options: List<String>,
     selectedIndex: Int,
     onOptionSelected: (Int) -> Unit,
+    titleStyle: TextStyle = AppTypography.HeadingH3,
+    titleColor: Color = AppColors.TextPrimary,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -211,6 +291,8 @@ fun ColeSelectionCardTitleOnlyGroup(
                 title = option,
                 selected = index == selectedIndex,
                 onClick = { onOptionSelected(index) },
+                titleStyle = titleStyle,
+                titleColor = titleColor,
             )
         }
     }

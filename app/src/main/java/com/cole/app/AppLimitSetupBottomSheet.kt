@@ -1,9 +1,13 @@
 package com.cole.app
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -11,7 +15,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 
 /**
@@ -35,6 +41,7 @@ fun AppLimitSetupTimeBottomSheet(
     ),
     onDismissRequest: () -> Unit,
     onPrimaryClick: (Int, String) -> Unit,
+    primaryButtonText: String = "계속 진행",
     modifier: Modifier = Modifier,
 ) {
     var selectedIndex by remember { mutableIntStateOf(initialIndex.coerceIn(0, steps.lastIndex)) }
@@ -45,7 +52,7 @@ fun AppLimitSetupTimeBottomSheet(
         subtitle = subtitle,
         onDismissRequest = onDismissRequest,
         onPrimaryClick = { onPrimaryClick(selectedIndex, steps[selectedIndex]) },
-        primaryButtonText = "계속 진행",
+        primaryButtonText = primaryButtonText,
         modifier = modifier,
     ) {
         Column(
@@ -75,32 +82,58 @@ fun AppLimitSetupTimeBottomSheet(
 @Composable
 fun AppLimitSetupDayBottomSheet(
     title: String = "언제 반복할까요",
-    subtitle: String = "제한할 요일을 선택해주세요",
+    subtitle: String = "반복 설정 안 하면 오늘 하루만 적용돼요",
     dayLabels: List<String> = listOf("월", "화", "수", "목", "금", "토", "일"),
     initialSelected: Set<Int> = emptySet(),
+    initialRepeatEnabled: Boolean = initialSelected.isNotEmpty(),
     onDismissRequest: () -> Unit,
     onPrimaryClick: (Set<Int>) -> Unit,
+    primaryButtonText: String = "다음",
     modifier: Modifier = Modifier,
 ) {
     var selectedDays by remember { mutableStateOf(initialSelected) }
+    var repeatEnabled by remember { mutableStateOf(initialRepeatEnabled) }
 
     BaseBottomSheet(
         title = title,
         subtitle = subtitle,
         onDismissRequest = onDismissRequest,
-        onPrimaryClick = { onPrimaryClick(selectedDays) },
-        primaryButtonText = "계속 진행",
+        onPrimaryClick = { onPrimaryClick(if (repeatEnabled) selectedDays else emptySet()) },
+        primaryButtonText = primaryButtonText,
+        primaryButtonEnabled = !repeatEnabled || selectedDays.isNotEmpty(),
         modifier = modifier,
     ) {
-        ColeChipRow(
-            labels = dayLabels,
-            selectedIndices = selectedDays,
-            onChipClick = { i ->
-                selectedDays = if (i in selectedDays) selectedDays - i else selectedDays + i
-            },
-            modifier = Modifier.fillMaxWidth(),
-            fillWidth = true,
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, AppColors.Grey250, RoundedCornerShape(12.dp))
+                    .padding(vertical = 18.dp, horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = "요일 반복하기",
+                    style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
+                )
+                ColeSwitch(
+                    checked = repeatEnabled,
+                    onCheckedChange = { repeatEnabled = it },
+                )
+            }
+            if (repeatEnabled) {
+                ColeChipRow(
+                    labels = dayLabels,
+                    selectedIndices = selectedDays,
+                    onChipClick = { i ->
+                        selectedDays = if (i in selectedDays) selectedDays - i else selectedDays + i
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    fillWidth = true,
+                )
+            }
+        }
     }
 }
 

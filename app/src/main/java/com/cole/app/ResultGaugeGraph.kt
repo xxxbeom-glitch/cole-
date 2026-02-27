@@ -1,5 +1,7 @@
 package com.cole.app
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -17,6 +19,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,8 +29,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
@@ -355,6 +361,122 @@ fun ResultGaugeGraph(
                     .width(ResultGaugeGraph.ArcWidth)
                     .padding(bottom = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text("250", style = AppTypography.Caption1.copy(color = AppColors.TextCaption))
+                Text("350", style = AppTypography.Caption1.copy(color = AppColors.TextCaption))
+                Text("500", style = AppTypography.Caption1.copy(color = AppColors.TextCaption))
+            }
+        }
+    }
+}
+
+/**
+ * Figma ST-10 전용 반원형 게이지
+ * - 250 ~ 500 스케일
+ * - 5색 그라데이션 (초록→파랑→노랑→주황→빨강)
+ * - 점수 위치를 가리키는 삼각형 인디케이터
+ */
+private const val ST10_ARC_PADDING_DP = 32
+
+@Composable
+fun ST10SemiCircleGauge(
+    displayScore: Int,
+    modifier: Modifier = Modifier,
+) {
+    val clampedScore = displayScore.coerceIn(250, 500)
+    val targetProgress = (clampedScore - 250) / 250f
+
+    // Animatable: 0f에서 시작 → targetProgress로 애니메이션 (첫 진입 시 애니메이션 발동)
+    val animatable = remember { Animatable(0f) }
+    LaunchedEffect(targetProgress) {
+        animatable.animateTo(
+            targetValue = targetProgress,
+            animationSpec = tween(durationMillis = 600)
+        )
+    }
+    val animatedProgress = animatable.value
+
+    Box(
+        modifier = modifier.fillMaxWidth(),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(2f)
+                .padding(horizontal = ST10_ARC_PADDING_DP.dp, vertical = 16.dp)
+        ) {
+            val strokePx = 16.dp.toPx()
+            val diameter = size.width
+            val radius = diameter / 2f
+            val topLeft = Offset(0f, 0f)
+            val boundingBoxSize = Size(diameter, diameter)
+            val arcCenter = Offset(radius, radius)
+
+            // 1. 배경 회색 트랙
+            drawArc(
+                color = Color(0xFFE8E8E8),
+                startAngle = 180f,
+                sweepAngle = 180f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = boundingBoxSize,
+                style = Stroke(width = strokePx, cap = StrokeCap.Round)
+            )
+
+            // 2. 진행도에 따른 그라데이션 아크 (애니메이션)
+            if (animatedProgress > 0.001f) {
+                val sweepBrush = Brush.sweepGradient(
+                    0.0f to Color(0xFFFF6B6B),
+                    0.5f to Color(0xFF4EEEBD),
+                    0.625f to Color(0xFF6BCBFF),
+                    0.75f to Color(0xFFFFD93D),
+                    0.875f to Color(0xFFFF976B),
+                    1.0f to Color(0xFFFF6B6B),
+                    center = arcCenter
+                )
+                drawArc(
+                    brush = sweepBrush,
+                    startAngle = 180f,
+                    sweepAngle = 180f * animatedProgress,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = boundingBoxSize,
+                    style = Stroke(width = strokePx, cap = StrokeCap.Round)
+                )
+            }
+
+            // 3. 삼각형 인디케이터 (애니메이션과 동기화)
+            withTransform({
+                rotate(degrees = 180f * animatedProgress, pivot = arcCenter)
+            }) {
+                val path = Path().apply {
+                    val indicatorX = -8.dp.toPx()
+                    val indicatorY = radius
+                    moveTo(indicatorX, indicatorY)
+                    lineTo(indicatorX - 12.dp.toPx(), indicatorY - 8.dp.toPx())
+                    lineTo(indicatorX - 12.dp.toPx(), indicatorY + 8.dp.toPx())
+                    close()
+                }
+                drawPath(path = path, color = Color(0xFF333333))
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(bottom = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "$clampedScore",
+                style = AppTypography.Display1.copy(color = AppColors.TextPrimary)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = ST10_ARC_PADDING_DP.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text("250", style = AppTypography.Caption1.copy(color = AppColors.TextCaption))
                 Text("350", style = AppTypography.Caption1.copy(color = AppColors.TextCaption))

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ST-10 자가테스트 결과 화면 - Gemini 질문용</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+        h1 { color: #333; border-bottom: 2px solid #614CC7; padding-bottom: 10px; }
+        h2 { color: #614CC7; margin-top: 32px; }
+        table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background: #f5f5f5; }
+        .code { background: #f8f8f8; padding: 16px; border-radius: 8px; font-family: monospace; overflow-x: auto; margin: 16px 0; white-space: pre-wrap; }
+        .copy-btn { background: #614CC7; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 14px; margin-top: 20px; }
+        .copy-btn:hover { background: #5139a8; }
+        a { color: #614CC7; }
+    </style>
+</head>
+<body>
+    <h1>ST-10 자가테스트 결과 화면 - Gemini 질문용</h1>
+    <p>Figma 디자인을 Android Compose로 구현하다 실패한 작업입니다. 아래 내용을 복사해서 Gemini에게 질문하세요.</p>
+
+    <hr>
+
+    <h2>1. Figma 디자인 정보</h2>
+    <p><strong>URL:</strong> <a href="https://www.figma.com/design/jTxTaPrc0c2cyGeSRknNEN/cole?node-id=317-3002" target="_blank">https://www.figma.com/design/jTxTaPrc0c2cyGeSRknNEN/cole?node-id=317-3002</a></p>
+    <p><strong>화면명:</strong> ST-10 자가테스트 결과 화면 (data-name="ST-10")</p>
+
+    <h2>2. Figma 디자인 스펙 (구성 요소)</h2>
+    <ul>
+        <li><strong>상단 제목:</strong> "장원영 님의" + "스마트폰 중독 테스트" (보라색) + "결과입니다"</li>
+        <li><strong>반원형 게이지:</strong>
+            <ul>
+                <li>250~500 점수 스케일, 라벨 (250, 350, 500)</li>
+                <li>아크 그라데이션: 초록→파랑→노랑→주황/빨강</li>
+                <li>중앙에 큰 점수 (예: 430)</li>
+                <li>삼각형 인디케이터가 아크 상의 점수 위치를 가리킴</li>
+            </ul>
+        </li>
+        <li><strong>메시지:</strong> "스마트폰 사용 습관이 건강해요!" (점수 구간별 다름)</li>
+        <li><strong>습관 항목 3개:</strong> 각 Row에 [라벨(좌) | 아이콘(초록/빨강/노랑) + 상태텍스트(우)]
+            <ul>
+                <li>수면장애 - icon-Normal(초록) - 정상</li>
+                <li>집중력 저하 - icon-Danger(빨강) - 정상</li>
+                <li>사용시간 증가 - icon-Caution(노랑) - 주의</li>
+            </ul>
+        </li>
+        <li><strong>디스클레임:</strong> "본 자가진단 테스트는 스마트폰 사용 습관을 점검하기 위한 참고 자료이며, 의학적 진단 도구가 아님을 알려드립니다"</li>
+        <li><strong>버튼:</strong> "계속 진행" (Primary), "돌아가기" (Ghost)</li>
+    </ul>
+
+    <h2>3. 현재 구현 vs Figma 차이 (실패 원인)</h2>
+    <table>
+        <thead>
+            <tr><th>요소</th><th>Figma 스펙</th><th>현재 구현</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>게이지</td>
+                <td>반원형 아크, 250~500 스케일, 그라데이션, 삼각형 인디케이터</td>
+                <td>가로 막대(260x12dp), resultType별 2색 그라데이션, 화살표</td>
+            </tr>
+            <tr>
+                <td>제목 구조</td>
+                <td>"OO 님의 스마트폰 중독 테스트 결과입니다" (한 블록)</td>
+                <td>"OO 님은" + 메인문구 + 부가문구 (분리된 구조)</td>
+            </tr>
+            <tr>
+                <td>점수 표시</td>
+                <td>게이지 중앙에 큰 점수(430) + 아크 위 인디케이터</td>
+                <td>막대 위 화살표만, 점수 숫자 없음</td>
+            </tr>
+            <tr>
+                <td>습관 아이콘</td>
+                <td>12px 원형 아이콘 (Normal/Danger/Caution)</td>
+                <td>8dp 원형 점 (색상만)</td>
+            </tr>
+            <tr>
+                <td>버튼 텍스트</td>
+                <td>계속 진행 / 돌아가기</td>
+                <td>확인 / 다시하기</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>4. 시도했던 방법 (히스토리)</h2>
+    <ul>
+        <li><strong>SelfTestResultGaugeBar:</strong> 가로 막대 + resultType별 2색 그라데이션 → Figma 반원형과 불일치</li>
+        <li><strong>ResultGaugeGraph / SimpleFullCircleGauge:</strong> Canvas로 원형/반원 그리기 시도 → Figma의 250~500 스케일, 라벨, 인디케이터 구조와 미흡</li>
+        <li><strong>SegmentedGaugeBar:</strong> 5등분 세그먼트 막대 (Figma 658:2777) → ST-10 디자인과 다른 컴포넌트</li>
+        <li>점수 구간별 메시지, 습관 항목, 디스클레임, 버튼은 구현됐으나 Figma 레이아웃/비주얼과 정확히 맞지 않음</li>
+    </ul>
+
+    <h2>5. 필요한 결과</h2>
+    <ul>
+        <li>Figma ST-10 (node 317-3002)과 <strong>시각적으로 동일한</strong> 자가테스트 결과 화면</li>
+        <li><strong>반원형 게이지:</strong> 250~500 스케일, 5색 그라데이션 아크, 중앙 점수, 삼각형 인디케이터</li>
+        <li>제목, 습관 Row(아이콘+상태), 디스클레임, 버튼 모두 Figma 스펙 반영</li>
+    </ul>
+
+    <h2>6. 관련 코드 위치</h2>
+    <ul>
+        <li><code>app/src/main/java/com/cole/app/SelfTestResultScreens.kt</code> - SelfTestResultScreen, SelfTestResultGaugeBar</li>
+        <li><code>app/src/main/java/com/cole/app/ResultGaugeGraph.kt</code> - SegmentedGaugeBar, SimpleFullCircleGauge 등</li>
+    </ul>
+
+    <h2>7. 전체 복사용 (Gemini 질문)</h2>
+    <div class="code" id="fullContent">Figma ST-10 자가테스트 결과 화면을 Android Compose로 구현하려다 실패했습니다.
+
+[Figma URL]
+https://www.figma.com/design/jTxTaPrc0c2cyGeSRknNEN/cole?node-id=317-3002
+
+[Figma 스펙 - ST-10]
+- 제목: "OO 님의 스마트폰 중독 테스트 결과입니다" (스마트폰 중독 테스트는 보라색)
+- 반원형 게이지: 250~500 점수 스케일, 아크에 그라데이션(초록→파랑→노랑→주황/빨강), 중앙에 큰 점수(예:430), 삼각형 인디케이터
+- 메시지: "스마트폰 사용 습관이 건강해요!" (점수 구간별 다름)
+- 습관 3항목: 수면장애(초록-정상), 집중력 저하(빨강-정상), 사용시간 증가(노랑-주의) - 각 Row: 라벨 좌측 | 12px 아이콘+상태 우측
+- 디스클레임 문구
+- 버튼: 계속 진행(Primary), 돌아가기(Ghost)
+
+[현재 구현 문제]
+- 게이지: 가로 막대(260x12)로 구현됨. Figma는 반원형 아크임
+- 제목/구조가 Figma와 다름
+- 점수 숫자, 삼각형 인디케이터 없음
+- 습관 아이콘: 8dp 점만 있음, Figma는 Normal/Danger/Caution 아이콘
+
+[시도한 방법]
+- SelfTestResultGaugeBar: 가로 막대 → Figma 불일치
+- ResultGaugeGraph/SimpleFullCircleGauge: 원형 Canvas → 스케일/라벨/인디케이터 미흡
+- SegmentedGaugeBar: 5등분 막대 → ST-10과 다른 컴포넌트
+
+[코드 위치]
+- SelfTestResultScreens.kt
+- ResultGaugeGraph.kt
+
+위 Figma ST-10 디자인을 Android Compose(Kotlin)로 정확히 구현해줘.
+    </div>
+
+    <button class="copy-btn" onclick="copyContent()">전체 내용 복사</button>
+
+    <script>
+        function copyContent() {
+            const text = document.getElementById('fullContent').innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('복사되었습니다. Gemini에 붙여넣기 하세요.');
+            }).catch(err => {
+                prompt('아래 내용을 수동으로 복사하세요:', text);
+            });
+        }
+    </script>
+</body>
+</html>

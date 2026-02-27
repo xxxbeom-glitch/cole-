@@ -33,8 +33,10 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.painterResource
 
 /**
  * 통계 화면 (Figma MA-01, node 394:3876)
@@ -53,11 +55,10 @@ fun StatisticsScreen(
         modifier = modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp)
+            .padding(top = 10.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Spacer(modifier = Modifier.height(24.dp))
-
         ColeSegmentedTab(
             items = tabLabels,
             selectedIndex = selectedTab,
@@ -74,7 +75,7 @@ fun StatisticsScreen(
             apps = mockStatsApps,
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(18.dp))
     }
 }
 
@@ -120,8 +121,8 @@ private fun TimeSlotUsageCard(
             .shadow(6.dp, RoundedCornerShape(12.dp), false, Color.Black.copy(alpha = 0.06f), Color.Black.copy(alpha = 0.06f))
             .clip(RoundedCornerShape(12.dp))
             .background(AppColors.SurfaceBackgroundCard)
-            .padding(26.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(start = 16.dp, top = 28.dp, end = 16.dp, bottom = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -129,7 +130,7 @@ private fun TimeSlotUsageCard(
         ) {
             Text(
                 text = "시간대별 사용량",
-                style = AppTypography.HeadingH3.copy(color = AppColors.TextSecondary),
+                style = AppTypography.HeadingH2.copy(color = AppColors.TextSecondary),
             )
             IcoDisclaimerInfo(modifier = Modifier.size(18.dp))
         }
@@ -229,8 +230,8 @@ private fun AppUsageCard(
             .shadow(6.dp, RoundedCornerShape(12.dp), false, Color.Black.copy(alpha = 0.06f), Color.Black.copy(alpha = 0.06f))
             .clip(RoundedCornerShape(12.dp))
             .background(AppColors.SurfaceBackgroundCard)
-            .padding(26.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(start = 16.dp, top = 28.dp, end = 16.dp, bottom = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -238,21 +239,18 @@ private fun AppUsageCard(
         ) {
             Text(
                 text = "앱별 사용량",
-                style = AppTypography.HeadingH3.copy(color = AppColors.TextSecondary),
+                style = AppTypography.HeadingH2.copy(color = AppColors.TextSecondary),
             )
             IcoDisclaimerInfo(modifier = Modifier.size(18.dp))
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-            apps.forEachIndexed { index, app ->
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            apps.forEach { app ->
                 StatsAppRow(
                     name = app.name,
                     usageMinutes = app.usageMinutes,
                     sessionCount = app.sessionCount,
                 )
-                if (index < apps.lastIndex) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
             }
         }
     }
@@ -264,6 +262,7 @@ private fun StatsAppRow(
     usageMinutes: String,
     sessionCount: String,
     modifier: Modifier = Modifier,
+    appIcon: Painter = painterResource(R.drawable.ic_app_placeholder),
 ) {
     Row(
         modifier = modifier
@@ -272,10 +271,10 @@ private fun StatsAppRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        IcoAppLockOn(modifier = Modifier.size(56.dp))
+        AppIconSquircleLock(appIcon = appIcon, iconSize = 56.dp)
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
                 text = name,

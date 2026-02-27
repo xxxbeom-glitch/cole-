@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -40,8 +41,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.content.Intent
@@ -315,10 +318,10 @@ fun AddAppSelectBottomSheet(
 
     BaseBottomSheet(
         title = "앱을 선택해주세요",
-        subtitle = "제한할 앱 1개를 선택해주세요",
+        subtitle = "앱은 최대 1개까지 선택가능 해요\n이미 제한이 진행중인 앱은 선택하실 수 없어요",
         onDismissRequest = onDismissRequest,
         onPrimaryClick = { if (selected.isNotEmpty()) onSelectComplete(selected) },
-        primaryButtonText = "선택완료",
+        primaryButtonText = "다음",
         primaryButtonEnabled = selected.isNotEmpty(),
         modifier = modifier,
     ) {
@@ -340,14 +343,15 @@ fun AddAppSelectBottomSheet(
             ) {
                 items(filteredApps) { item ->
                     val appName = item.name
-                    val isDisabled = selected.size >= MAX_APP_SELECTION && appName !in selected
+                    val isSelfApp = item.packageName == context.packageName
+                    val isDisabled = isSelfApp || (selected.size >= MAX_APP_SELECTION && appName !in selected)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .then(
                                 if (isDisabled) Modifier.alpha(0.5f) else Modifier
                             )
-                            .clickable { tryToggleApp(appName) },
+                            .clickable(enabled = !isSelfApp) { if (!isSelfApp) tryToggleApp(appName) },
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
@@ -387,11 +391,20 @@ fun AddAppSelectBottomSheet(
                                 style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
                             )
                         }
-                        ColeCheckBox(
-                            checked = appName in selected,
-                            onCheckedChange = { tryToggleApp(appName) },
-                            size = 32.dp,
-                        )
+                        if (isSelfApp) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_lock_app),
+                                contentDescription = "선택 불가",
+                                modifier = Modifier.size(24.dp),
+                                tint = AppColors.TextTertiary,
+                            )
+                        } else {
+                            ColeCheckBox(
+                                checked = appName in selected,
+                                onCheckedChange = { tryToggleApp(appName) },
+                                size = 32.dp,
+                            )
+                        }
                     }
                 }
             }
@@ -463,6 +476,7 @@ fun AddAppScreenAA02ATimeSetup(
             Text(
                 text = "※ 사용 시간을 1시간 이하를 선택하시면 '10분간 사용하기'를 이용하실 수 없어요",
                 style = AppTypography.Caption1.copy(color = AppColors.TextDisclaimer),
+                modifier = Modifier.padding(horizontal = 16.dp),
             )
         }
         Spacer(modifier = Modifier.weight(1f))
@@ -497,6 +511,9 @@ fun AddAppCommonConfirmSummaryScreen(
     summaryContent: @Composable () -> Unit,
     onNextClick: () -> Unit,
     onBackClick: () -> Unit,
+    mainTitle: String = "잠깐! 확인하세요",
+    showSubtitle: Boolean = true,
+    primaryButtonText: String = "계속 진행",
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -525,20 +542,22 @@ fun AddAppCommonConfirmSummaryScreen(
             Spacer(modifier = Modifier.height(20.dp))
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = "잠깐! 확인하세요",
+                    text = mainTitle,
                     style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
                 )
-                Text(
-                    text = buildAnnotatedString {
-                        append("한 번 설정하면 되돌릴 수 없고, ")
-                        append("해제를 원하시면 ")
-                        pushStyle(SpanStyle(color = AppColors.TextHighlight, fontSize = 14.sp))
-                        append("1,900원 결제 후 앱 사용")
-                        pop()
-                        append("이 가능해요")
-                    },
-                    style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
-                )
+                if (showSubtitle) {
+                    Text(
+                        text = buildAnnotatedString {
+                            append("한 번 설정하면 되돌릴 수 없고, ")
+                            append("해제를 원하시면 ")
+                            pushStyle(SpanStyle(color = AppColors.TextHighlight, fontSize = 14.sp))
+                            append("1,900원 결제 후 앱 사용")
+                            pop()
+                            append("이 가능해요")
+                        },
+                        style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(36.dp))
             summaryContent()
@@ -551,7 +570,7 @@ fun AddAppCommonConfirmSummaryScreen(
                 .windowInsetsPadding(WindowInsets.navigationBars),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            ColePrimaryButton(text = "계속 진행", onClick = onNextClick)
+            ColePrimaryButton(text = primaryButtonText, onClick = onNextClick)
         }
     }
 }
@@ -566,6 +585,9 @@ fun AddAppScreenAA02ATimeSummary(
 ) {
     AddAppCommonConfirmSummaryScreen(
         headerTitle = "앱 제한",
+        mainTitle = "선택하신 내용을 확인해주세요",
+        showSubtitle = false,
+        primaryButtonText = "다음",
         summaryContent = {
             AddAppTimeSummaryBox(
                 selectedAppName = selectedAppName,
@@ -592,7 +614,7 @@ fun AddAppTimeSummaryBox(
             .padding(horizontal = 16.dp, vertical = 22.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        AddAppSummaryRow(label = "선택된 앱", value = selectedAppName)
+        AddAppSummaryRow(label = "선택된 앱", value = selectedAppName, valueMaxWidth = 120.dp)
         AddAppSummaryRow(label = "제한 시간", value = selectedTimeLimit)
     }
 }
@@ -618,14 +640,13 @@ fun AddAppDailySummaryBox(
     }
 }
 
-/** Figma 241-3538 AA-03-01 완료 화면용 인포박스: 선택된 앱, 일일 사용시간, 반복 요일, 적용 기간, 시작 시기 */
+/** Figma 241-3538 AA-03-01 완료 화면용 인포박스: 선택된 앱, 일일 사용시간, 반복 요일, 적용 기간 */
 @Composable
 fun AddAppDailyCompleteSummaryBox(
     appName: String,
     limitMinutes: String,
     selectedDaysText: String,
     duration: String,
-    startTiming: String = "지금 즉시",
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -640,7 +661,6 @@ fun AddAppDailyCompleteSummaryBox(
         AddAppSummaryRow(label = "일일 사용시간", value = limitMinutes)
         AddAppSummaryRow(label = "반복 요일", value = selectedDaysText)
         AddAppSummaryRow(label = "적용 기간", value = duration)
-        AddAppSummaryRow(label = "시작 시기", value = startTiming)
     }
 }
 
@@ -648,6 +668,7 @@ fun AddAppDailyCompleteSummaryBox(
 fun AddAppSummaryRow(
     label: String,
     value: String,
+    valueMaxWidth: Dp? = null,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -663,6 +684,9 @@ fun AddAppSummaryRow(
             text = value,
             style = AppTypography.BodyBold.copy(color = AppColors.TextHighlight),
             textAlign = TextAlign.End,
+            modifier = valueMaxWidth?.let { Modifier.widthIn(max = it) } ?: Modifier,
+            maxLines = if (valueMaxWidth != null) 1 else Int.MAX_VALUE,
+            overflow = if (valueMaxWidth != null) TextOverflow.Ellipsis else TextOverflow.Clip,
         )
     }
 }
@@ -673,9 +697,10 @@ fun AddAppSummaryRow(
 // 스크린샷: 헤더 "일일 사용량 제한", 4개 SelectionRow, "다음" 버튼
 // ─────────────────────────────────────────────
 
-private val DAILY_TIME_STEPS = listOf("30분", "1시간", "2시간", "3시간", "4시간")
+private val DAILY_TIME_STEPS = listOf("30분", "60분", "90분", "120분", "150분", "180분")
 private val DAILY_DAY_LABELS = listOf("월", "화", "수", "목", "금", "토", "일")
 private val DAILY_DURATION_OPTIONS = listOf("오늘 하루만", "1주", "2주", "3주", "4주")
+private val DAILY_DURATION_OPTIONS_FOR_REPEAT = listOf("1주", "2주", "3주", "4주") // AA-02B-05: 반복 ON일 때만 사용
 
 private fun formatSelectedDays(selectedDays: Set<Int>, labels: List<String>): String =
     selectedDays.sorted().joinToString(", ") { labels.getOrElse(it) { "" } }
@@ -696,8 +721,8 @@ fun AddAppDailyLimitScreen01(
 ) {
     val canProceed = selectedAppNames.isNotEmpty() &&
         selectedDailyMinutes != null &&
-        selectedDays.isNotEmpty() &&
-        selectedDuration != null
+        selectedDuration != null &&
+        (selectedDays.isNotEmpty() || selectedDuration == "오늘 하루만")
 
     Column(
         modifier = modifier
@@ -736,15 +761,19 @@ fun AddAppDailyLimitScreen01(
                     onClick = onAppRowClick,
                 )
                 SelectionRow(
-                    label = "하루에 얼마나 사용하실건가요",
+                    label = "하루 사용량을 지정해주세요",
                     variant = if (selectedDailyMinutes != null) SelectionRowVariant.Selected else SelectionRowVariant.Default,
                     selectedValue = selectedDailyMinutes ?: "",
                     onClick = onTimeRowClick,
                 )
                 SelectionRow(
                     label = "언제 반복할까요",
-                    variant = if (selectedDays.isNotEmpty()) SelectionRowVariant.Selected else SelectionRowVariant.Default,
-                    selectedValue = formatSelectedDays(selectedDays, DAILY_DAY_LABELS),
+                    variant = if (selectedDays.isNotEmpty() || selectedDuration == "오늘 하루만") SelectionRowVariant.Selected else SelectionRowVariant.Default,
+                    selectedValue = when {
+                        selectedDays.isNotEmpty() -> formatSelectedDays(selectedDays, DAILY_DAY_LABELS)
+                        selectedDuration == "오늘 하루만" -> "오늘 하루만"
+                        else -> ""
+                    },
                     onClick = onDaysRowClick,
                 )
                 SelectionRow(
@@ -854,10 +883,16 @@ fun AddAppDailyLimitScreen04(
     duration: String,
     onConfirmClick: () -> Unit,
     onBackClick: () -> Unit,
+    mainTitle: String = "잠깐! 확인하세요",
+    showSubtitle: Boolean = true,
+    primaryButtonText: String = "계속 진행",
     modifier: Modifier = Modifier,
 ) {
     AddAppCommonConfirmSummaryScreen(
         headerTitle = "일일 사용량 제한",
+        mainTitle = mainTitle,
+        showSubtitle = showSubtitle,
+        primaryButtonText = primaryButtonText,
         summaryContent = {
             AddAppDailySummaryBox(
                 limitMinutes = limitMinutes,
@@ -955,23 +990,47 @@ fun AddAppCommonTimeScheduleScreen(
 
 @Composable
 fun AddAppDailyDurationBottomSheet(
-    options: List<String> = DAILY_DURATION_OPTIONS,
+    options: List<String> = DAILY_DURATION_OPTIONS_FOR_REPEAT,
     initialIndex: Int = 0,
+    selectedDaysText: String = "",
+    limitMinutes: String = "30분",
     onDismissRequest: () -> Unit,
     onPrimaryClick: (String) -> Unit,
-    onSecondaryClick: () -> Unit,
+    onSecondaryClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var selectedIndex by remember { mutableIntStateOf(initialIndex.coerceIn(0, options.lastIndex)) }
+    val selectedDuration = options.getOrElse(selectedIndex) { options.firstOrNull() ?: "1주" }
+
+    val subtitleAnnotated = remember(selectedDaysText, limitMinutes, selectedDuration) {
+        buildAnnotatedString {
+            append("매주 ")
+            pushStyle(SpanStyle(color = AppColors.TextHighlight))
+            append(selectedDaysText.ifEmpty { "—" })
+            pop()
+            append(" 마다 ")
+            pushStyle(SpanStyle(color = AppColors.TextHighlight))
+            append("$limitMinutes/일")
+            pop()
+            append("로 ")
+            pushStyle(SpanStyle(color = AppColors.TextHighlight))
+            append(selectedDuration)
+            pop()
+            append("간 진행돼요")
+        }
+    }
 
     BaseBottomSheet(
         title = "몇 주 동안 진행할까요",
-        subtitle = "처음이라면 짧게 진행하시는게 좋아요\n오늘 하루 먼저 해보시고 천천히 늘려가세요",
+        subtitleContent = {
+            Text(
+                text = subtitleAnnotated,
+                style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+            )
+        },
         onDismissRequest = onDismissRequest,
         onPrimaryClick = { onPrimaryClick(options[selectedIndex]) },
-        primaryButtonText = "계속 진행",
-        secondaryButtonText = "돌아가기",
-        onSecondaryClick = onSecondaryClick,
+        primaryButtonText = "완료",
         modifier = modifier,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -979,6 +1038,8 @@ fun AddAppDailyDurationBottomSheet(
                 options = options,
                 selectedIndex = selectedIndex,
                 onOptionSelected = { selectedIndex = it },
+                titleStyle = AppTypography.BodyRegular,
+                titleColor = AppColors.TextTertiary,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -1131,7 +1192,7 @@ fun AddAppFlowHost(
     var showDailyTimeSheet by remember { mutableStateOf(false) }
     var showDailyDaysSheet by remember { mutableStateOf(false) }
     var showDailyDurationSheet by remember { mutableStateOf(false) }
-    val timeSteps = listOf("30분", "60분", "90분", "120분", "150분", "180분")
+    val timeSteps = listOf("30분", "60분", "120분", "180분", "240분", "360분")
     // 일일사용량 제한 플로우 상태
     var dailyLimitMinutes by remember { mutableStateOf<String?>(null) }
     var dailySelectedDays by remember { mutableStateOf<Set<Int>>(emptySet()) }
@@ -1139,13 +1200,33 @@ fun AddAppFlowHost(
 
     when (step) {
         AddAppStep.AA_01 -> AddAppScreenAA01(
-            onTimeSpecifiedClick = { step = AddAppStep.AA_02A_TIME_01 },
-            onDailyLimitClick = { step = AddAppStep.AA_DAILY_01 },
+            onTimeSpecifiedClick = {
+                selectedAppNames = emptySet()
+                selectedTimeLimit = null
+                step = AddAppStep.AA_02A_TIME_01
+            },
+            onDailyLimitClick = {
+                selectedAppNames = emptySet()
+                dailyLimitMinutes = null
+                dailySelectedDays = emptySet()
+                dailySelectedDuration = null
+                step = AddAppStep.AA_DAILY_01
+            },
             onBackClick = onBackFromFirst,
         )
         AddAppStep.AA_02A_01 -> AddAppScreenAA02A01(
-            onDailyLimitClick = { step = AddAppStep.AA_DAILY_01 },
-            onTimeSpecifiedClick = { step = AddAppStep.AA_02A_TIME_01 },
+            onDailyLimitClick = {
+                selectedAppNames = emptySet()
+                dailyLimitMinutes = null
+                dailySelectedDays = emptySet()
+                dailySelectedDuration = null
+                step = AddAppStep.AA_DAILY_01
+            },
+            onTimeSpecifiedClick = {
+                selectedAppNames = emptySet()
+                selectedTimeLimit = null
+                step = AddAppStep.AA_02A_TIME_01
+            },
             onBlockClick = { step = AddAppStep.AA_02B_02 },
             onBackClick = { step = AddAppStep.AA_01 },
         )
@@ -1159,7 +1240,7 @@ fun AddAppFlowHost(
                 onAppRowClick = { showDailyAppSelectSheet = true },
                 onTimeRowClick = { showDailyTimeSheet = true },
                 onDaysRowClick = { showDailyDaysSheet = true },
-                onDurationRowClick = { showDailyDurationSheet = true },
+                onDurationRowClick = { if (dailySelectedDays.isNotEmpty()) showDailyDurationSheet = true },
                 onNextClick = { step = AddAppStep.AA_DAILY_04 },
                 onBackClick = { step = AddAppStep.AA_01 },
             )
@@ -1170,39 +1251,59 @@ fun AddAppFlowHost(
                     onSelectComplete = { names ->
                         selectedAppNames = names
                         showDailyAppSelectSheet = false
+                        showDailyTimeSheet = true
                     },
                 )
             }
             if (showDailyTimeSheet) {
                 AppLimitSetupTimeBottomSheet(
-                    title = "하루에 얼마나 사용하실건가요",
-                    subtitle = "하루 동안 사용할 수 있는 최대 시간을 선택하세요",
+                    title = "하루 사용량을 지정해주세요",
+                    subtitle = "본인의 사용패턴을 생각해 시간을 선택해주세요",
                     steps = DAILY_TIME_STEPS,
+                    feedbackMessages = listOf(
+                        "초보자가 시작하기에 딱 좋은 시간이에요!",
+                        "아주 적당한 선택이에요!",
+                        "충분한 여유가 있어요!",
+                        "적절한 시간이에요!",
+                        "넉넉한 시간이에요!",
+                        "충분한 시간이에요!",
+                    ),
                     initialIndex = dailyLimitMinutes?.let { DAILY_TIME_STEPS.indexOf(it) }?.takeIf { it >= 0 } ?: 0,
                     onDismissRequest = { showDailyTimeSheet = false },
                     onPrimaryClick = { _, mins ->
                         dailyLimitMinutes = mins
                         showDailyTimeSheet = false
+                        showDailyDaysSheet = true
                     },
+                    primaryButtonText = "다음",
                 )
             }
             if (showDailyDaysSheet) {
                 AppLimitSetupDayBottomSheet(
                     title = "언제 반복할까요",
-                    subtitle = "제한할 요일을 선택해주세요",
+                    subtitle = "반복 설정 안 하면 오늘 하루만 적용돼요",
                     dayLabels = DAILY_DAY_LABELS,
                     initialSelected = dailySelectedDays,
+                    initialRepeatEnabled = dailySelectedDays.isNotEmpty(),
                     onDismissRequest = { showDailyDaysSheet = false },
                     onPrimaryClick = { days ->
                         dailySelectedDays = days
                         showDailyDaysSheet = false
+                        if (days.isNotEmpty()) {
+                            showDailyDurationSheet = true
+                        } else {
+                            dailySelectedDuration = "오늘 하루만"
+                        }
                     },
+                    primaryButtonText = "다음",
                 )
             }
             if (showDailyDurationSheet) {
                 AddAppDailyDurationBottomSheet(
-                    options = DAILY_DURATION_OPTIONS,
-                    initialIndex = dailySelectedDuration?.let { DAILY_DURATION_OPTIONS.indexOf(it) }?.takeIf { it >= 0 } ?: 0,
+                    options = DAILY_DURATION_OPTIONS_FOR_REPEAT,
+                    initialIndex = dailySelectedDuration?.let { DAILY_DURATION_OPTIONS_FOR_REPEAT.indexOf(it) }?.takeIf { it >= 0 } ?: 0,
+                    selectedDaysText = formatSelectedDays(dailySelectedDays, DAILY_DAY_LABELS),
+                    limitMinutes = dailyLimitMinutes ?: "30분",
                     onDismissRequest = { showDailyDurationSheet = false },
                     onPrimaryClick = { duration ->
                         dailySelectedDuration = duration
@@ -1215,17 +1316,20 @@ fun AddAppFlowHost(
         AddAppStep.AA_DAILY_02, AddAppStep.AA_DAILY_03 -> {
             LaunchedEffect(Unit) { step = AddAppStep.AA_DAILY_01 }
         }
-        AddAppStep.AA_DAILY_04 -> AddAppDailyLimitScreen04(
+        AddAppStep.AA_DAILY_04 ->         AddAppDailyLimitScreen04(
             limitMinutes = dailyLimitMinutes ?: "30분",
-            selectedDaysText = formatSelectedDays(dailySelectedDays, DAILY_DAY_LABELS),
+            selectedDaysText = if (dailySelectedDays.isNotEmpty()) formatSelectedDays(dailySelectedDays, DAILY_DAY_LABELS) else "오늘 하루만",
             duration = dailySelectedDuration ?: "",
+            mainTitle = "선택하신 내용을 확인해주세요",
+            showSubtitle = false,
+            primaryButtonText = "다음",
             onConfirmClick = { step = AddAppStep.AA_DAILY_05 },
             onBackClick = { step = AddAppStep.AA_DAILY_01 },
         )
         AddAppStep.AA_DAILY_05 -> AddAppDailyLimitScreen05(
             appName = selectedAppNames.joinToString(", ").ifEmpty { "앱" },
             limitMinutes = dailyLimitMinutes ?: "30분",
-            selectedDaysText = formatSelectedDays(dailySelectedDays, DAILY_DAY_LABELS),
+            selectedDaysText = if (dailySelectedDays.isNotEmpty()) formatSelectedDays(dailySelectedDays, DAILY_DAY_LABELS) else "오늘 하루만",
             duration = dailySelectedDuration ?: "",
             onCompleteClick = onComplete,
             onAddAnotherClick = { step = AddAppStep.AA_01 },
@@ -1248,20 +1352,30 @@ fun AddAppFlowHost(
                     onSelectComplete = { names ->
                         selectedAppNames = names
                         showAppSelectSheet = false
+                        showTimeLimitSheet = true
                     },
                 )
             }
             if (showTimeLimitSheet) {
                 AppLimitSetupTimeBottomSheet(
                     title = "제한 시간을 지정해주세요",
-                    subtitle = "본인의 사용패턴을 생각해 시간을 선택해주세요",
+                    subtitle = "60분 이하는 일시정지 기능이 제공되지 않아요",
                     steps = timeSteps,
+                    feedbackMessages = listOf(
+                        "초보자가 시작하기에 딱 좋은 시간이에요!",
+                        "아주 적당한 선택이에요!",
+                        "적절한 시간이에요!",
+                        "넉넉한 시간이에요!",
+                        "충분한 시간이에요!",
+                        "여유로운 시간이에요!",
+                    ),
                     initialIndex = selectedTimeLimit?.let { timeSteps.indexOf(it) }?.takeIf { it >= 0 } ?: 0,
                     onDismissRequest = { showTimeLimitSheet = false },
                     onPrimaryClick = { _, time ->
                         selectedTimeLimit = time
                         showTimeLimitSheet = false
                     },
+                    primaryButtonText = "완료",
                 )
             }
         }

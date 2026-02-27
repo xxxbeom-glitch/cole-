@@ -44,16 +44,34 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
-/** 플로우 스텁 - 추후 구현 */
-enum class SelfTestResultType { LOW, MIDDLE, HIGH }
+/** 자가테스트 결과 레벨 (8~32점 구간) */
+enum class SelfTestResultType {
+    /** 8~13점 */
+    HEALTH,
+    /** 14~19점 */
+    GOOD,
+    /** 20~25점 */
+    CAUTION,
+    /** 26~32점 */
+    DANGER,
+}
 
 fun computeSelfTestResultType(answers: Map<Int, Int>): SelfTestResultType {
-    val score = answers.values.sumOf { (4 - it).coerceAtLeast(0) }
+    val rawScore = answers.values.sumOf { (4 - it).coerceIn(0, 4) }.coerceIn(8, 32)
     return when {
-        score < 5 -> SelfTestResultType.LOW
-        score < 10 -> SelfTestResultType.MIDDLE
-        else -> SelfTestResultType.HIGH
+        rawScore <= 13 -> SelfTestResultType.HEALTH
+        rawScore <= 19 -> SelfTestResultType.GOOD
+        rawScore <= 25 -> SelfTestResultType.CAUTION
+        else -> SelfTestResultType.DANGER
     }
+}
+
+/** rawScore(8~32)를 SelfTestResultType으로 변환 */
+fun rawScoreToResultType(rawScore: Int): SelfTestResultType = when {
+    rawScore <= 13 -> SelfTestResultType.HEALTH
+    rawScore <= 19 -> SelfTestResultType.GOOD
+    rawScore <= 25 -> SelfTestResultType.CAUTION
+    else -> SelfTestResultType.DANGER
 }
 
 /**
@@ -172,14 +190,14 @@ private fun MainAppRestrictionRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(9.dp),
     ) {
-        RestrictedAppIconBox(
+        AppIconSquircleLock(
             appIcon = if (item.appIconResId == R.drawable.ic_app_placeholder) {
                 rememberDefaultAppIconPainter()
             } else {
                 painterResource(item.appIconResId)
             },
         )
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = item.appName,
                 style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
@@ -227,7 +245,7 @@ private fun MainAppRestrictionCard(
             .shadow(6.dp, MainCardShape, false, MainCardShadowColor, MainCardShadowColor)
             .clip(MainCardShape)
             .background(AppColors.SurfaceBackgroundCard)
-            .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 24.dp),
+            .padding(start = 16.dp, top = 28.dp, end = 16.dp, bottom = 22.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         Text(
@@ -301,7 +319,7 @@ private fun MainAppRestrictionCardEmpty(
             .shadow(6.dp, MainCardShape, false, MainCardShadowColor, MainCardShadowColor)
             .clip(MainCardShape)
             .background(AppColors.SurfaceBackgroundCard)
-            .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 24.dp),
+            .padding(start = 16.dp, top = 28.dp, end = 16.dp, bottom = 22.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         Text(
@@ -403,10 +421,10 @@ fun MainScreenMA01(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp)
+            .padding(top = 10.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Spacer(modifier = Modifier.height(20.dp))
         MainPermissionBanner(onClick = onPermissionClick)
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Column(
@@ -449,10 +467,10 @@ fun MainScreenMA02(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp)
+            .padding(top = 10.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Spacer(modifier = Modifier.height(20.dp))
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Column(
                 modifier = Modifier
@@ -478,7 +496,7 @@ fun MainFlowHost(onAddAppClick: () -> Unit, onLogout: () -> Unit) {
         NavDestination("홈", R.drawable.ic_nav_home_inactive, R.drawable.ic_nav_home_active),
         NavDestination("챌린지", R.drawable.ic_nav_challenge_inactive, R.drawable.ic_nav_challenge_active),
         NavDestination("통계", R.drawable.ic_nav_stats_inactive, R.drawable.ic_nav_stats_active),
-        NavDestination("마이", R.drawable.ic_nav_mypage_inactive, R.drawable.ic_nav_mypage_active),
+        NavDestination("설정", R.drawable.ic_nav_mypage_inactive, R.drawable.ic_nav_mypage_active),
     )
 
     Column(
@@ -503,11 +521,9 @@ fun MainFlowHost(onAddAppClick: () -> Unit, onLogout: () -> Unit) {
                 hasNotification = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            navIndex == 2 -> ColeHeaderSub(
+            navIndex == 2 -> ColeHeaderTitleWithNotification(
                 title = "통계",
-                backIcon = painterResource(R.drawable.ic_back),
-                onBackClick = { },
-                showNotification = true,
+                hasNotification = true,
                 modifier = Modifier.fillMaxWidth(),
             )
             navIndex == 3 -> ColeHeaderTitleWithNotification(title = "설정", hasNotification = true)

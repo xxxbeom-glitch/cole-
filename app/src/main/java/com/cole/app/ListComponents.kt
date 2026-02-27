@@ -14,12 +14,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.Image
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -40,6 +39,7 @@ private val CardShape = RoundedCornerShape(12.dp)
 private val CardShadowElevation = 6.dp
 private val CardShadowColor = Color.Black.copy(alpha = 0.06f)
 
+/** Figma 352-3425, 352-3527: List / Switch Button - ColeToggleSwitch 래퍼 (AndroidView 기반) */
 @Composable
 fun ColeSwitch(
     checked: Boolean,
@@ -47,21 +47,11 @@ fun ColeSwitch(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    Switch(
+    ColeToggleSwitch(
         checked = checked,
         onCheckedChange = onCheckedChange,
-        enabled = enabled,
         modifier = modifier,
-        colors = SwitchDefaults.colors(
-            checkedThumbColor = AppColors.White900,
-            checkedTrackColor = AppColors.Primary300,
-            checkedBorderColor = Color.Transparent,
-            uncheckedThumbColor = AppColors.White900,
-            uncheckedTrackColor = AppColors.Grey350,
-            uncheckedBorderColor = Color.Transparent,
-            disabledCheckedTrackColor = AppColors.Primary300.copy(alpha = 0.4f),
-            disabledUncheckedTrackColor = AppColors.Grey350.copy(alpha = 0.4f),
-        ),
+        enabled = enabled,
     )
 }
 
@@ -86,25 +76,13 @@ fun AppStatusRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .size(56.dp)
-                .clip(RoundedCornerShape(6.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painter = appIcon,
-                contentDescription = null,
-                tint = Color.Unspecified,
-                modifier = Modifier.size(56.dp),
-            )
-        }
+        AppIconSquircleLock(appIcon = appIcon, iconSize = 56.dp)
         Row(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = appName,
                     style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
@@ -174,8 +152,17 @@ fun SelectionRow(
             )
             .clip(CardShape)
             .background(AppColors.SurfaceBackgroundCard)
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
-            .padding(horizontal = 16.dp, vertical = 22.dp),
+            .then(
+                when {
+                    variant == SelectionRowVariant.Switch && onSwitchChange != null -> Modifier
+                    onClick != null -> Modifier.clickable { onClick() }
+                    else -> Modifier
+                }
+            )
+            .padding(
+                horizontal = 16.dp,
+                vertical = if (variant == SelectionRowVariant.Switch) 19.dp else 22.dp, // Switch: 30dp 높이 확보 (68-38=30)
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -194,14 +181,18 @@ fun SelectionRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Icon(
-                painter = chevronIcon ?: defaultChevron,
-                contentDescription = null,
-                tint = AppColors.TextPrimary,
-                modifier = Modifier.size(24.dp),
-            )
+            if (variant != SelectionRowVariant.Switch) {
+                Icon(
+                    painter = chevronIcon ?: defaultChevron,
+                    contentDescription = null,
+                    tint = AppColors.TextPrimary,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
             if (variant == SelectionRowVariant.Switch) {
-                ColeSwitch(checked = switchChecked, onCheckedChange = { onSwitchChange?.invoke(it) })
+                Box(modifier = Modifier.wrapContentSize()) {
+                    ColeToggleSwitch(checked = switchChecked, onCheckedChange = { onSwitchChange?.invoke(it) })
+                }
             }
         }
     }

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ColeToggleSwitch 문제 - Gemini 질문용</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+        h1 { color: #333; border-bottom: 2px solid #614CC7; padding-bottom: 10px; }
+        h2 { color: #614CC7; margin-top: 32px; }
+        table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background: #f5f5f5; }
+        .code { background: #f8f8f8; padding: 16px; border-radius: 8px; font-family: monospace; overflow-x: auto; margin: 16px 0; }
+        .highlight { background: #fff3cd; padding: 2px 4px; }
+        .copy-btn { background: #614CC7; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 14px; margin-top: 20px; }
+        .copy-btn:hover { background: #5139a8; }
+    </style>
+</head>
+<body>
+    <h1>ColeToggleSwitch 문제 - Gemini 질문용</h1>
+    <p>아래 내용을 복사해서 Gemini에게 질문하세요.</p>
+
+    <hr>
+
+    <h2>1. 문제점</h2>
+    <p>Android Compose 앱에서 <strong>ColeToggleSwitch</strong> 컴포넌트에 두 가지 이슈가 있습니다:</p>
+    <ul>
+        <li><strong>디자인 미반영</strong>: Figma 스펙에 맞는 색상이 적용되지 않음 (실제로는 기본 스타일로 보임 - 흰색/회색)
+            <ul>
+                <li>On: track #614CC7 (Primary400), thumb #FAFAFA (Grey50)</li>
+                <li>Off: track #E8E8E8 (Grey250), thumb #FAFAFA (Grey50)</li>
+            </ul>
+        </li>
+        <li><strong>터치 미동작</strong>: SelectionRow 안에 있을 때, 스크롤 영역에서 스위치 터치가 안 됨 (스크롤만 됨)</li>
+    </ul>
+
+    <h2>2. 시도한 방법</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>방법</th>
+                <th>결과</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Compose 커스텀 구현 (Box + clip + background + clickable)</td>
+                <td>디자인 ✓ / 터치 ✗ (스크롤 내에서 안 됨)</td>
+            </tr>
+            <tr>
+                <td>네이티브 android.widget.Switch + AndroidView</td>
+                <td>터치 ✓ / 디자인 ✗ (trackTintList, thumbTintList 색상 미적용)</td>
+            </tr>
+            <tr>
+                <td>trackTintMode, thumbTintMode = PorterDuff.Mode.SRC_IN</td>
+                <td>여전히 색상 미적용</td>
+            </tr>
+            <tr>
+                <td>Material3 Compose Switch + SwitchDefaults.colors()</td>
+                <td>디자인 ✓ / 터치 ✗ (스크롤 내에서 안 됨)</td>
+            </tr>
+            <tr>
+                <td>SelectionRow에서 Switch variant일 때 Box(Modifier.wrapContentSize())로 감싸기</td>
+                <td>일부 개선됐으나 완전 해결 안 됨</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>3. 나와야 하는 결과</h2>
+    <ul>
+        <li><strong>디자인</strong>: On 시 보라색 track(#614CC7), Off 시 회색 track(#E8E8E8), thumb는 #FAFAFA</li>
+        <li><strong>터치</strong>: 스크롤 가능한 화면(디자인 시스템 리스트, 앱 추가 플로우 등) 안에서도 스위치가 정상 토글됨</li>
+    </ul>
+
+    <h2>4. 관련 코드 위치</h2>
+    <ul>
+        <li>스위치 정의: <code>app/src/main/java/com/cole/app/ColeToggleSwitch.kt</code></li>
+        <li>사용처: <code>app/src/main/java/com/cole/app/ListComponents.kt</code> → SelectionRow (Switch variant)</li>
+        <li>SelectionRow의 Row에 shadow → clip → background → clickable modifier 순서로 적용되어 있음 (클로드 분석: 이 순서가 AndroidView 터치를 간섭할 수 있다고 함)</li>
+    </ul>
+
+    <h2>5. 질문 문장</h2>
+    <div class="code" id="question">
+위 문제를 해결해줘. 디자인과 터치가 둘 다 정상 동작하는 ColeToggleSwitch 구현이 필요해.
+    </div>
+
+    <h2>6. 전체 복사용 (질문에 붙여넣기)</h2>
+    <div class="code" id="fullContent">
+Android Compose 앱에서 ColeToggleSwitch 컴포넌트에 두 가지 이슈가 있습니다.
+
+[문제점]
+1. 디자인 미반영: Figma 스펙에 맞는 색상이 적용되지 않음
+   - On: track #614CC7 (Primary400), thumb #FAFAFA (Grey50)
+   - Off: track #E8E8E8 (Grey250), thumb #FAFAFA (Grey50)
+   - 실제로는 기본 스타일(흰색/회색)로 보임
+
+2. 터치 미동작: SelectionRow 안에 있을 때, 스크롤 영역에서 스위치 터치가 안 됨 (스크롤만 됨)
+
+[시도한 방법]
+- Compose 커스텀 구현: 디자인✓ 터치✗
+- 네이티브 Switch + AndroidView: 터치✓ 디자인✗ (trackTintList 등 색상 미적용)
+- PorterDuff.Mode.SRC_IN: 여전히 색상 미적용
+- Material3 Switch + SwitchDefaults.colors(): 디자인✓ 터치✗
+- Box(wrapContentSize())로 감싸기: 일부 개선, 완전 해결 아님
+
+[필요한 결과]
+- 디자인: On 보라색 track, Off 회색 track, thumb #FAFAFA
+- 터치: 스크롤 내에서도 정상 토글
+
+[코드 위치]
+- ColeToggleSwitch.kt, ListComponents.kt SelectionRow
+- SelectionRow Row: shadow → clip → background → clickable 순서
+
+위 문제를 해결해줘. 디자인과 터치가 둘 다 정상 동작하는 ColeToggleSwitch 구현이 필요해.
+    </div>
+
+    <button class="copy-btn" onclick="copyContent()">전체 내용 복사</button>
+
+    <script>
+        function copyContent() {
+            const text = document.getElementById('fullContent').innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('복사되었습니다. Gemini에 붙여넣기 하세요.');
+            }).catch(err => {
+                prompt('아래 내용을 수동으로 복사하세요:', text);
+            });
+        }
+    </script>
+</body>
+</html>

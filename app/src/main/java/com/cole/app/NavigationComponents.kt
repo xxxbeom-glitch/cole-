@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NavDestination — 하단 내비게이션 탭 정의
-// Figma: App Bar (홈, 챌린지, 통계, 마이)
+// Figma: App Bar (홈, 챌린지, 통계, 설정)
 // 사용자 제공 PNG (Group_88 시리즈) drawable 사용, 아이콘 24dp
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -154,7 +154,7 @@ fun ColeHeaderHome(
                 painter = logo,
                 contentDescription = "cole",
                 tint = Color.Unspecified,
-                modifier = Modifier.width(83.dp).height(32.dp),
+                modifier = Modifier.width(73.dp).height(28.dp), // 83:32 비율 → 73:28
             )
             Box(
                 modifier = Modifier

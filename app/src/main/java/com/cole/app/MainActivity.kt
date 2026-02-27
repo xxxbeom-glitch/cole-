@@ -42,6 +42,10 @@ enum class SignUpStep {
     SELFTEST_RESULT,
     ADD_APP,
     MAIN,
+    // 비밀번호 재설정 RS-01 ~ RS-03
+    PASSWORD_RESET_EMAIL,
+    PASSWORD_RESET_CODE,
+    PASSWORD_RESET_NEW,
 }
 
 class MainActivity : ComponentActivity() {
@@ -96,7 +100,7 @@ fun SignUpFlowHost() {
             onNaverLoginClick = {},
             onKakaoLoginClick = {},
             onGoogleLoginClick = {},
-            onForgotPasswordClick = {},
+            onForgotPasswordClick = { step = SignUpStep.PASSWORD_RESET_EMAIL },
         )
         SignUpStep.EMAIL -> SignUpEmailScreen(
             onNextClick = { step = SignUpStep.PASSWORD },
@@ -133,11 +137,11 @@ fun SignUpFlowHost() {
         SignUpStep.SELFTEST_LOADING -> SelfTestLoadingScreen(
             onFinish = { step = SignUpStep.SELFTEST_RESULT },
         )
-        SignUpStep.SELFTEST_RESULT -> SelfTestResultScreen(
+        SignUpStep.SELFTEST_RESULT -> SelfTestResultScreenST10(
             resultType = computeSelfTestResultType(selfTestAnswers),
             onStartClick = { step = SignUpStep.MAIN },
             onBackClick = { step = SignUpStep.SELFTEST },
-            rawScore = selfTestAnswers.values.sumOf { 4 - it },
+            rawScore = selfTestAnswers.values.sumOf { (4 - it).coerceIn(0, 4) }.coerceIn(8, 32),
         )
         SignUpStep.ADD_APP -> AddAppFlowHost(
             onComplete = { step = SignUpStep.MAIN },
@@ -146,6 +150,19 @@ fun SignUpFlowHost() {
         SignUpStep.MAIN -> MainFlowHost(
             onAddAppClick = { step = SignUpStep.ADD_APP },
             onLogout = { step = SignUpStep.LOGIN },
+        )
+        SignUpStep.PASSWORD_RESET_EMAIL -> PasswordResetEmailScreen(
+            onNextClick = { step = SignUpStep.PASSWORD_RESET_CODE },
+            onBackClick = { step = SignUpStep.LOGIN },
+        )
+        SignUpStep.PASSWORD_RESET_CODE -> PasswordResetCodeScreen(
+            onNextClick = { step = SignUpStep.PASSWORD_RESET_NEW },
+            onBackClick = { step = SignUpStep.PASSWORD_RESET_EMAIL },
+            onResendClick = { /* TODO: API 연동 시 재발송 */ },
+        )
+        SignUpStep.PASSWORD_RESET_NEW -> PasswordResetNewPasswordScreen(
+            onNextClick = { step = SignUpStep.LOGIN },
+            onBackClick = { step = SignUpStep.PASSWORD_RESET_CODE },
         )
     }
 

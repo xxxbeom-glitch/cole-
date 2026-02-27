@@ -36,6 +36,7 @@ fun BaseBottomSheet(
     primaryButtonText: String,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    subtitleContent: @Composable (() -> Unit)? = null,
     secondaryButtonText: String? = null,
     onSecondaryClick: (() -> Unit)? = null,
     primaryButtonEnabled: Boolean = true,
@@ -67,7 +68,9 @@ fun BaseBottomSheet(
                     text = title,
                     style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
                 )
-                if (subtitle != null) {
+                if (subtitleContent != null) {
+                    subtitleContent()
+                } else if (subtitle != null) {
                     Text(
                         text = subtitle,
                         style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),

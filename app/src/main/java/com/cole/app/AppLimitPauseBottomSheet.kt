@@ -126,7 +126,7 @@ private fun PauseAppRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        RestrictedAppIconBox(appIcon = appIcon)
+        AppIconSquircleLock(appIcon = appIcon)
         Row(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
