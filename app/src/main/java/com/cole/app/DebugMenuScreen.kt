@@ -121,7 +121,9 @@ sealed class DebugScreen(val category: String, val label: String) {
     data object TermsBottomSheet : DebugScreen("바텀시트", "TermsBottomSheet (약관 동의)")
     data object AppLimitSetupTime : DebugScreen("바텀시트", "AppLimitSetupTime (시간 슬라이더)")
     data object AppLimitSetupDay : DebugScreen("바텀시트", "AppLimitSetupDay (요일 선택)")
-    data object AppLimitInfoBottomSheet : DebugScreen("바텀시트", "AppLimitInfoBottomSheet (제한 앱 정보)")
+    data object AppLimitInfoBottomSheet : DebugScreen("바텀시트", "AppLimitInfoBottomSheet (시간 지정 제한)")
+    data object AppLimitInfoBottomSheetDaily : DebugScreen("바텀시트", "AppLimitInfoBottomSheetDaily (일일 사용량 제한)")
+    data object AppLimitInfoBottomSheetPaused : DebugScreen("바텀시트", "AppLimitInfoBottomSheetPaused (일시 정지 중)")
 
     // 앱 제한 일시정지 (UL)
     data object AppLimitPauseProposal : DebugScreen("앱 제한 일시정지", "UL-01: 제안")
@@ -174,7 +176,7 @@ private fun DebugScreenPreview(
             rawScore = 23,
             userName = "장원영",
         )
-        DebugScreen.PasswordResetEmail -> PasswordResetEmailScreen(
+        DebugScreen.PasswordResetEmail -> PasswordResetPhoneScreen(
             onNextClick = { onBack() },
             onBackClick = onBack,
         )
@@ -311,6 +313,38 @@ private fun DebugScreenPreview(
                 onDismissRequest = onSheetDismiss,
                 onDetailClick = onSheetDismiss,
                 onPrimaryClick = onSheetDismiss,
+            )
+        }
+        DebugScreen.AppLimitInfoBottomSheetDaily -> DebugBottomSheetPreview(onBack = onBack) { onSheetDismiss ->
+            AppLimitInfoBottomSheetDaily(
+                title = "제한 중인 앱",
+                appName = "넷플릭스",
+                appIcon = painterResource(R.drawable.ic_app_placeholder),
+                usageMinutes = "45분",
+                sessionCount = "7회",
+                summaryRows = listOf(
+                    AppLimitSummaryRow("선택된 앱", "넷플릭스"),
+                    AppLimitSummaryRow("일일 사용시간", "1시간 30분"),
+                    AppLimitSummaryRow("반복 요일", "월, 화, 수, 목"),
+                    AppLimitSummaryRow("적용 기간", "4주"),
+                ),
+                onDismissRequest = onSheetDismiss,
+                onPrimaryClick = onSheetDismiss,
+            )
+        }
+        DebugScreen.AppLimitInfoBottomSheetPaused -> DebugBottomSheetPreview(onBack = onBack) { onSheetDismiss ->
+            AppLimitInfoBottomSheetPaused(
+                title = "제한 중인 앱",
+                appName = "인스타그램",
+                appIcon = painterResource(R.drawable.ic_app_placeholder),
+                pauseRemainingText = "09:50",
+                summaryRows = listOf(
+                    AppLimitSummaryRow("일시 정지 남은 시간", "09:50"),
+                    AppLimitSummaryRow("오늘 사용 시간", "14분/30분"),
+                ),
+                onDismissRequest = onSheetDismiss,
+                onPrimaryClick = onSheetDismiss,
+                primaryButtonText = "제한 재개",
             )
         }
         DebugScreen.AppLimitPauseProposal -> DebugBottomSheetPreview(onBack = onBack) { onSheetDismiss ->
@@ -842,6 +876,8 @@ private fun DebugBottomSheetsContent(onBack: () -> Unit) {
                 DebugScreen.AppLimitSetupTime,
                 DebugScreen.AppLimitSetupDay,
                 DebugScreen.AppLimitInfoBottomSheet,
+                DebugScreen.AppLimitInfoBottomSheetDaily,
+                DebugScreen.AppLimitInfoBottomSheetPaused,
                 DebugScreen.AppLimitPauseProposal,
                 DebugScreen.AppLimitPauseConfirm,
                 DebugScreen.AppLimitPauseComplete,

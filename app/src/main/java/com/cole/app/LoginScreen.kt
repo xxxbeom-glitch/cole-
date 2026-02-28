@@ -53,9 +53,13 @@ fun LoginScreen(
     onKakaoLoginClick: () -> Unit = {},
     onGoogleLoginClick: () -> Unit = {},
     onForgotPasswordClick: () -> Unit = {},
+    errorMessage: String? = null,
+    onClearError: () -> Unit = {},
+    isLoading: Boolean = false,
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    val isValid = email.isNotBlank() && password.isNotBlank()
     val focusManager = LocalFocusManager.current
     val view = LocalView.current
 
@@ -87,7 +91,7 @@ fun LoginScreen(
 
         ColeTextField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = { email = it; onClearError() },
             placeholder = "가입하신 이메일을 입력해주세요",
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             modifier = Modifier.fillMaxWidth(),
@@ -97,33 +101,42 @@ fun LoginScreen(
 
         ColeTextField(
             value = password,
-            onValueChange = { password = it },
+            onValueChange = { password = it; onClearError() },
             placeholder = "비밀번호를 입력해주세요",
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
         )
 
+        if (errorMessage != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                IcoErrorInfo()
+                Text(
+                    errorMessage,
+                    style = AppTypography.Disclaimer.copy(color = AppColors.FormTextError),
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
 
-        ColePrimaryButton(
-            text = "로그인",
-            onClick = {
+        ColeTwoLineButton(
+            primaryText = if (isLoading) "로그인 중..." else "로그인",
+            ghostText = "이메일로 가입하기",
+            onPrimaryClick = {
                 focusManager.clearFocus()
                 (view.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                     .hideSoftInputFromWindow(view.windowToken, 0)
                 onLoginClick(email, password)
             },
+            onGhostClick = onSignUpClick,
             modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(modifier = Modifier.height(18.dp))
-
-        Text(
-            text = "이메일로 가입하기",
-            style = AppTypography.BodyMedium.copy(color = AppColors.TextCaption),
-            textAlign = TextAlign.Center,
-            modifier = Modifier.clickable { onSignUpClick() }.padding(vertical = 4.dp),
+            enabled = isValid && !isLoading,
         )
 
         Spacer(modifier = Modifier.height(40.dp))

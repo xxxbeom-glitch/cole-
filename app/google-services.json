@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "200339538980",
+    "project_id": "cole-c3f96",
+    "storage_bucket": "cole-c3f96.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:200339538980:android:da0a2f652380b06c0984b1",
+        "android_client_info": {
+          "package_name": "com.cole.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAlAj6FDYXn79dEi_5Bu1HxgLS7CYW79lI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

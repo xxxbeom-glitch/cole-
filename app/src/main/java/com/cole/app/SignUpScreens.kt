@@ -50,7 +50,7 @@ internal object SignUpSpacing {
     val labelToInput: Dp = 8.dp         // 라벨 ~ 입력 필드 (작은)
     val inputToInput: Dp = 16.dp        // 입력 필드 사이 (기본)
     val inputGroupGap: Dp = 20.dp       // 입력 폼 그룹 간 (이름/생년월일/휴대전화, +4px)
-    val passwordFieldGap: Dp = 2.dp    // 비밀번호 2개 입력 필드 사이 (추가 2px 감소)
+    val passwordFieldGap: Dp = 7.dp   // 비밀번호 2개 입력 필드 사이
     val errorToNext: Dp = 6.dp          // 에러 메시지 ~ 다음 요소
     val resendToButton: Dp = 16.dp      // 재발송 문구 ~ 버튼
     val contentPaddingTop: Dp = 24.dp
@@ -59,6 +59,15 @@ internal object SignUpSpacing {
     val buttonGap: Dp = 12.dp
     val iconToText: Dp = 24.dp          // MB-08 완료 아이콘~텍스트
     val bottomButtonPadding: Dp = 24.dp // 하단 버튼 영역 패딩 (WindowInsets 외)
+}
+
+/** 비밀번호 유효성: 8자 이상, 영문 대문자·소문자·숫자 각 최소 1개 */
+internal fun isPasswordValid(password: String): Boolean {
+    if (password.length < 8) return false
+    val hasUpperCase = password.any { it.isUpperCase() }
+    val hasLowerCase = password.any { it.isLowerCase() }
+    val hasDigit = password.any { it.isDigit() }
+    return hasUpperCase && hasLowerCase && hasDigit
 }
 
 // ─────────────────────────────────────────────
@@ -177,7 +186,7 @@ fun SignUpPasswordScreen(
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
 
-    val isPasswordValid = password.length >= 8
+    val isPasswordValid = isPasswordValid(password)
     val isConfirmValid = password == confirmPassword && confirmPassword.isNotBlank()
     val canProceed = isPasswordValid && isConfirmValid
     val showPasswordMismatch = !isConfirmValid && confirmPassword.isNotEmpty()
@@ -219,27 +228,28 @@ fun SignUpPasswordScreen(
                     "비밀번호를 적어주세요",
                     style = AppTypography.BodyMedium.copy(color = AppColors.FormTextLabel),
                 )
-                ColeTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    placeholder = "영어 대/소문자 및 숫자 포함 8자리 이상",
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    visualTransformation = PasswordVisualTransformation(),
-                    isError = !isPasswordValid && password.isNotEmpty(),
-                    errorText = if (!isPasswordValid && password.isNotEmpty()) "영어 대/소문자 및 숫자 포함 8자리 이상" else null,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(SignUpSpacing.passwordFieldGap))
-                ColeTextField(
-                    value = confirmPassword,
-                    onValueChange = { confirmPassword = it },
-                    placeholder = "한번 더 입력해주세요",
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    visualTransformation = PasswordVisualTransformation(),
-                    isError = showPasswordMismatch,
-                    errorText = null,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(SignUpSpacing.passwordFieldGap)) {
+                    ColeTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        placeholder = "영문 대문자, 소문자, 숫자 각 1개 이상 포함 8자리",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        visualTransformation = PasswordVisualTransformation(),
+                        isError = !isPasswordValid && password.isNotEmpty(),
+                        errorText = if (!isPasswordValid && password.isNotEmpty()) "영문 대문자, 소문자, 숫자 각 1개 이상 포함 8자리 이상" else null,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    ColeTextField(
+                        value = confirmPassword,
+                        onValueChange = { confirmPassword = it },
+                        placeholder = "한번 더 입력해주세요",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        visualTransformation = PasswordVisualTransformation(),
+                        isError = showPasswordMismatch,
+                        errorText = null,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 if (showPasswordMismatch) {
                     Spacer(modifier = Modifier.height(SignUpSpacing.errorToNext))
                     Row(
@@ -390,6 +400,9 @@ fun SignUpVerificationCodeScreen(
     onNextClick: (code: String) -> Unit,
     onBackClick: () -> Unit,
     onResendClick: () -> Unit,
+    isLoading: Boolean = false,
+    isResendLoading: Boolean = false,
+    errorMessage: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var code by remember { mutableStateOf("") }
@@ -434,14 +447,14 @@ fun SignUpVerificationCodeScreen(
             Column(verticalArrangement = Arrangement.spacedBy(SignUpSpacing.titleToSubtitle)) {
                 Text("회원 가입", style = AppTypography.Display3.copy(color = AppColors.TextPrimary))
                 Text(
-                    "원활한 이용을 위해 아래 내용들을 입력해주세요",
+                    "수신된 6자리 코드를 입력해주세요",
                     style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
                 )
             }
             Spacer(modifier = Modifier.height(SignUpSpacing.subtitleToContent))
             Column(verticalArrangement = Arrangement.spacedBy(SignUpSpacing.labelToInput)) {
                 Text(
-                    "받으신 인증번호를 입력해주세요",
+                    "수신된 6자리 코드를 입력해주세요",
                     style = AppTypography.BodyMedium.copy(color = AppColors.FormTextLabel),
                 )
                 // 인풋박스 안에 타이머 (우측)
@@ -496,14 +509,27 @@ fun SignUpVerificationCodeScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "혹시 인증문자가 오지 않았나요? ",
+                    "혹시 인증번호가 오지 않았나요? ",
                     style = AppTypography.BodyMedium.copy(color = AppColors.TextCaption),
                 )
                 Text(
-                    "재발송",
+                    if (isResendLoading) "발송 중..." else "재발송",
                     style = AppTypography.BodyBold.copy(color = AppColors.TextHighlight),
-                    modifier = Modifier.clickable { onResendClick() },
+                    modifier = Modifier.clickable(enabled = !isResendLoading) { onResendClick() },
                 )
+            }
+            if (errorMessage != null) {
+                Spacer(modifier = Modifier.height(SignUpSpacing.errorToNext))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    IcoErrorInfo()
+                    Text(
+                        errorMessage,
+                        style = AppTypography.Disclaimer.copy(color = AppColors.FormTextError),
+                    )
+                }
             }
         }
 
@@ -520,9 +546,9 @@ fun SignUpVerificationCodeScreen(
                 ),
         ) {
             ColePrimaryButton(
-                text = "다음",
+                text = if (isLoading) "가입 중..." else "다음",
                 onClick = { onNextClick(code) },
-                enabled = isValid,
+                enabled = isValid && !isLoading,
                 modifier = Modifier.fillMaxWidth(),
             )
         }

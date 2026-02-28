@@ -45,15 +45,19 @@ import androidx.compose.ui.unit.dp
 // 비밀번호 재설정 RS-01 ~ RS-03 (회원가입 플로우와 동일 가이드)
 // ─────────────────────────────────────────────
 
-// RS-01: 본인 확인 (이메일 입력)
+// RS-01: 본인 확인 (휴대폰 번호 입력)
 @Composable
-fun PasswordResetEmailScreen(
-    onNextClick: (email: String) -> Unit,
+fun PasswordResetPhoneScreen(
+    onNextClick: (phone: String) -> Unit,
     onBackClick: () -> Unit,
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
+    onClearError: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    var email by remember { mutableStateOf("") }
-    val isValid = email.isNotBlank() && android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
+    var phone by remember { mutableStateOf("") }
+    val normalizedPhone = phone.replace(Regex("[^0-9]"), "")
+    val isValid = normalizedPhone.length >= 10
 
     Column(
         modifier = modifier
@@ -82,23 +86,36 @@ fun PasswordResetEmailScreen(
             Column(verticalArrangement = Arrangement.spacedBy(SignUpSpacing.titleToSubtitle)) {
                 Text("본인 확인", style = AppTypography.Display3.copy(color = AppColors.TextPrimary))
                 Text(
-                    "가입한 이메일로 인증 코드를 보내드릴게요",
+                    "가입 시 입력한 전화번호로 인증번호를 보내드릴게요",
                     style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
                 )
             }
             Spacer(modifier = Modifier.height(SignUpSpacing.subtitleToContent))
             Column(verticalArrangement = Arrangement.spacedBy(SignUpSpacing.labelToInput)) {
                 Text(
-                    "가입 시 사용한 이메일 주소를 적어주세요",
+                    "가입 시 입력한 전화번호를 입력해주세요",
                     style = AppTypography.BodyMedium.copy(color = AppColors.FormTextLabel),
                 )
                 ColeTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    placeholder = "user@mail.com",
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    value = phone,
+                    onValueChange = { phone = it; onClearError() },
+                    placeholder = "예) 01012345678",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                     modifier = Modifier.fillMaxWidth(),
                 )
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(SignUpSpacing.errorToNext))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        IcoErrorInfo()
+                        Text(
+                            errorMessage,
+                            style = AppTypography.Disclaimer.copy(color = AppColors.FormTextError),
+                        )
+                    }
+                }
             }
         }
 
@@ -115,21 +132,23 @@ fun PasswordResetEmailScreen(
                 ),
         ) {
             ColePrimaryButton(
-                text = "인증코드 발송",
-                onClick = { onNextClick(email) },
-                enabled = isValid,
+                text = if (isLoading) "발송 중..." else "인증번호 발송",
+                onClick = { onNextClick(if (normalizedPhone.startsWith("0")) normalizedPhone else "0$normalizedPhone") },
+                enabled = isValid && !isLoading,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
     }
 }
 
-// RS-02: 인증 코드 입력
+// RS-02: 인증번호 입력
 @Composable
 fun PasswordResetCodeScreen(
     onNextClick: (code: String) -> Unit,
     onBackClick: () -> Unit,
     onResendClick: () -> Unit,
+    isResendLoading: Boolean = false,
+    errorMessage: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var code by remember { mutableStateOf("") }
@@ -172,16 +191,16 @@ fun PasswordResetCodeScreen(
         ) {
             Spacer(modifier = Modifier.height(SignUpSpacing.headerToContent))
             Column(verticalArrangement = Arrangement.spacedBy(SignUpSpacing.titleToSubtitle)) {
-                Text("인증 코드 입력", style = AppTypography.Display3.copy(color = AppColors.TextPrimary))
+                Text("인증번호 입력", style = AppTypography.Display3.copy(color = AppColors.TextPrimary))
                 Text(
-                    "이메일로 발송된 6자리 코드를 입력해주세요",
+                    "수신된 6자리 코드를 입력해주세요",
                     style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
                 )
             }
             Spacer(modifier = Modifier.height(SignUpSpacing.subtitleToContent))
             Column(verticalArrangement = Arrangement.spacedBy(SignUpSpacing.labelToInput)) {
                 Text(
-                    "받으신 인증코드를 입력해주세요",
+                    "수신된 6자리 코드를 입력해주세요",
                     style = AppTypography.BodyMedium.copy(color = AppColors.FormTextLabel),
                 )
                 // 인풋박스 안에 타이머 (우측)
@@ -229,6 +248,20 @@ fun PasswordResetCodeScreen(
                     }
                 }
             }
+            if (errorMessage != null) {
+                Spacer(modifier = Modifier.height(SignUpSpacing.errorToNext))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    IcoErrorInfo()
+                    Text(
+                        errorMessage,
+                        style = AppTypography.Disclaimer.copy(color = AppColors.FormTextError),
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(SignUpSpacing.resendToButton))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -240,9 +273,9 @@ fun PasswordResetCodeScreen(
                     style = AppTypography.BodyMedium.copy(color = AppColors.TextCaption),
                 )
                 Text(
-                    "재발송",
+                    if (isResendLoading) "발송 중..." else "재발송",
                     style = AppTypography.BodyBold.copy(color = AppColors.TextHighlight),
-                    modifier = Modifier.clickable { onResendClick() },
+                    modifier = Modifier.clickable(enabled = !isResendLoading) { onResendClick() },
                 )
             }
         }
@@ -274,12 +307,15 @@ fun PasswordResetCodeScreen(
 fun PasswordResetNewPasswordScreen(
     onNextClick: (password: String) -> Unit,
     onBackClick: () -> Unit,
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
+    onClearError: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
 
-    val isPasswordValid = password.length >= 8
+    val isPasswordValid = isPasswordValid(password)
     val isConfirmValid = password == confirmPassword && confirmPassword.isNotBlank()
     val canProceed = isPasswordValid && isConfirmValid
     val showPasswordMismatch = !isConfirmValid && confirmPassword.isNotEmpty()
@@ -321,27 +357,28 @@ fun PasswordResetNewPasswordScreen(
                     "비밀번호를 적어주세요",
                     style = AppTypography.BodyMedium.copy(color = AppColors.FormTextLabel),
                 )
-                ColeTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    placeholder = "영어 대/소문자 및 숫자 포함 8자리 이상",
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    visualTransformation = PasswordVisualTransformation(),
-                    isError = !isPasswordValid && password.isNotEmpty(),
-                    errorText = if (!isPasswordValid && password.isNotEmpty()) "영어 대/소문자 및 숫자 포함 8자리 이상" else null,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(SignUpSpacing.passwordFieldGap))
-                ColeTextField(
-                    value = confirmPassword,
-                    onValueChange = { confirmPassword = it },
-                    placeholder = "한번 더 입력해주세요",
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    visualTransformation = PasswordVisualTransformation(),
-                    isError = showPasswordMismatch,
-                    errorText = null,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(SignUpSpacing.passwordFieldGap)) {
+                    ColeTextField(
+                        value = password,
+                        onValueChange = { password = it; onClearError() },
+                        placeholder = "영문 대문자, 소문자, 숫자 각 1개 이상 포함 8자리",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        visualTransformation = PasswordVisualTransformation(),
+                        isError = !isPasswordValid && password.isNotEmpty(),
+                        errorText = if (!isPasswordValid && password.isNotEmpty()) "영문 대문자, 소문자, 숫자 각 1개 이상 포함 8자리 이상" else null,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    ColeTextField(
+                        value = confirmPassword,
+                        onValueChange = { confirmPassword = it; onClearError() },
+                        placeholder = "한번 더 입력해주세요",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        visualTransformation = PasswordVisualTransformation(),
+                        isError = showPasswordMismatch,
+                        errorText = null,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 if (showPasswordMismatch) {
                     Spacer(modifier = Modifier.height(SignUpSpacing.errorToNext))
                     Row(
@@ -351,6 +388,19 @@ fun PasswordResetNewPasswordScreen(
                         IcoErrorInfo()
                         Text(
                             "비밀번호가 일치하지 않습니다",
+                            style = AppTypography.Disclaimer.copy(color = AppColors.FormTextError),
+                        )
+                    }
+                }
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(SignUpSpacing.errorToNext))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        IcoErrorInfo()
+                        Text(
+                            errorMessage,
                             style = AppTypography.Disclaimer.copy(color = AppColors.FormTextError),
                         )
                     }
@@ -371,9 +421,9 @@ fun PasswordResetNewPasswordScreen(
                 ),
         ) {
             ColePrimaryButton(
-                text = "변경 완료",
+                text = if (isLoading) "변경 중..." else "변경 완료",
                 onClick = { onNextClick(password) },
-                enabled = canProceed,
+                enabled = canProceed && !isLoading,
                 modifier = Modifier.fillMaxWidth(),
             )
         }

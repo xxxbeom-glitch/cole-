@@ -17,3 +17,6 @@ crash_log.txt
 crash_detail.txt
 cole_variables.json
 color_va.json
+
+# Firebase Functions
+functions/node_modules

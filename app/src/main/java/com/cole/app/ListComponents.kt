@@ -68,6 +68,8 @@ fun AppStatusRow(
     onDetailClick: (() -> Unit)? = null,
     usageMinutes: String = "",
     sessionCount: String = "",
+    usageTextColor: Color? = null,
+    usageLabelColor: Color? = null,
 ) {
     Row(
         modifier = modifier
@@ -94,8 +96,8 @@ fun AppStatusRow(
                     AppStatusVariant.Default -> Unit
                     AppStatusVariant.Button -> {
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(text = usageText, style = AppTypography.Caption2.copy(color = AppColors.TextHighlight))
-                            Text(text = usageLabel, style = AppTypography.Caption2.copy(color = AppColors.TextSecondary))
+                            Text(text = usageText, style = AppTypography.Caption2.copy(color = usageTextColor ?: AppColors.TextHighlight))
+                            Text(text = usageLabel, style = AppTypography.Caption2.copy(color = usageLabelColor ?: AppColors.TextSecondary))
                         }
                     }
                     AppStatusVariant.DataView -> {
