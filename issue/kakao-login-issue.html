@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카카오 로그인 이슈 - cole 앱</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; }
+        h1 { color: #191919; border-bottom: 2px solid #FEE500; padding-bottom: 8px; }
+        h2 { color: #333; margin-top: 28px; }
+        .section { margin: 20px 0; }
+        code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+        .file-list { background: #f9f9f9; padding: 16px; border-radius: 8px; margin: 12px 0; }
+        .file-list li { margin: 6px 0; }
+        ul { padding-left: 24px; }
+        .error { color: #c00; font-weight: 500; }
+        .success { color: #0a0; }
+        table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background: #f5f5f5; }
+    </style>
+</head>
+<body>
+    <h1>카카오 로그인 이슈 정리</h1>
+    <p><strong>앱명:</strong> cole (com.cole.app) | <strong>작성일:</strong> 2026-03-01</p>
+
+    <h2>1. 이슈 요약</h2>
+    <div class="section">
+        <p><strong>증상:</strong> Android 앱에서 카카오 로그인 버튼 클릭 → 동의 팝업 후 → <span class="error">INTERNAL 오류</span> 표시. 로그인 완료되지 않음.</p>
+        <p><strong>환경:</strong> Android (Kotlin, Jetpack Compose), Firebase Auth, Firebase Cloud Functions, Kakao SDK v2-user 2.21.4</p>
+    </div>
+
+    <h2>2. 에러 히스토리 (시간순)</h2>
+    <div class="section">
+        <table>
+            <tr><th>에러 메시지</th><th>원인/조치</th></tr>
+            <tr><td>안드로이드 키 해시 벨리데이션 페일드</td><td>카카오 개발자 콘솔에 키 해시 미등록 → <code>xjcMTVK2jpHH7lY5dOciVpCQp88=</code> Base64 SHA-1 등록 후 해결</td></tr>
+            <tr><td>카카오로 시작하기 클릭 후 반응 없음</td><td>AndroidManifest에 AuthCodeHandlerActivity intent-filter 누락 → 추가 후 카카오 콜백 수신 가능해짐</td></tr>
+            <tr><td><span class="error">INTERNAL</span></td><td>미해결. Cloud Function 또는 Firebase Auth createCustomToken 단계에서 발생 추정</td></tr>
+        </table>
+    </div>
+
+    <h2>3. 시도한 방법</h2>
+    <div class="section">
+        <ul>
+            <li><strong>UID 형식 변경:</strong> Firebase createCustomToken은 UID에 콜론(:) 불가 → <code>kakao:12345</code> → <code>kakao_12345</code> 로 변경 후 배포</li>
+            <li><strong>AuthCodeHandlerActivity 추가:</strong> <code>kakaoc2b30a1e78b6936a1603d5d18fd5ea20://oauth</code> 스킴으로 intent-filter 등록</li>
+            <li><strong>queries에 com.kakao.talk 추가:</strong> Android 11+ 카카오톡 앱 조회용</li>
+            <li><strong>키 해시 등록:</strong> 디버그 키스토어 SHA-1 → Base64 변환 후 카카오 플랫폼 키에 등록</li>
+            <li><strong>Cloud Function 에러 로깅:</strong> createCustomToken 실패 시 try-catch로 메시지 전달 추가 (배포는 네트워크 오류로 미완료)</li>
+        </ul>
+    </div>
+
+    <h2>4. 건내줄 파일 목록 (Claude / Gemini 질문 시)</h2>
+    <div class="section file-list">
+        <p><strong>필수 파일:</strong></p>
+        <ul>
+            <li><code>app/src/main/AndroidManifest.xml</code> — 카카오 SDK 설정, AuthCodeHandlerActivity</li>
+            <li><code>app/src/main/java/com/cole/app/AuthRepository.kt</code> — signInWithKakao, getKakaoToken 로직</li>
+            <li><code>app/src/main/java/com/cole/app/ColeApplication.kt</code> — KakaoSdk.init</li>
+            <li><code>app/src/main/java/com/cole/app/MainActivity.kt</code> — 로그인 버튼 연동, onFailure 핸들링</li>
+            <li><code>functions/index.js</code> — kakaoLogin Cloud Function (getKakaoUserInfo, createCustomToken)</li>
+        </ul>
+        <p><strong>참고 파일:</strong></p>
+        <ul>
+            <li><code>app/build.gradle.kts</code> — Kakao SDK 의존성 (com.kakao.sdk:v2-user:2.21.4)</li>
+            <li><code>settings.gradle.kts</code> — Kakao Maven 저장소</li>
+        </ul>
+    </div>
+
+    <h2>5. 현재 설정 정보</h2>
+    <div class="section">
+        <table>
+            <tr><th>항목</th><th>값</th></tr>
+            <tr><td>패키지명</td><td>com.cole.app</td></tr>
+            <tr><td>카카오 네이티브 앱 키</td><td>c2b30a1e78b6936a1603d5d18fd5ea20</td></tr>
+            <tr><td>카카오 스킴</td><td>kakaoc2b30a1e78b6936a1603d5d18fd5ea20</td></tr>
+            <tr><td>키 해시 (디버그)</td><td>xjcMTVK2jpHH7lY5dOciVpCQp88=</td></tr>
+            <tr><td>Firebase UID 형식</td><td>kakao_{kakaoId}</td></tr>
+            <tr><td>Cloud Function</td><td>kakaoLogin (us-central1)</td></tr>
+        </table>
+    </div>
+
+    <h2>6. 로그인 플로우</h2>
+    <div class="section">
+        <ol>
+            <li>버튼 클릭 → <code>AuthRepository.signInWithKakao(context)</code></li>
+            <li><code>getKakaoToken()</code> — UserApiClient.loginWithKakaoTalk 또는 loginWithKakaoAccount → accessToken 획득</li>
+            <li><code>functions.getHttpsCallable("kakaoLogin").call({ accessToken })</code></li>
+            <li>Cloud Function: getKakaoUserInfo(accessToken) → kapi.kakao.com/v2/user/me</li>
+            <li>Cloud Function: admin.auth().createCustomToken(uid) → firebaseToken 반환</li>
+            <li>클라이언트: auth.signInWithCustomToken(customToken)</li>
+        </ol>
+    </div>
+
+    <h2>7. 확인 필요 사항</h2>
+    <div class="section">
+        <ul>
+            <li>Firebase 콘솔 → Functions 로그에 <code>kakaoLogin createCustomToken 실패</code> 로그가 있는지</li>
+            <li>createCustomToken 시 전달하는 UID(<code>kakao_숫자</code>)에 특수문자/공백 없음 확인</li>
+            <li>Firebase 프로젝트에 Authentication API 활성화 여부</li>
+        </ul>
+    </div>
+</body>
+</html>

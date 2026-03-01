@@ -271,12 +271,21 @@ fun AddAppSelectBottomSheet(
     initialSelected: Set<String> = emptySet(),
     onDismissRequest: () -> Unit,
     onSelectComplete: (Set<String>) -> Unit,
+    onSelectCompleteWithPackages: ((List<com.cole.app.model.SelectedAppInfo>) -> Unit)? = null,
+    /** 다른 제한 방식(일일/시간지정)에서 선택된 앱 패키지 - 해당 앱은 비활성화 */
+    additionalRestrictedPackages: Set<String> = emptySet(),
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     var selected by remember { mutableStateOf(initialSelected) }
     var searchQuery by remember { mutableStateOf("") }
-    var appList by remember { mutableStateOf(APP_SELECT_MOCK_LIST) }
+    var appList by remember { mutableStateOf<List<AppSelectItem>>(emptyList()) }
+    var isLoadingApps by remember { mutableStateOf(true) }
+
+    // 이미 제한 중 + 다른 방식에서 선택된 패키지
+    val restrictedPackages = remember(additionalRestrictedPackages) {
+        AppRestrictionRepository(context).getAll().map { it.packageName }.toSet() + additionalRestrictedPackages
+    }
 
     LaunchedEffect(Unit) {
         val items = withContext(Dispatchers.Default) {
@@ -299,6 +308,7 @@ fun AddAppSelectBottomSheet(
             }.getOrNull()
         }
         if (items != null) appList = items
+        isLoadingApps = false
     }
 
     val filteredApps = remember(searchQuery, appList) {
@@ -320,7 +330,19 @@ fun AddAppSelectBottomSheet(
         title = "앱을 선택해주세요",
         subtitle = "앱은 최대 1개까지 선택가능 해요\n이미 제한이 진행중인 앱은 선택하실 수 없어요",
         onDismissRequest = onDismissRequest,
-        onPrimaryClick = { if (selected.isNotEmpty()) onSelectComplete(selected) },
+        onPrimaryClick = {
+            if (selected.isNotEmpty()) {
+                onSelectComplete(selected)
+                onSelectCompleteWithPackages?.let { cb ->
+                    val withPkg = selected.mapNotNull { name ->
+                        appList.find { it.name == name }?.packageName?.let { pkg ->
+                            com.cole.app.model.SelectedAppInfo(name, pkg)
+                        }
+                    }
+                    cb(withPkg)
+                }
+            }
+        },
         primaryButtonText = "다음",
         primaryButtonEnabled = selected.isNotEmpty(),
         modifier = modifier,
@@ -337,21 +359,34 @@ fun AddAppSelectBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(modifier = Modifier.height(16.dp))
-            LazyColumn(
+            if (isLoadingApps) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(200.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        color = AppColors.TextHighlight,
+                        modifier = Modifier.size(32.dp),
+                    )
+                }
+            } else LazyColumn(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(filteredApps) { item ->
                     val appName = item.name
                     val isSelfApp = item.packageName == context.packageName
-                    val isDisabled = isSelfApp || (selected.size >= MAX_APP_SELECTION && appName !in selected)
+                    val isAlreadyRestricted = item.packageName != null && item.packageName in restrictedPackages
+                    val isDisabled = isSelfApp || isAlreadyRestricted || (selected.size >= MAX_APP_SELECTION && appName !in selected)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .then(
                                 if (isDisabled) Modifier.alpha(0.5f) else Modifier
                             )
-                            .clickable(enabled = !isSelfApp) { if (!isSelfApp) tryToggleApp(appName) },
+                            .clickable(enabled = !isSelfApp && !isAlreadyRestricted) {
+                                if (!isSelfApp && !isAlreadyRestricted) tryToggleApp(appName)
+                            },
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
@@ -391,20 +426,11 @@ fun AddAppSelectBottomSheet(
                                 style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
                             )
                         }
-                        if (isSelfApp) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_lock_app),
-                                contentDescription = "선택 불가",
-                                modifier = Modifier.size(24.dp),
-                                tint = AppColors.TextTertiary,
-                            )
-                        } else {
-                            ColeCheckBox(
-                                checked = appName in selected,
-                                onCheckedChange = { tryToggleApp(appName) },
-                                size = 32.dp,
-                            )
-                        }
+                        ColeCheckBox(
+                            checked = appName in selected,
+                            onCheckedChange = { if (!isDisabled) tryToggleApp(appName) },
+                            size = 32.dp,
+                        )
                     }
                 }
             }
@@ -1182,9 +1208,12 @@ fun AddAppFlowHost(
     onBackFromFirst: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     var step by remember { mutableStateOf(AddAppStep.AA_01) }
     var previousStepBeforeConfirm by remember { mutableStateOf(AddAppStep.AA_02A_TIME_05) }
     var selectedAppNames by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedAppsForTime by remember { mutableStateOf<List<com.cole.app.model.SelectedAppInfo>>(emptyList()) }
+    var selectedAppsForDaily by remember { mutableStateOf<List<com.cole.app.model.SelectedAppInfo>>(emptyList()) }
     var selectedTimeLimit by remember { mutableStateOf<String?>(null) }
     var showAppSelectSheet by remember { mutableStateOf(false) }
     var showTimeLimitSheet by remember { mutableStateOf(false) }
@@ -1202,11 +1231,13 @@ fun AddAppFlowHost(
         AddAppStep.AA_01 -> AddAppScreenAA01(
             onTimeSpecifiedClick = {
                 selectedAppNames = emptySet()
+                selectedAppsForTime = emptyList()
                 selectedTimeLimit = null
                 step = AddAppStep.AA_02A_TIME_01
             },
             onDailyLimitClick = {
                 selectedAppNames = emptySet()
+                selectedAppsForDaily = emptyList()
                 dailyLimitMinutes = null
                 dailySelectedDays = emptySet()
                 dailySelectedDuration = null
@@ -1217,6 +1248,7 @@ fun AddAppFlowHost(
         AddAppStep.AA_02A_01 -> AddAppScreenAA02A01(
             onDailyLimitClick = {
                 selectedAppNames = emptySet()
+                selectedAppsForDaily = emptyList()
                 dailyLimitMinutes = null
                 dailySelectedDays = emptySet()
                 dailySelectedDuration = null
@@ -1224,6 +1256,7 @@ fun AddAppFlowHost(
             },
             onTimeSpecifiedClick = {
                 selectedAppNames = emptySet()
+                selectedAppsForTime = emptyList()
                 selectedTimeLimit = null
                 step = AddAppStep.AA_02A_TIME_01
             },
@@ -1253,6 +1286,8 @@ fun AddAppFlowHost(
                         showDailyAppSelectSheet = false
                         showDailyTimeSheet = true
                     },
+                    onSelectCompleteWithPackages = { selectedAppsForDaily = it },
+                    additionalRestrictedPackages = selectedAppsForTime.map { it.packageName }.toSet(),
                 )
             }
             if (showDailyTimeSheet) {
@@ -1326,15 +1361,34 @@ fun AddAppFlowHost(
             onConfirmClick = { step = AddAppStep.AA_DAILY_05 },
             onBackClick = { step = AddAppStep.AA_DAILY_01 },
         )
-        AddAppStep.AA_DAILY_05 -> AddAppDailyLimitScreen05(
-            appName = selectedAppNames.joinToString(", ").ifEmpty { "앱" },
-            limitMinutes = dailyLimitMinutes ?: "30분",
-            selectedDaysText = if (dailySelectedDays.isNotEmpty()) formatSelectedDays(dailySelectedDays, DAILY_DAY_LABELS) else "오늘 하루만",
-            duration = dailySelectedDuration ?: "",
-            onCompleteClick = onComplete,
-            onAddAnotherClick = { step = AddAppStep.AA_01 },
-            onBackClick = { step = AddAppStep.AA_DAILY_04 },
-        )
+        AddAppStep.AA_DAILY_05 -> {
+            val repo = remember { AppRestrictionRepository(context) }
+            LaunchedEffect(Unit) {
+                val mins = parseLimitMinutes(dailyLimitMinutes ?: "30분")
+                selectedAppsForDaily.filter { it.packageName.isNotBlank() }.forEach { app ->
+                    repo.save(com.cole.app.model.AppRestriction(
+                        packageName = app.packageName,
+                        appName = app.appName,
+                        limitMinutes = mins,
+                        blockUntilMs = 0L,
+                    ))
+                }
+                val map = repo.toRestrictionMap()
+                if (map.isNotEmpty()) {
+                    AppMonitorService.stop(context)
+                    AppMonitorService.start(context, map)
+                }
+            }
+            AddAppDailyLimitScreen05(
+                appName = selectedAppNames.joinToString(", ").ifEmpty { "앱" },
+                limitMinutes = dailyLimitMinutes ?: "30분",
+                selectedDaysText = if (dailySelectedDays.isNotEmpty()) formatSelectedDays(dailySelectedDays, DAILY_DAY_LABELS) else "오늘 하루만",
+                duration = dailySelectedDuration ?: "",
+                onCompleteClick = onComplete,
+                onAddAnotherClick = { step = AddAppStep.AA_01 },
+                onBackClick = { step = AddAppStep.AA_DAILY_04 },
+            )
+        }
         // 시간지정제한 플로우
         AddAppStep.AA_02A_TIME_01 -> {
             AddAppScreenAA02ATimeSetup(
@@ -1354,6 +1408,8 @@ fun AddAppFlowHost(
                         showAppSelectSheet = false
                         showTimeLimitSheet = true
                     },
+                    onSelectCompleteWithPackages = { selectedAppsForTime = it },
+                    additionalRestrictedPackages = selectedAppsForDaily.map { it.packageName }.toSet(),
                 )
             }
             if (showTimeLimitSheet) {
@@ -1392,19 +1448,45 @@ fun AddAppFlowHost(
             onPrimaryClick = { previousStepBeforeConfirm = AddAppStep.AA_02B_02; step = AddAppStep.AA_03_01 },
             onBackClick = { step = AddAppStep.AA_02A_01 },
         )
-        AddAppStep.AA_03_01 -> AddAppCommonCompleteScreen(
-            headerTitle = "앱 제한",
-            summaryContent = {
-                AddAppTimeSummaryBox(
-                    selectedAppName = selectedAppNames.joinToString(", ").ifEmpty { "앱" },
-                    selectedTimeLimit = selectedTimeLimit ?: "",
-                )
-            },
-            primaryButtonText = "홈으로 가기",
-            secondaryButtonText = "다른 앱 추가하기",
-            onPrimaryClick = onComplete,
-            onSecondaryClick = { step = AddAppStep.AA_01 },
-            onBackClick = { step = previousStepBeforeConfirm },
-        )
+        AddAppStep.AA_03_01 -> {
+            val repo = remember { AppRestrictionRepository(context) }
+            AddAppCommonCompleteScreen(
+                headerTitle = "앱 제한",
+                summaryContent = {
+                    AddAppTimeSummaryBox(
+                        selectedAppName = selectedAppNames.joinToString(", ").ifEmpty { "앱" },
+                        selectedTimeLimit = selectedTimeLimit ?: "",
+                    )
+                },
+                primaryButtonText = "홈으로 가기",
+                secondaryButtonText = "다른 앱 추가하기",
+                onPrimaryClick = {
+    if (previousStepBeforeConfirm == AddAppStep.AA_02A_TIME_05) {
+        val mins = parseLimitMinutes(selectedTimeLimit ?: "60분")
+        val blockUntilMs = System.currentTimeMillis() + mins * 60L * 1000L
+        selectedAppsForTime.filter { it.packageName.isNotBlank() }.forEach { app ->
+            repo.save(com.cole.app.model.AppRestriction(
+                packageName = app.packageName,
+                appName = app.appName,
+                limitMinutes = mins,
+                blockUntilMs = blockUntilMs,
+            ))
+        }
+        val map = repo.toRestrictionMap()
+        if (map.isNotEmpty()) {
+            AppMonitorService.stop(context)
+            AppMonitorService.start(context, map)
+        }
     }
+    onComplete()
+},
+                onSecondaryClick = { step = AddAppStep.AA_01 },
+                onBackClick = { step = previousStepBeforeConfirm },
+            )
+        }
+    }
+}
+
+private fun parseLimitMinutes(limitStr: String): Int {
+    return limitStr.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 60
 }

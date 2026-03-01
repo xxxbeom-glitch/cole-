@@ -12,7 +12,20 @@
           "package_name": "com.cole.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "200339538980-2rr1h69b65cvvo5tkdbets2ac25a4hol.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cole.app",
+            "certificate_hash": "c6370c4d52b68e91c7ee563974e722569090a7cf"
+          }
+        },
+        {
+          "client_id": "200339538980-dcns3vafkransdp86o3sd74n1ontbb1j.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAlAj6FDYXn79dEi_5Bu1HxgLS7CYW79lI"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "200339538980-dcns3vafkransdp86o3sd74n1ontbb1j.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

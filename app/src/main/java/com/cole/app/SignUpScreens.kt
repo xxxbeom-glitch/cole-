@@ -296,6 +296,8 @@ fun SignUpPasswordScreen(
 fun SignUpNameBirthPhoneScreen(
     onNextClick: (name: String, birth: String, phone: String) -> Unit,
     onBackClick: () -> Unit,
+    errorMessage: String? = null,
+    onClearError: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var name by remember { mutableStateOf("") }
@@ -360,11 +362,24 @@ fun SignUpNameBirthPhoneScreen(
                     Text("휴대전화 번호를 입력해주세요", style = AppTypography.BodyMedium.copy(color = AppColors.FormTextLabel))
                     ColeTextField(
                         value = phone,
-                        onValueChange = { phone = it },
+                        onValueChange = { phone = it; onClearError() },
                         placeholder = "예) 01012341234",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                         modifier = Modifier.fillMaxWidth(),
                     )
+                }
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(SignUpSpacing.errorToNext))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        IcoErrorInfo()
+                        Text(
+                            errorMessage,
+                            style = AppTypography.Disclaimer.copy(color = AppColors.FormTextError),
+                        )
+                    }
                 }
             }
         }

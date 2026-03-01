@@ -45,6 +45,31 @@ import androidx.compose.ui.unit.sp
 private const val DEFAULT_APP_PACKAGE = "com.netflix.mediaclient"
 
 /**
+ * packageName으로 앱 아이콘을 로드하여 Painter로 반환.
+ * 패키지가 유효하지 않거나 로드 실패 시 ic_app_placeholder 사용.
+ */
+@Composable
+fun rememberAppIconPainter(packageName: String?): Painter {
+    val context = LocalContext.current
+    val fallback = painterResource(R.drawable.ic_app_placeholder)
+    return remember(packageName) {
+        if (packageName.isNullOrBlank()) return@remember fallback
+        try {
+            val drawable = context.packageManager.getApplicationIcon(packageName)
+            val w = drawable.intrinsicWidth.coerceAtLeast(1)
+            val h = drawable.intrinsicHeight.coerceAtLeast(1)
+            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, w, h)
+            drawable.draw(canvas)
+            BitmapPainter(bitmap.asImageBitmap())
+        } catch (_: Exception) {
+            fallback
+        }
+    }
+}
+
+/**
  * 폰에 설치된 앱 아이콘 (기기 기본 쉐이프 적용).
  * AdaptiveIcon은 시스템 마스크가 적용된 상태로 반환.
  */

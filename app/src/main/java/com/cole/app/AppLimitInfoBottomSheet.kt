@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
@@ -28,6 +29,8 @@ import androidx.compose.ui.unit.dp
 data class AppLimitSummaryRow(
     val label: String,
     val value: String,
+    /** null이면 기본 TextHighlight(보라색) 사용 */
+    val valueColor: Color? = null,
 )
 
 @Composable
@@ -37,10 +40,14 @@ fun AppLimitInfoBottomSheet(
     appIcon: Painter,
     appUsageText: String = "",
     appUsageLabel: String = "",
+    appUsageTextColor: androidx.compose.ui.graphics.Color? = null,
     summaryRows: List<AppLimitSummaryRow>,
     onDismissRequest: () -> Unit,
     onPrimaryClick: () -> Unit,
     primaryButtonText: String = "계속 진행",
+    secondaryButtonText: String? = "돌아가기",
+    onSecondaryClick: (() -> Unit)? = null,
+    isPrimaryEnabled: Boolean = true,
     modifier: Modifier = Modifier,
     bodyText: String? = null,
     onDetailClick: (() -> Unit)? = null,
@@ -50,15 +57,15 @@ fun AppLimitInfoBottomSheet(
         onDismissRequest = onDismissRequest,
         onPrimaryClick = onPrimaryClick,
         primaryButtonText = primaryButtonText,
-        secondaryButtonText = "돌아가기",
-        onSecondaryClick = onDismissRequest,
+        primaryButtonEnabled = isPrimaryEnabled,
+        secondaryButtonText = secondaryButtonText,
+        onSecondaryClick = onSecondaryClick ?: onDismissRequest,
         modifier = modifier,
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // 본문 (옵션)
             if (bodyText != null) {
                 Text(
                     text = bodyText,
@@ -66,17 +73,16 @@ fun AppLimitInfoBottomSheet(
                 )
             }
 
-            // AppStatusRow (Figma AppStatusItem) - onDetailClick가 null이면 자세히보기 버튼 숨김
             AppStatusRow(
                 appName = appName,
                 appIcon = appIcon,
                 variant = AppStatusVariant.Button,
                 usageText = appUsageText,
                 usageLabel = appUsageLabel,
+                usageTextColor = appUsageTextColor,
                 onDetailClick = onDetailClick,
             )
 
-            // Summary (Figma InfoBox Summary)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -98,7 +104,7 @@ fun AppLimitInfoBottomSheet(
                         )
                         Text(
                             text = row.value,
-                            style = AppTypography.BodyBold.copy(color = AppColors.TextHighlight),
+                            style = AppTypography.BodyBold.copy(color = row.valueColor ?: AppColors.TextHighlight),
                             textAlign = TextAlign.End,
                         )
                     }
@@ -110,9 +116,6 @@ fun AppLimitInfoBottomSheet(
 
 /**
  * 제한 중인 앱 정보 바텀시트 - 시간 지정 제한 앱 일시 정지 중 (Figma 782-2858)
- * MA-01-1: 현재 진행중인 앱 상세 (일시 정지 중 상태)
- * - AppStatusRow: 09:50 일시 정지 중 (빨간색)
- * - InfoBox: 일시 정지 남은 시간, 오늘 사용 시간
  */
 @Composable
 fun AppLimitInfoBottomSheetPaused(
@@ -170,7 +173,7 @@ fun AppLimitInfoBottomSheetPaused(
                         )
                         Text(
                             text = row.value,
-                            style = AppTypography.BodyBold.copy(color = AppColors.TextHighlight),
+                            style = AppTypography.BodyBold.copy(color = row.valueColor ?: AppColors.TextHighlight),
                             textAlign = TextAlign.End,
                         )
                     }
@@ -182,9 +185,6 @@ fun AppLimitInfoBottomSheetPaused(
 
 /**
  * 제한 중인 앱 정보 바텀시트 - 일일 사용량 제한 (Figma 782-2776)
- * MA-01-1: 현재 진행중인 앱 상세 (일일 사용량 제한 방식)
- * - AppStatusRow DataView: 사용 시간, 세션
- * - InfoBox: 선택된 앱, 일일 사용시간, 반복 요일, 적용 기간
  */
 @Composable
 fun AppLimitInfoBottomSheetDaily(
@@ -204,15 +204,13 @@ fun AppLimitInfoBottomSheetDaily(
         onDismissRequest = onDismissRequest,
         onPrimaryClick = onPrimaryClick,
         primaryButtonText = primaryButtonText,
-        secondaryButtonText = "돌아가기",
-        onSecondaryClick = onDismissRequest,
+        secondaryButtonText = null,
         modifier = modifier,
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // AppStatusRow (DataView): 사용 시간, 세션
             AppStatusRow(
                 appName = appName,
                 appIcon = appIcon,
@@ -221,7 +219,6 @@ fun AppLimitInfoBottomSheetDaily(
                 sessionCount = sessionCount,
             )
 
-            // Summary (Figma InfoBox)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -243,7 +240,7 @@ fun AppLimitInfoBottomSheetDaily(
                         )
                         Text(
                             text = row.value,
-                            style = AppTypography.BodyBold.copy(color = AppColors.TextHighlight),
+                            style = AppTypography.BodyBold.copy(color = row.valueColor ?: AppColors.TextHighlight),
                             textAlign = TextAlign.End,
                         )
                     }

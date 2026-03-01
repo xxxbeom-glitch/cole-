@@ -1,41 +1,35 @@
 package com.cole.app
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.core.view.WindowInsetsControllerCompat
-import com.google.firebase.auth.FirebaseAuthException
-import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
-import com.google.firebase.auth.FirebaseAuthInvalidUserException
-import com.google.firebase.auth.FirebaseAuthUserCollisionException
-import com.google.firebase.auth.FirebaseAuthWeakPasswordException
+import android.util.Log
 import com.google.firebase.functions.FirebaseFunctionsException
+import com.navercorp.nid.NidOAuth
+import com.navercorp.nid.oauth.util.NidOAuthCallback
 import kotlinx.coroutines.launch
-
-private fun getPasswordResetErrorMessage(e: Throwable, fallback: String): String {
-    return when (e) {
-        is FirebaseFunctionsException -> when (e.code) {
-            FirebaseFunctionsException.Code.NOT_FOUND ->
-                "서버 연결에 실패했어요. Cloud Functions가 배포되었는지 확인해주세요."
-            else -> e.message ?: fallback
-        }
-        else -> e.message ?: fallback
-    }
-}
 
 @Composable
 fun ColeRootContent() {
@@ -68,9 +62,32 @@ enum class SignUpStep {
 }
 
 class MainActivity : ComponentActivity() {
+
+    /** 네이버 로그인 결과를 외부(코루틴)로 전달하기 위한 콜백 */
+    var naverLoginCallback: NidOAuthCallback? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // 네이버 로그인 SDK 초기화 (KeyStoreException 등 설치 직후 간헐적 크래시 방지)
+        try {
+            NidOAuth.initialize(this, "BQa59cheqz4qQQ2H9Xen", "Ujdrf2_Czv", "cole.")
+        } catch (e: Throwable) {
+            Log.e("Cole", "NidOAuth init 실패 (네이버 로그인 비활성화됨)", e)
+        }
+
+        // Android 13+ 알림 권한 런타임 요청
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    1001,
+                )
+            }
+        }
         WindowInsetsControllerCompat(window, window.decorView).apply {
             isAppearanceLightStatusBars = true
         }
@@ -93,164 +110,92 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun SignUpFlowHost() {
+    val context = LocalContext.current
     var step by remember { mutableStateOf(SignUpStep.SPLASH) }
-    var showTerms by remember { mutableStateOf(false) }
     var selfTestAnswers by remember { mutableStateOf<Map<Int, Int>>(emptyMap()) }
-    var signUpEmail by remember { mutableStateOf("") }
-    var signUpPassword by remember { mutableStateOf("") }
-    var signUpName by remember { mutableStateOf("") }
-    var signUpBirth by remember { mutableStateOf("") }
-    var signUpPhone by remember { mutableStateOf("") }
-    var signUpLoading by remember { mutableStateOf(false) }
-    var signUpResendLoading by remember { mutableStateOf(false) }
-    var signUpError by remember { mutableStateOf<String?>(null) }
     var loginError by remember { mutableStateOf<String?>(null) }
     var loginLoading by remember { mutableStateOf(false) }
-    var passwordResetPhone by remember { mutableStateOf("") }
-    var passwordResetCode by remember { mutableStateOf("") }
-    var passwordResetLoading by remember { mutableStateOf(false) }
-    var passwordResetResendLoading by remember { mutableStateOf(false) }
-    var passwordResetError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val authRepository = remember { AuthRepository() }
 
-    // 약관 상태 (필수만, 디자인 기준)
-    val agreements = remember {
-        mutableStateListOf(
-            AgreementItem("(필수) 만 18세 이상입니다", true, false),
-            AgreementItem("(필수) 이용약관에 동의합니다", true, false),
-            AgreementItem("(필수) 개인정보 수집 및 이용 동의합니다", true, false),
-        )
-    }
-    var allAgreed by remember { mutableStateOf(false) }
-
     // 현재 화면 렌더링
     when (step) {
-        SignUpStep.SPLASH -> SplashScreen(
-            onFinish = { step = SignUpStep.LOGIN },
-        )
-        SignUpStep.LOGIN -> LoginScreen(
-            logo = painterResource(R.drawable.ic_login_logo),
-            onLoginClick = { email, password ->
+        // SPLASH + LOGIN이 통합된 SplashLoginScreen (애니메이션 포함)
+        SignUpStep.SPLASH -> SplashLoginScreen(
+            onNaverLoginClick = {
+                val activity = context as? MainActivity ?: return@SplashLoginScreen
                 loginError = null
                 loginLoading = true
                 scope.launch {
-                    authRepository.signInWithEmail(email, password)
+                    authRepository.signInWithNaver(activity)
                         .onSuccess {
                             loginLoading = false
-                            step = SignUpStep.MAIN
+                            step = SignUpStep.ONBOARDING
                         }
                         .onFailure { e ->
                             loginLoading = false
                             loginError = when (e) {
-                                is FirebaseAuthInvalidUserException -> "가입된 계정이 아닙니다"
-                                is FirebaseAuthInvalidCredentialsException -> "가입된 계정이 아닙니다"
-                                is FirebaseAuthException -> when (e.errorCode) {
-                                    "ERROR_USER_NOT_FOUND", "USER_NOT_FOUND" -> "가입된 계정이 아닙니다"
-                                    "ERROR_INVALID_CREDENTIAL", "INVALID_CREDENTIAL", "INVALID_CREDENTIALS" -> "가입된 계정이 아닙니다"
-                                    else -> e.message ?: "로그인에 실패했어요"
-                                }
-                                else -> e.message ?: "로그인에 실패했어요"
+                                is FirebaseFunctionsException -> "네이버: ${e.code} - ${e.message}"
+                                else -> e.message ?: "네이버 로그인에 실패했어요"
                             }
                         }
                 }
             },
-            onSignUpClick = { showTerms = true },
-            onNaverLoginClick = {},
-            onKakaoLoginClick = {},
-            onGoogleLoginClick = {},
-            onForgotPasswordClick = { step = SignUpStep.PASSWORD_RESET_EMAIL },
+            onKakaoLoginClick = {
+                loginError = null
+                loginLoading = true
+                scope.launch {
+                    authRepository.signInWithKakao(context)
+                        .onSuccess {
+                            loginLoading = false
+                            step = SignUpStep.ONBOARDING
+                        }
+                        .onFailure { e ->
+                            loginLoading = false
+                            loginError = when (e) {
+                                is FirebaseFunctionsException -> "카카오: ${e.code} - ${e.message}"
+                                else -> e.message ?: "카카오 로그인에 실패했어요"
+                            }
+                        }
+                }
+            },
+            onGoogleLoginClick = {
+                loginError = null
+                loginLoading = true
+                scope.launch {
+                    authRepository.signInWithGoogle(context)
+                        .onSuccess {
+                            loginLoading = false
+                            step = SignUpStep.ONBOARDING
+                        }
+                        .onFailure { e ->
+                            loginLoading = false
+                            loginError = e.message ?: "구글 로그인에 실패했어요"
+                        }
+                }
+            },
             errorMessage = loginError,
             onClearError = { loginError = null },
             isLoading = loginLoading,
         )
-        SignUpStep.EMAIL -> SignUpEmailScreen(
-            onNextClick = { email ->
-                signUpEmail = email
-                signUpError = null
-                step = SignUpStep.PASSWORD
-            },
-            onBackClick = { step = SignUpStep.LOGIN },
-        )
-        SignUpStep.PASSWORD -> SignUpPasswordScreen(
-            onNextClick = { password ->
-                signUpPassword = password
-                signUpError = null
-                step = SignUpStep.NAME_BIRTH_PHONE
-            },
-            onBackClick = { step = SignUpStep.EMAIL },
-        )
-        SignUpStep.NAME_BIRTH_PHONE -> SignUpNameBirthPhoneScreen(
-            onNextClick = { name, birth, phone ->
-                signUpName = name
-                signUpBirth = birth
-                signUpPhone = phone
-                signUpError = null
-                signUpLoading = true
-                scope.launch {
-                    authRepository.sendSignUpVerificationSms(phone)
-                        .onSuccess {
-                            signUpLoading = false
-                            step = SignUpStep.VERIFICATION
-                        }
-                        .onFailure { e ->
-                            signUpLoading = false
-                            signUpError = getPasswordResetErrorMessage(e, "인증번호 발송에 실패했어요")
-                        }
-                }
-            },
-            onBackClick = { step = SignUpStep.PASSWORD },
-        )
-        SignUpStep.VERIFICATION -> SignUpVerificationCodeScreen(
-            onNextClick = { code ->
-                signUpError = null
-                signUpLoading = true
-                scope.launch {
-                    authRepository.verifyAndCompleteSignUp(
-                        signUpPhone,
-                        code,
-                        signUpEmail,
-                        signUpPassword,
-                        signUpName,
-                        signUpBirth,
-                    )
-                        .onSuccess {
-                            signUpLoading = false
-                            step = SignUpStep.COMPLETE
-                        }
-                        .onFailure { e ->
-                            signUpLoading = false
-                            signUpError = when (e) {
-                                is FirebaseAuthUserCollisionException -> "이미 사용 중인 이메일이에요"
-                                is FirebaseAuthWeakPasswordException -> "비밀번호가 너무 약해요. 8자 이상 입력해주세요"
-                                else -> getPasswordResetErrorMessage(e, "회원가입에 실패했어요")
-                            }
-                        }
-                }
-            },
-            onBackClick = { step = SignUpStep.NAME_BIRTH_PHONE },
-            onResendClick = {
-                signUpError = null
-                signUpResendLoading = true
-                scope.launch {
-                    authRepository.sendSignUpVerificationSms(signUpPhone)
-                        .onSuccess { signUpResendLoading = false }
-                        .onFailure { e ->
-                            signUpResendLoading = false
-                            signUpError = getPasswordResetErrorMessage(e, "재발송에 실패했어요")
-                        }
-                }
-            },
-            isLoading = signUpLoading,
-            isResendLoading = signUpResendLoading,
-            errorMessage = signUpError,
-        )
-        SignUpStep.COMPLETE -> SignUpCompleteScreen(
-            onStartClick = { step = SignUpStep.ONBOARDING },
-            onBackClick = { step = SignUpStep.LOGIN },
-        )
+        SignUpStep.LOGIN -> {
+            // LOGIN 스텝은 SPLASH로 리다이렉트 (통합 화면 사용)
+            Box(modifier = Modifier.fillMaxSize()) {
+                LaunchedEffect(Unit) { step = SignUpStep.SPLASH }
+            }
+        }
+        // 비활성화: 회원가입 플로우 (EMAIL, PASSWORD, NAME_BIRTH_PHONE, VERIFICATION, COMPLETE)
+        SignUpStep.EMAIL,
+        SignUpStep.PASSWORD,
+        SignUpStep.NAME_BIRTH_PHONE,
+        SignUpStep.VERIFICATION,
+        SignUpStep.COMPLETE -> {
+            Box(modifier = Modifier.fillMaxSize()) {
+                LaunchedEffect(Unit) { step = SignUpStep.LOGIN }
+            }
+        }
         SignUpStep.ONBOARDING -> OnboardingScreen(
-            onSkipClick = { step = SignUpStep.LOGIN },
+            onSkipClick = { step = SignUpStep.SELFTEST },
             onStartClick = { step = SignUpStep.SELFTEST },
         )
         SignUpStep.SELFTEST -> SelfTestScreen(
@@ -277,101 +222,13 @@ fun SignUpFlowHost() {
             onAddAppClick = { step = SignUpStep.ADD_APP },
             onLogout = { step = SignUpStep.LOGIN },
         )
-        SignUpStep.PASSWORD_RESET_EMAIL -> PasswordResetPhoneScreen(
-            onNextClick = { phone ->
-                passwordResetPhone = phone
-                passwordResetError = null
-                passwordResetLoading = true
-                scope.launch {
-                    authRepository.sendPasswordResetSms(phone)
-                        .onSuccess {
-                            passwordResetLoading = false
-                            step = SignUpStep.PASSWORD_RESET_CODE
-                        }
-                        .onFailure { e ->
-                            passwordResetLoading = false
-                            passwordResetError = getPasswordResetErrorMessage(e, "인증번호 발송에 실패했어요")
-                        }
-                }
-            },
-            onBackClick = { step = SignUpStep.LOGIN },
-            isLoading = passwordResetLoading,
-            errorMessage = passwordResetError,
-            onClearError = { passwordResetError = null },
-        )
-        SignUpStep.PASSWORD_RESET_CODE -> PasswordResetCodeScreen(
-            onNextClick = { code ->
-                passwordResetCode = code
-                step = SignUpStep.PASSWORD_RESET_NEW
-            },
-            onBackClick = {
-                passwordResetError = null
-                step = SignUpStep.PASSWORD_RESET_EMAIL
-            },
-            onResendClick = {
-                passwordResetError = null
-                passwordResetResendLoading = true
-                scope.launch {
-                    authRepository.sendPasswordResetSms(passwordResetPhone)
-                        .onSuccess {
-                            passwordResetResendLoading = false
-                        }
-                        .onFailure { e ->
-                            passwordResetResendLoading = false
-                            passwordResetError = getPasswordResetErrorMessage(e, "재발송에 실패했어요")
-                        }
-                }
-            },
-            isResendLoading = passwordResetResendLoading,
-            errorMessage = passwordResetError,
-        )
-        SignUpStep.PASSWORD_RESET_NEW -> PasswordResetNewPasswordScreen(
-            onNextClick = { newPassword ->
-                passwordResetError = null
-                passwordResetLoading = true
-                scope.launch {
-                    authRepository.verifyAndResetPassword(
-                        passwordResetPhone,
-                        passwordResetCode,
-                        newPassword,
-                    )
-                        .onSuccess {
-                            passwordResetLoading = false
-                            step = SignUpStep.LOGIN
-                        }
-                        .onFailure { e ->
-                            passwordResetLoading = false
-                            passwordResetError = getPasswordResetErrorMessage(e, "비밀번호 변경에 실패했어요")
-                        }
-                }
-            },
-            onBackClick = { step = SignUpStep.PASSWORD_RESET_CODE },
-            isLoading = passwordResetLoading,
-            errorMessage = passwordResetError,
-            onClearError = { passwordResetError = null },
-        )
-    }
-
-    // 이용약관 바텀시트
-    if (showTerms) {
-        TermsBottomSheet(
-            onDismissRequest = { showTerms = false },
-            onNextClick = {
-                showTerms = false
-                step = SignUpStep.EMAIL
-            },
-            agreements = agreements,
-            allAgreedState = allAgreed,
-            onAllAgreedChange = { checked ->
-                allAgreed = checked
-                agreements.forEachIndexed { i, _ ->
-                    agreements[i] = agreements[i].copy(checked = checked)
-                }
-            },
-            onItemCheckedChange = { index, checked ->
-                agreements[index] = agreements[index].copy(checked = checked)
-                allAgreed = agreements.all { it.checked }
-            },
-        )
+        // 비활성화: 비밀번호 찾기 플로우
+        SignUpStep.PASSWORD_RESET_EMAIL,
+        SignUpStep.PASSWORD_RESET_CODE,
+        SignUpStep.PASSWORD_RESET_NEW -> {
+            Box(modifier = Modifier.fillMaxSize()) {
+                LaunchedEffect(Unit) { step = SignUpStep.LOGIN }
+            }
+        }
     }
 }

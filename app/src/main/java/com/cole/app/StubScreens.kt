@@ -30,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
@@ -43,8 +44,14 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import android.app.usage.UsageStatsManager
+import android.content.Context
+import java.util.Calendar
 
 /** 자가테스트 결과 레벨 (8~32점 구간) */
 enum class SelfTestResultType {
@@ -131,9 +138,12 @@ internal enum class RestrictionType {
 // 목업: 앱 제한 행 (usageTextColor/usageLabelColor: 일시정지중일 때 Red300)
 internal data class MainAppRestrictionItem(
     val appName: String,
+    val packageName: String = "",
     val usageText: String,
     val usageLabel: String,
     val showDetailButton: Boolean,
+    val limitMinutes: Int = 0,
+    val todayUsageMinutes: Int = 0,
     val appIconResId: Int = R.drawable.ic_app_placeholder,
     val usageTextColor: Color? = null,
     val usageLabelColor: Color? = null,
@@ -148,6 +158,14 @@ internal data class MainAppRestrictionItem(
     val dailyLimitMinutes: String = "",
     val repeatDays: String = "",
     val duration: String = "",
+    /** 시간 지정 제한: 제한 해제 시각 (ms) */
+    val blockUntilMs: Long = 0L,
+    /** 오늘 일시정지 사용 횟수 */
+    val pauseUsedCount: Int = 0,
+    /** 오늘 일시정지 남은 횟수 */
+    val pauseRemainingCount: Int = 2,
+    /** 일시정지 중일 때 남은 분 */
+    val pauseLeftMin: Int = 0,
 )
 
 private val MainDayAreaSize = 42.dp
@@ -212,11 +230,7 @@ private fun MainAppRestrictionRow(
         horizontalArrangement = Arrangement.spacedBy(9.dp),
     ) {
         AppIconSquircleLock(
-            appIcon = if (item.appIconResId == R.drawable.ic_app_placeholder) {
-                rememberDefaultAppIconPainter()
-            } else {
-                painterResource(item.appIconResId)
-            },
+            appIcon = rememberAppIconPainter(item.packageName),
         )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
@@ -416,7 +430,7 @@ private sealed class SettingsDetail(val title: String) {
     data object OpenSource : SettingsDetail("오픈소스 라이센스")
 }
 
-/** MA-01 메인 화면 (Figma 336:2910): 기본 페이지, 데이터 있을 때 */
+/** MA-01 메인 화면: 실제 AppRestrictionRepository 데이터 사용 */
 @Composable
 internal fun MainScreenMA01(
     onAddAppClick: () -> Unit,
@@ -424,6 +438,21 @@ internal fun MainScreenMA01(
     onDetailClick: (MainAppRestrictionItem) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+
+    // 실제 제한 앱 목록 로드 (1초마다 갱신 - 사용시간 실시간 반영)
+    val restrictionItems by produceState<List<MainAppRestrictionItem>>(
+        initialValue = emptyList(),
+        context,
+    ) {
+        while (true) {
+            value = withContext(Dispatchers.Default) {
+                loadRestrictionItems(context)
+            }
+            delay(1000)
+        }
+    }
+
     val mockDaysMA01 = listOf(
         MainDayItem("수", true, "👍"),
         MainDayItem("목", true, "👍"),
@@ -432,16 +461,6 @@ internal fun MainScreenMA01(
         MainDayItem("일", false, "15"),
         MainDayItem("월", false, "16"),
         MainDayItem("화", false, "17"),
-    )
-    val mockAppsMA01 = listOf(
-        MainAppRestrictionItem("인스타그램", "14분/30분", "사용 중", true),
-        MainAppRestrictionItem(
-            "넷플릭스", "45분/90분", "7회", true,
-            restrictionType = RestrictionType.DAILY_USAGE,
-            usageMinutes = "45분", sessionCount = "7회",
-            dailyLimitMinutes = "1시간 30분", repeatDays = "월, 화, 수, 목", duration = "4주",
-        ),
-        MainAppRestrictionItem("인스타그램", "09:50", "일시 정지 중", true, usageTextColor = AppColors.Red300, usageLabelColor = AppColors.Red300, isPaused = true, usageBeforePause = "14분/30분"),
     )
 
     Column(
@@ -465,14 +484,130 @@ internal fun MainScreenMA01(
                 MainDailyProgressSection(days = mockDaysMA01)
             }
         }
-        MainAppRestrictionCard(
-            apps = mockAppsMA01,
-            onAddAppClick = onAddAppClick,
-            onDetailClick = onDetailClick,
-            addButtonText = "잠시만 멀어질 앱 추가하기",
-        )
+
+        if (restrictionItems.isEmpty()) {
+            MainAppRestrictionCardEmpty(
+                onAddAppClick = onAddAppClick,
+                addButtonText = "잠시만 멀어질 앱 추가하기",
+            )
+        } else {
+            MainAppRestrictionCard(
+                apps = restrictionItems,
+                onAddAppClick = onAddAppClick,
+                onDetailClick = onDetailClick,
+                addButtonText = "잠시만 멀어질 앱 추가하기",
+            )
+        }
+
         Spacer(modifier = Modifier.height(20.dp))
     }
+}
+
+private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem> {
+    val repo = AppRestrictionRepository(context)
+    val restrictions = repo.getAll()
+    if (restrictions.isEmpty()) return emptyList()
+
+    val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+    val pauseRepo = PauseRepository(context)
+
+    return restrictions.mapNotNull { restriction ->
+        val isTimeSpecified = restriction.blockUntilMs > 0
+        if (isTimeSpecified) {
+            val remainingMs = restriction.blockUntilMs - System.currentTimeMillis()
+            // 시간 지정 제한이 이미 만료된 앱은 리스트에서 제외
+            if (remainingMs <= 0) return@mapNotNull null
+            val remainingMin = remainingMs / 60000
+            val todayMinutes = (usm?.let { getTodayUsageMinutes(it, restriction.packageName) } ?: 0).toInt().coerceAtLeast(0)
+            val isPaused = pauseRepo.isPaused(restriction.packageName)
+            val pauseUsedCount = pauseRepo.getTodayCount(restriction.packageName)
+            val pauseRemainingCount = pauseRepo.getRemainingCount(restriction.packageName)
+            val pauseUntilMs = pauseRepo.getPauseUntilMs(restriction.packageName)
+            val pauseLeftMs = (pauseUntilMs - System.currentTimeMillis()).coerceAtLeast(0)
+            val pauseLeftMin = (pauseLeftMs / 60000).toInt()
+            val pauseLeftSec = ((pauseLeftMs % 60000) / 1000).toInt()
+            // 일시정지 중: "2/5분" (빨강) + "일시정지 중" (secondary)
+            // 정상: "32분 후" (highlight) + "제한 해제" (secondary)
+            val (usageText, usageLabel) = if (isPaused) {
+                val maxPauseMin = 5
+                "${pauseLeftMin}/${maxPauseMin}분" to "일시정지 중"
+            } else {
+                "${remainingMin}분 후" to "제한 해제"
+            }
+            MainAppRestrictionItem(
+                appName = restriction.appName,
+                packageName = restriction.packageName,
+                usageText = usageText,
+                usageLabel = usageLabel,
+                showDetailButton = true,
+                limitMinutes = restriction.limitMinutes,
+                todayUsageMinutes = todayMinutes,
+                restrictionType = RestrictionType.TIME_SPECIFIED,
+                blockUntilMs = restriction.blockUntilMs,
+                isPaused = isPaused,
+                pauseUsedCount = pauseUsedCount,
+                pauseRemainingCount = pauseRemainingCount,
+                pauseLeftMin = pauseLeftMin,
+                usageTextColor = if (isPaused) AppColors.Red300 else AppColors.TextHighlight,
+                usageLabelColor = AppColors.TextSecondary,
+            )
+        } else {
+            val todayMinutes = (usm?.let { getTodayUsageMinutes(it, restriction.packageName) } ?: 0).toInt().coerceAtLeast(0)
+            val todaySessionCount = (usm?.let { getTodaySessionCount(it, restriction.packageName) } ?: 0).toInt().coerceAtLeast(0)
+            val limitMinutes = restriction.limitMinutes
+            MainAppRestrictionItem(
+                appName = restriction.appName,
+                packageName = restriction.packageName,
+                usageText = "${todayMinutes}/${limitMinutes}분",
+                usageLabel = "사용 중",
+                showDetailButton = true,
+                limitMinutes = limitMinutes,
+                todayUsageMinutes = todayMinutes,
+                restrictionType = RestrictionType.DAILY_USAGE,
+                usageMinutes = "${todayMinutes}분",
+                sessionCount = "${todaySessionCount}회",
+                dailyLimitMinutes = "${limitMinutes}분",
+                usageTextColor = AppColors.TextHighlight,
+                usageLabelColor = AppColors.TextSecondary,
+            )
+        }
+    }
+}
+
+private fun getTodayUsageMinutes(usm: UsageStatsManager, packageName: String): Long {
+    val cal = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    val stats = usm.queryUsageStats(
+        UsageStatsManager.INTERVAL_DAILY,
+        cal.timeInMillis,
+        System.currentTimeMillis(),
+    ) ?: return 0
+    val ms = stats.filter { it.packageName == packageName }.sumOf { it.totalTimeInForeground }
+    return ms / 60_000
+}
+
+private fun getTodaySessionCount(usm: UsageStatsManager, packageName: String): Long {
+    val cal = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    val events = usm.queryEvents(cal.timeInMillis, System.currentTimeMillis()) ?: return 0
+    var count = 0L
+    val event = android.app.usage.UsageEvents.Event()
+    while (events.hasNextEvent()) {
+        events.getNextEvent(event)
+        @Suppress("DEPRECATION")
+        if (event.packageName == packageName && event.eventType == android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND) {
+            count++
+        }
+    }
+    return count
 }
 
 /** MA-02 메인 화면 (Figma 662:2907): 데이터 없을 때 */
@@ -522,11 +657,19 @@ fun MainFlowHost(
     onLogout: () -> Unit,
     isFreeUser: Boolean = true,
 ) {
+    val context = LocalContext.current
     var navIndex by remember { mutableIntStateOf(0) }
     var settingsDetail by remember { mutableStateOf<SettingsDetail?>(null) }
     var showSubscriptionGuide by remember { mutableStateOf(false) }
     var showAppLimitInfoSheet by remember { mutableStateOf(false) }
     var selectedAppForDetail by remember { mutableStateOf<MainAppRestrictionItem?>(null) }
+
+    // 일시정지 플로우 state
+    var showPauseProposalSheet by remember { mutableStateOf(false) }
+    var showPauseConfirmSheet by remember { mutableStateOf(false) }
+    var showPauseCompleteSheet by remember { mutableStateOf(false) }
+    var selectedAppForPause by remember { mutableStateOf<MainAppRestrictionItem?>(null) }
+
     val navDestinations = listOf(
         NavDestination("홈", R.drawable.ic_nav_home_inactive, R.drawable.ic_nav_home_active),
         NavDestination("챌린지", R.drawable.ic_nav_challenge_inactive, R.drawable.ic_nav_challenge_active),
@@ -666,7 +809,6 @@ fun MainFlowHost(
         }
 
         // ── 바텀바 (화면 최하단 고정) ──
-        // ★ windowInsetsPadding 삭제: 배경을 네비바 영역까지 채우고, 터치 영역만 위에 배치
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -706,55 +848,67 @@ fun MainFlowHost(
         // 진행중인 앱 상세 바텀시트
         if (showAppLimitInfoSheet && selectedAppForDetail != null) {
             val item = selectedAppForDetail!!
-            val appIcon = if (item.appIconResId == R.drawable.ic_app_placeholder) {
-                rememberDefaultAppIconPainter()
-            } else {
-                painterResource(item.appIconResId)
+            val appIcon = rememberAppIconPainter(item.packageName)
+            // 60분 초과일 때만 일시정지 가능
+            val canPause = item.limitMinutes > 60
+
+            val dismiss: () -> Unit = {
+                showAppLimitInfoSheet = false
+                selectedAppForDetail = null
             }
+
             when {
+                // ── 스크린샷3: 시간지정 + 일시정지 진행 중 ──
                 item.restrictionType == RestrictionType.TIME_SPECIFIED && item.isPaused -> {
-                    AppLimitInfoBottomSheetPaused(
-                        title = "제한 중인 앱",
-                        appName = item.appName,
-                        appIcon = appIcon,
-                        pauseRemainingText = item.usageText,
-                        summaryRows = listOf(
-                            AppLimitSummaryRow("일시 정지 남은 시간", item.usageText),
-                            AppLimitSummaryRow("오늘 사용 시간", item.usageBeforePause.ifEmpty { item.usageText }),
-                        ),
-                        onDismissRequest = {
-                            showAppLimitInfoSheet = false
-                            selectedAppForDetail = null
-                        },
-                        onPrimaryClick = {
-                            showAppLimitInfoSheet = false
-                            selectedAppForDetail = null
-                        },
-                        primaryButtonText = "제한 재개",
-                    )
-                }
-                item.restrictionType == RestrictionType.TIME_SPECIFIED -> {
+                    val pauseStatusText = if (item.pauseLeftMin > 0) "${item.pauseLeftMin}분 남음 (${item.pauseUsedCount}회차)" else "5분 남음 (${item.pauseUsedCount}회차)"
                     AppLimitInfoBottomSheet(
                         title = "제한 중인 앱",
                         appName = item.appName,
                         appIcon = appIcon,
-                        appUsageText = item.usageText,
-                        appUsageLabel = item.usageLabel,
+                        appUsageText = "일시정지 종료 후 이어서 진행됩니다",
+                        appUsageLabel = "",
+                        appUsageTextColor = AppColors.Red300,
                         summaryRows = listOf(
-                            AppLimitSummaryRow("오늘 사용 시간", item.usageText),
-                            AppLimitSummaryRow("남은 시간", "16분"),
+                            AppLimitSummaryRow("제한 시간", "${item.limitMinutes}분"),
+                            AppLimitSummaryRow("남은 시간", "${(item.blockUntilMs - System.currentTimeMillis()).coerceAtLeast(0) / 60000}분"),
+                            AppLimitSummaryRow("제한 방식", "시간 지정 제한"),
+                            AppLimitSummaryRow("일시정지 사용 여부", pauseStatusText, valueColor = AppColors.Red300),
                         ),
-                        onDismissRequest = {
-                            showAppLimitInfoSheet = false
-                            selectedAppForDetail = null
-                        },
-                        onPrimaryClick = {
-                            showAppLimitInfoSheet = false
-                            selectedAppForDetail = null
-                        },
-                        primaryButtonText = "계속 진행",
+                        primaryButtonText = "닫기",
+                        secondaryButtonText = null,
+                        onPrimaryClick = dismiss,
+                        onDismissRequest = dismiss,
                     )
                 }
+                // ── 스크린샷1: 시간지정 + 일시정지 미사용 ──
+                item.restrictionType == RestrictionType.TIME_SPECIFIED -> {
+                    val remainingMin = (item.blockUntilMs - System.currentTimeMillis()).coerceAtLeast(0) / 60000
+                    val pauseStatusText = if (item.pauseUsedCount == 0) "미사용" else "${item.pauseRemainingCount}회 남음"
+                    AppLimitInfoBottomSheet(
+                        title = "제한 중인 앱",
+                        appName = item.appName,
+                        appIcon = appIcon,
+                        appUsageText = "${remainingMin}분 후 제한 해제",
+                        appUsageLabel = "",
+                        summaryRows = listOf(
+                            AppLimitSummaryRow("제한 시간", "${item.limitMinutes}분"),
+                            AppLimitSummaryRow("남은 시간", "${remainingMin}분"),
+                            AppLimitSummaryRow("제한 방식", "시간 지정 제한"),
+                            AppLimitSummaryRow("일시정지 사용 여부", pauseStatusText),
+                        ),
+                        primaryButtonText = "일시 정지하기",
+                        isPrimaryEnabled = canPause,
+                        onPrimaryClick = {
+                            showAppLimitInfoSheet = false
+                            selectedAppForPause = item
+                            showPauseProposalSheet = true
+                        },
+                        secondaryButtonText = "닫기",
+                        onSecondaryClick = dismiss,
+                        onDismissRequest = dismiss,
+                    )
+                }
+                // ── 스크린샷2: 일일사용량 제한 ──
                 item.restrictionType == RestrictionType.DAILY_USAGE -> {
                     AppLimitInfoBottomSheetDaily(
                         title = "제한 중인 앱",
@@ -763,23 +917,74 @@ fun MainFlowHost(
                         usageMinutes = item.usageMinutes,
                         sessionCount = item.sessionCount,
                         summaryRows = listOf(
-                            AppLimitSummaryRow("선택된 앱", item.appName),
-                            AppLimitSummaryRow("일일 사용시간", item.dailyLimitMinutes),
-                            AppLimitSummaryRow("반복 요일", item.repeatDays),
-                            AppLimitSummaryRow("적용 기간", item.duration),
+                            AppLimitSummaryRow("일일 사용량", item.dailyLimitMinutes),
+                            AppLimitSummaryRow("현재 사용량", item.usageMinutes),
+                            AppLimitSummaryRow("제한 방식", "일일 사용량 제한"),
                         ),
-                        onDismissRequest = {
-                            showAppLimitInfoSheet = false
-                            selectedAppForDetail = null
-                        },
-                        onPrimaryClick = {
-                            showAppLimitInfoSheet = false
-                            selectedAppForDetail = null
-                        },
-                        primaryButtonText = "계속 진행",
+                        onDismissRequest = dismiss,
+                        onPrimaryClick = dismiss,
+                        primaryButtonText = "닫기",
                     )
                 }
             }
+        }
+
+        // 일시정지 플로우 바텀시트
+        if (showPauseProposalSheet) {
+            val pauseItem = selectedAppForPause
+            // 일시정지 가능 조건: 제한 시간 60분 초과 & 오늘 남은 횟수 > 0
+            val pauseAvailable = pauseItem != null &&
+                pauseItem.limitMinutes > 60 &&
+                PauseRepository(context).getRemainingCount(pauseItem.packageName) > 0
+            AppLimitPauseProposalBottomSheet(
+                onDismissRequest = { showPauseProposalSheet = false },
+                onContinueClick = {
+                    showPauseProposalSheet = false
+                    showPauseConfirmSheet = true
+                },
+                onBackClick = { showPauseProposalSheet = false },
+                canPause = pauseAvailable,
+            )
+        }
+
+        if (showPauseConfirmSheet && selectedAppForPause != null) {
+            val item = selectedAppForPause!!
+            val appIcon = rememberAppIconPainter(item.packageName)
+            val remainingMin = (item.blockUntilMs - System.currentTimeMillis()).coerceAtLeast(0) / 60000
+            AppLimitPauseConfirmBottomSheet(
+                appName = item.appName,
+                appIcon = appIcon,
+                usageText = "${remainingMin}분 후 제한 해제",
+                usageLabel = "",
+                onDismissRequest = { showPauseConfirmSheet = false },
+                onPauseClick = {
+                    PauseRepository(context).startPause(item.packageName, 5)
+                    showPauseConfirmSheet = false
+                    showPauseCompleteSheet = true
+                },
+                onBackClick = { showPauseConfirmSheet = false },
+            )
+        }
+
+        if (showPauseCompleteSheet && selectedAppForPause != null) {
+            val item = selectedAppForPause!!
+            val appIcon = rememberAppIconPainter(item.packageName)
+            val remaining = PauseRepository(context).getRemainingCount(item.packageName)
+            AppLimitPauseCompleteBottomSheet(
+                appName = item.appName,
+                appIcon = appIcon,
+                remainingChances = remaining,
+                onDismissRequest = {
+                    showPauseCompleteSheet = false
+                    selectedAppForPause = null
+                },
+                onLaunchAppClick = {
+                    showPauseCompleteSheet = false
+                    val launchIntent = context.packageManager.getLaunchIntentForPackage(item.packageName)
+                    launchIntent?.let { context.startActivity(it) }
+                    selectedAppForPause = null
+                },
+            )
         }
     }
 }

@@ -62,10 +62,18 @@ fun ColeGhostButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
 }
 
 @Composable
-fun ColeTwoLineButton(primaryText: String, ghostText: String, onPrimaryClick: () -> Unit, onGhostClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun ColeTwoLineButton(
+    primaryText: String,
+    ghostText: String,
+    onPrimaryClick: () -> Unit,
+    onGhostClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    ghostEnabled: Boolean = enabled,
+) {
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         ColePrimaryButton(text = primaryText, onClick = onPrimaryClick, enabled = enabled)
-        ColeGhostButton(text = ghostText, onClick = onGhostClick, enabled = enabled)
+        ColeGhostButton(text = ghostText, onClick = onGhostClick, enabled = ghostEnabled)
     }
 }
 

@@ -32,15 +32,18 @@ fun AppLimitPauseProposalBottomSheet(
     onDismissRequest: () -> Unit,
     onContinueClick: () -> Unit,
     onBackClick: () -> Unit,
+    /** false이면 primary 버튼 비활성화 + 텍스트 변경, secondary는 "닫기" */
+    canPause: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     BaseBottomSheet(
         title = "5분간 일시정지 하시겠어요?",
         subtitle = "5분간 앱을 자유롭게 사용할 수 있습니다.\n하루 2회까지 사용 가능해요",
         onDismissRequest = onDismissRequest,
-        onPrimaryClick = onContinueClick,
-        primaryButtonText = "계속 진행",
-        secondaryButtonText = "돌아가기",
+        onPrimaryClick = if (canPause) onContinueClick else onDismissRequest,
+        primaryButtonText = if (canPause) "계속 진행" else "일시정지를 하실 수 없습니다",
+        primaryButtonEnabled = canPause,
+        secondaryButtonText = if (canPause) "아니오" else "닫기",
         onSecondaryClick = onBackClick,
         modifier = modifier,
     ) { }
@@ -50,9 +53,9 @@ fun AppLimitPauseProposalBottomSheet(
 fun AppLimitPauseConfirmBottomSheet(
     appName: String,
     appIcon: Painter,
-    /** 시간지정제한 타입: "14분/30분" */
+    /** 시간지정제한 타입: "22분 후 제한 해제" */
     usageText: String,
-    /** 시간지정제한 타입: "사용 중" */
+    /** 시간지정제한 타입: 보통 "" */
     usageLabel: String,
     onDismissRequest: () -> Unit,
     onPauseClick: () -> Unit,
@@ -76,6 +79,11 @@ fun AppLimitPauseConfirmBottomSheet(
             usageLabel = usageLabel,
             showDetailButton = onDetailClick != null,
             onDetailClick = onDetailClick ?: {},
+        )
+        androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(12.dp))
+        androidx.compose.material3.Text(
+            text = "5분간 앱을 자유롭게 사용할 수 있습니다.\n하루 2회까지 사용 가능해요.\n단, 일시정지 시간은 사용 통계에 포함되지 않아요",
+            style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
         )
     }
 }

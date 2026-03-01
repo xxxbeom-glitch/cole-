@@ -39,6 +39,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -57,11 +58,20 @@ fun DebugFlowHost(
     var selectedScreen by remember { mutableStateOf<DebugScreen?>(null) }
     val menuScrollState = rememberScrollState()
 
+    var addAppReturnTo by remember { mutableStateOf<DebugScreen?>(null) } // MainFlow에서 진입 시 완료 후 돌아갈 화면
     if (selectedScreen != null) {
         Box(modifier = modifier.fillMaxSize()) {
             DebugScreenPreview(
                 screen = selectedScreen!!,
-                onBack = { selectedScreen = null },
+                onBack = { selectedScreen = null; addAppReturnTo = null },
+                onNavigateToScreen = { target ->
+                    if (target == DebugScreen.AddAppFlowHost) addAppReturnTo = DebugScreen.MainFlow
+                    selectedScreen = target
+                },
+                onAddAppComplete = {
+                    selectedScreen = addAppReturnTo ?: null
+                    addAppReturnTo = null
+                },
             )
         }
     } else {
@@ -129,12 +139,22 @@ sealed class DebugScreen(val category: String, val label: String) {
     data object AppLimitPauseProposal : DebugScreen("앱 제한 일시정지", "UL-01: 제안")
     data object AppLimitPauseConfirm : DebugScreen("앱 제한 일시정지", "UL-02: 확인")
     data object AppLimitPauseComplete : DebugScreen("앱 제한 일시정지", "UL-03: 완료")
+
+    // 권한
+    data object Permission : DebugScreen("권한", "권한 요청 화면")
+
+    // 사용시간/모니터링/오버레이
+    data object UsageStatsTest : DebugScreen("테스트", "앱별 사용시간 (UsageStats)")
+    data object AppMonitorTest : DebugScreen("테스트", "앱 모니터 서비스 (시작/중지)")
+    data object BlockOverlayTest : DebugScreen("테스트", "차단 오버레이 테스트")
 }
 
 @Composable
 private fun DebugScreenPreview(
     screen: DebugScreen,
     onBack: () -> Unit,
+    onNavigateToScreen: (DebugScreen) -> Unit = {},
+    onAddAppComplete: () -> Unit = {},
 ) {
     when (screen) {
         DebugScreen.Splash -> DebugSplashPreview(onBack = onBack)
@@ -241,12 +261,12 @@ private fun DebugScreenPreview(
             onBackClick = onBack,
         )
         DebugScreen.AddAppFlowHost -> AddAppFlowHost(
-            onComplete = onBack,
-            onBackFromFirst = onBack,
+            onComplete = onAddAppComplete,
+            onBackFromFirst = onAddAppComplete,
         )
         DebugScreen.MainFlow -> MainFlowHost(
-            onAddAppClick = { },
-            onLogout = { },
+            onAddAppClick = { onNavigateToScreen(DebugScreen.AddAppFlowHost) },
+            onLogout = { onBack() },
         )
         DebugScreen.MainMA01 -> DebugMainScreenWrapper(onBack = onBack) {
             MainScreenMA01(onAddAppClick = { })
@@ -375,6 +395,12 @@ private fun DebugScreenPreview(
                 onLaunchAppClick = onSheetDismiss,
             )
         }
+        DebugScreen.Permission -> PermissionScreen(
+            onNextClick = onBack,
+        )
+        DebugScreen.UsageStatsTest -> UsageStatsTestScreen(onBack = onBack)
+        DebugScreen.AppMonitorTest -> AppMonitorTestScreen(onBack = onBack)
+        DebugScreen.BlockOverlayTest -> BlockOverlayTestScreen(onBack = onBack)
         else -> DebugPlaceholderScreen(screen = screen, onBack = onBack)
     }
 }
@@ -727,6 +753,10 @@ private fun DebugScreenListSection(
             DebugScreen.MainFlow,
             DebugScreen.MainMA01,
             DebugScreen.MainMA02,
+            DebugScreen.Permission,
+            DebugScreen.UsageStatsTest,
+            DebugScreen.AppMonitorTest,
+            DebugScreen.BlockOverlayTest,
         )
         val grouped = allScreens.groupBy { it.category }
 
@@ -1210,6 +1240,7 @@ private fun DebugTestSettingsSection() {
     var blockedAppCount by remember { mutableIntStateOf(0) }
     var usageTime by remember { mutableIntStateOf(0) }
     var pause5min by remember { mutableIntStateOf(0) }
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -1222,6 +1253,26 @@ private fun DebugTestSettingsSection() {
             text = "테스트 설정",
             style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary),
         )
+
+        // 제한 앱 초기화
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "제한 앱 초기화",
+                style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
+            )
+            Text(
+                text = "현재 제한 중인 앱을 모두 삭제하고 모니터 서비스를 중지합니다.",
+                style = AppTypography.Caption1.copy(color = AppColors.TextSecondary),
+            )
+            ColePrimaryButton(
+                text = "제한 앱 모두 삭제 (0으로 초기화)",
+                onClick = {
+                    AppRestrictionRepository(context).clearAll()
+                    AppMonitorService.stop(context)
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
         // 구독 상태
         SettingItem(
