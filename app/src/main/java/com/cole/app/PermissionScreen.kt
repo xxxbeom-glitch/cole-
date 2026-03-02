@@ -23,18 +23,22 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 /**
  * 앱 접근 권한 안내 화면 (풀스크린).
- * Figma 861-4229 기반.
- * 앱 사용정보 접근, 다른 앱 위에 표시, 접근성 서비스(필수), 알림(선택) 안내.
+ * Figma 861-4229 원본 디자인 기반.
  */
 @Composable
 fun PermissionScreen(
-    onNextClick: () -> Unit,
+    onPrimaryClick: () -> Unit,
+    onGhostClick: () -> Unit, // DebugMenuScreen 호환성을 위해 시그니처 유지
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -47,20 +51,25 @@ fun PermissionScreen(
         Column(
             modifier = Modifier
                 .weight(1f)
+                .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, // 가로 중앙 정렬
+            verticalArrangement = Arrangement.Center, // 세로(컨텐츠 그룹) 중앙 정렬
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
             Text(
                 text = "앱 접근 권한 안내",
-                style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
+                style = AppTypography.Display2.copy(color = AppColors.TextPrimary),
+                textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = "서비스 이용을 위해 다음의 허용이 필요합니다",
-                style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+                style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
+                textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(24.dp))
+            
+            Spacer(modifier = Modifier.height(36.dp))
 
             // 필수 권한 카드
             PermissionCard(
@@ -83,7 +92,7 @@ fun PermissionScreen(
                 ),
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // 선택 권한 카드
             PermissionCard(
@@ -94,30 +103,30 @@ fun PermissionScreen(
                         description = "사용 시간 초과 알림과 목표 달성 소식을 알림으로 알리기 위해 필요합니다",
                     ),
                 ),
-                footerContent = {
-                    Row(
-                        modifier = Modifier.padding(top = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_disclaimer_info),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = AppColors.TextCaption,
-                        )
-                        Text(
-                            text = "① 선택 권한을 허용하지 않아도 서비스 이용이 가능합니다",
-                            style = AppTypography.Caption1.copy(color = AppColors.TextCaption),
-                        )
-                    }
-                },
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 선택 권한 안내 (디스클라이머)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally), // 디스클라이머 가로 중앙 정렬
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_disclaimer_info),
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = AppColors.TextDisclaimer,
+                )
+                Text(
+                    text = "선택 권한을 허용하지 않아도 서비스 이용이 가능합니다",
+                    style = AppTypography.Caption2.copy(color = AppColors.TextDisclaimer),
+                )
+            }
         }
 
-        // 하단 버튼
+        // 하단 버튼 ("나중에 하기" 단일 구성)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -126,7 +135,8 @@ fun PermissionScreen(
         ) {
             ColePrimaryButton(
                 text = "나중에 하기",
-                onClick = onNextClick,
+                onClick = onPrimaryClick, // 메인 액션 바인딩
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
@@ -138,18 +148,27 @@ private data class PermissionItem(
     val description: String,
 )
 
+private val PermissionCardShape = RoundedCornerShape(12.dp)
+private val PermissionCardShadowColor = Color.Black.copy(alpha = 0.04f)
+
 @Composable
 private fun PermissionCard(
     items: List<PermissionItem>,
     modifier: Modifier = Modifier,
-    footerContent: (@Composable () -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(AppColors.SurfaceBackgroundCard, RoundedCornerShape(12.dp))
-            .padding(horizontal = 16.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+            .shadow(
+                elevation = 2.dp, 
+                shape = PermissionCardShape, 
+                spotColor = PermissionCardShadowColor, 
+                ambientColor = PermissionCardShadowColor
+            )
+            .clip(PermissionCardShape)
+            .background(AppColors.White900)
+            .padding(horizontal = 20.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         items.forEach { item ->
             PermissionItemRow(
@@ -158,7 +177,6 @@ private fun PermissionCard(
                 description = item.description,
             )
         }
-        footerContent?.invoke()
     }
 }
 
@@ -170,26 +188,29 @@ private fun PermissionItemRow(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically, // 아이콘과 텍스트 그룹 간 수직 중앙 정렬로 수정
     ) {
+        // 아이콘 리사이징 및 박스 배경 제거. 원본 리소스 직접 사용.
         Image(
             painter = painterResource(iconResId),
             contentDescription = null,
             modifier = Modifier.size(48.dp),
             contentScale = ContentScale.Fit,
         )
-        Column(modifier = Modifier.weight(1f)) {
+        
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
             Text(
                 text = title,
                 style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
             )
-            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = description,
-                style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+                style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
             )
         }
     }
 }
-

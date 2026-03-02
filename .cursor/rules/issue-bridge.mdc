@@ -1,0 +1,75 @@
+---
+description: 이슈 정리 및 ZIP 파일 생성 규칙
+globs:
+alwaysApply: true
+---
+
+# Issue Bridge 규칙
+
+사용자가 다음 중 하나를 입력하면 이슈 브릿지 프로세스를 시작한다:
+- "이슈 정리해줘"
+- "이슈 브릿지"
+- "issue bridge"
+- "이슈 저장해줘"
+
+## 처리 순서
+
+1. 현재 대화에서 이슈/문제 내용을 파악한다
+2. 연관된 파일 목록을 파악한다
+3. 아래 형식으로 `issue.md` 내용을 작성한다
+4. PowerShell 터미널에서 `issue-bridge.ps1` 스크립트를 실행한다:
+
+```powershell
+# 프로젝트 루트에서 실행
+powershell -ExecutionPolicy Bypass -File ".\issue-bridge.ps1" -IssueContent @"
+[여기에 issue.md 내용 삽입]
+"@ -RelatedFiles @("파일경로1", "파일경로2")
+```
+
+## issue.md 작성 형식
+
+```markdown
+# 🐛 이슈 요약
+
+## 문제 설명
+[무엇이 문제인지 한글로 명확하게]
+
+## 발생 상황
+- 언제: [어떤 작업 중에 발생했는지]
+- 어디서: [어떤 파일/화면/기능에서]
+- 증상: [어떤 에러/현상이 나타나는지]
+
+## 에러 메시지
+```
+[에러 로그나 메시지 그대로]
+```
+
+## 시도한 방법
+- [ ] [시도1]
+- [ ] [시도2]
+
+## 관련 파일
+- `파일경로` - [이 파일이 왜 관련있는지]
+
+## 예상 원인
+[AI가 파악한 가능한 원인들]
+
+## 참고 사항
+[추가로 알면 좋을 컨텍스트, 사용 기술 스택 등]
+
+---
+*생성 시각: [타임스탬프]*
+*프로젝트: cole (디지털 디톡스 앱)*
+*환경: Android / Kotlin + Jetpack Compose*
+```
+
+## 연관 파일 선정 기준
+- 에러가 발생한 화면 파일 (예: PermissionScreen.kt)
+- 에러와 직접 연관된 파일 (ViewModel, Repository, import 관계 등)
+- 해당 화면에서 사용하는 스타일가이드 파일 (Color.kt, Typography.kt, Theme.kt 등 - 프로젝트에서 직접 찾아서 포함)
+- 설정 파일 (AndroidManifest, build.gradle 등) - 관련있을 때만
+- 최대 10개 파일로 제한
+
+## 스크린샷
+사용자가 스크린샷을 첨부했다면 `screenshots/` 폴더에 포함된다고 안내한다.
+스크린샷을 프로젝트 루트의 `screenshots\` 폴더에 넣어달라고 요청한다.

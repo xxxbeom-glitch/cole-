@@ -7,6 +7,7 @@ import android.graphics.Path as AndroidPath
 import android.graphics.RectF
 import android.graphics.drawable.AdaptiveIconDrawable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -175,6 +176,10 @@ fun IcoDisclaimerInfo(
 /** 앱 아이콘 클리핑용 — 사각형 6dp 라운드 (Figma 가이드) */
 private val AppIconShape = RoundedCornerShape(6.dp)
 
+/** 앱 아이콘 스타일 — Inner Border 0.5dp #000000 7% */
+private val AppIconBorderWidth = 0.5.dp
+private val AppIconBorderColor = Color.Black.copy(alpha = 0.07f)
+
 /** 기기 AdaptiveIcon 마스크 Shape. 실패 시 RoundedCornerShape(50%) 폴백 */
 @Composable
 fun rememberDeviceIconMaskShape(): Shape {
@@ -210,8 +215,9 @@ fun rememberDeviceIconMaskShape(): Shape {
 }
 
 /**
- * 앱 아이콘 (기기 기본 쉐이프 + #000000 오버레이 + 중앙 자물쇠)
+ * 앱 아이콘 (기기 기본 쉐이프 + 선택적 #000000 오버레이 + 중앙 자물쇠)
  * 아이콘·오버레이 모두 기기 마스크로 클리핑
+ * @param showLock true면 자물쇠 오버레이 표시, false면 앱 아이콘만
  * @param overlayAlpha 오버레이 불투명도 (기본 50%)
  */
 @Composable
@@ -219,6 +225,7 @@ fun AppIconSquircleLock(
     appIcon: Painter,
     modifier: Modifier = Modifier,
     iconSize: Dp = 56.dp,
+    showLock: Boolean = true,
     lockIconResId: Int = R.drawable.ic_lock_center,
     overlayAlpha: Float = 0.5f,
 ) {
@@ -226,7 +233,8 @@ fun AppIconSquircleLock(
     Box(
         modifier = modifier
             .size(iconSize)
-            .clip(maskShape),
+            .clip(maskShape)
+            .border(AppIconBorderWidth, AppIconBorderColor, maskShape),
     ) {
         Icon(
             painter = appIcon,
@@ -234,19 +242,21 @@ fun AppIconSquircleLock(
             tint = Color.Unspecified,
             modifier = Modifier.fillMaxSize(),
         )
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(Color.Black.copy(alpha = overlayAlpha)),
-        )
-        Icon(
-            painter = painterResource(id = lockIconResId),
-            contentDescription = "사용 제한 중",
-            tint = Color.White,
-            modifier = Modifier
-                .align(Alignment.Center)
-                .size(24.dp),
-        )
+        if (showLock) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(Color.Black.copy(alpha = overlayAlpha)),
+            )
+            Icon(
+                painter = painterResource(id = lockIconResId),
+                contentDescription = "사용 제한 중",
+                tint = Color.White,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(24.dp),
+            )
+        }
     }
 }
 
@@ -263,7 +273,8 @@ fun RestrictedAppIconBox(
     Box(
         modifier = modifier
             .size(size)
-            .clip(AppIconShape),
+            .clip(AppIconShape)
+            .border(AppIconBorderWidth, AppIconBorderColor, AppIconShape),
     ) {
         Icon(
             painter = appIcon,

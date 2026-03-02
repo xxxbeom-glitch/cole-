@@ -396,7 +396,8 @@ private fun DebugScreenPreview(
             )
         }
         DebugScreen.Permission -> PermissionScreen(
-            onNextClick = onBack,
+            onPrimaryClick = onBack,
+            onGhostClick = onBack,
         )
         DebugScreen.UsageStatsTest -> UsageStatsTestScreen(onBack = onBack)
         DebugScreen.AppMonitorTest -> AppMonitorTestScreen(onBack = onBack)
@@ -1117,6 +1118,16 @@ private fun DebugListsContent() {
                 usageMinutes = "144분",
                 sessionCount = "12회",
             )
+            Text("LabelDanger / AppStatusDataViewRow (Figma 901-3018)", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
+            LabelDanger(text = "제한 중")
+            AppStatusDataViewRow(
+                appName = "인스타그램",
+                appIcon = painterResource(R.drawable.ic_app_placeholder),
+                totalUsageMinutes = "9,999분",
+                infoText = "이 시간이면 서울 부산 KTX 왕복 8번이에요!",
+            )
+            Text("ColeInfoBoxCompact", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
+            ColeInfoBoxCompact(text = "이 시간이면 서울 부산 KTX 왕복 8번이에요!")
             Text("SelectionRow", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
             SelectionRow(label = "앱을 선택해주세요", variant = SelectionRowVariant.Selected, selectedValue = "인스타그램", onClick = {})
             SelectionRow(label = "앱을 선택해주세요", variant = SelectionRowVariant.Default, onClick = {})

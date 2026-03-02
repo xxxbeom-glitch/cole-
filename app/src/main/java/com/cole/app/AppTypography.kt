@@ -85,6 +85,11 @@ val SuitVariable = FontFamily(
     ),
     Font(
         resId = R.font.suit_variable,
+        weight = FontWeight(750),
+        variationSettings = FontVariation.Settings(FontVariation.weight(750)),
+    ),
+    Font(
+        resId = R.font.suit_variable,
         weight = FontWeight(760),
         variationSettings = FontVariation.Settings(FontVariation.weight(760)),
     ),
@@ -120,4 +125,7 @@ object AppTypography {
     val Input       = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight(560), fontSize = 15.sp, lineHeight = 20.sp)
     val TabSelected   = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight.Bold,   fontSize = 14.sp, lineHeight = 22.sp)
     val TabUnselected = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 22.sp)
+
+    /** Label/Danger (Figma 258:3187) — 위험 배지 9sp Weight 750 */
+    val LabelDanger = TextStyle(fontFamily = SuitVariable, fontWeight = FontWeight(750), fontSize = 9.sp, lineHeight = 9.sp)
 }

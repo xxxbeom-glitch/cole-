@@ -122,6 +122,9 @@ object AppColors {
     val ChartLevelBad1 = Red500
     val ChartLevelBad2 = Red400
     val ChartLevelBad3 = Red300
+
+    /** Label/Danger (Figma 258:3187) — 위험 배지 배경 #fd4949 */
+    val LabelDangerBg = Color(0xFFFD4949)
     val ChartLevelWarning1 = Orange500
     val ChartLevelWarning2 = Orange400
     val ChartLevelWarning3 = Orange300

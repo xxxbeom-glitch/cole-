@@ -18,9 +18,3 @@
 
 ## Git 커밋
 - 커밋 메시지는 `yyyy-mm-dd hh:mm` 형식으로 작성할 것 (예: 2025-02-23 14:30)
-
-## Issue Bridge
-- 문제 해결이 막히거나 내가 "이슈 올려줘"라고 하면 push_issue 툴로 현재 상황을 정리해서 올릴 것
-- push_issue 올릴 때 관련 파일의 내용을 code 필드에 포함할 것 (파일 경로 말고 실제 코드 내용)
-- 이슈 제목은 한 줄로 명확하게, problem은 에러 메시지와 시도한 것들 포함해서 작성할 것
-- issue bridge에 올릴 때 title, problem, context 모두 영어로 작성할 것

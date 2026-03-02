@@ -9,8 +9,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -53,6 +56,28 @@ fun ColeSwitch(
         modifier = modifier,
         enabled = enabled,
     )
+}
+
+/**
+ * Label/Danger (Figma 258:3187)
+ * 위험 배지 — 배경 #fd4949, 9sp ExtraBold 흰색 텍스트
+ */
+@Composable
+fun LabelDanger(
+    text: String = "위험",
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(3.dp))
+            .background(AppColors.Red300)
+            .padding(horizontal = 4.dp, vertical = 3.dp),
+    ) {
+        Text(
+            text = text,
+            style = AppTypography.LabelDanger.copy(color = AppColors.TextInvert),
+        )
+    }
 }
 
 enum class AppStatusVariant { Default, Button, DataView }
@@ -123,6 +148,77 @@ fun AppStatusRow(
                     Text(text = "자세히 보기", style = AppTypography.ButtonSmall.copy(color = AppColors.ButtonSecondaryTextDefault))
                 }
             }
+        }
+    }
+}
+
+/**
+ * List / App Status Data View (Figma 901-3018)
+ * 앱 아이콘 + 위험 라벨 + 앱명 | 총 사용시간 + 분
+ * @param infoText 선택: 하단 인포박스 문구 (예: "이 시간이면 서울 부산 KTX 왕복 8번이에요!")
+ */
+@Composable
+fun AppStatusDataViewRow(
+    appName: String,
+    appIcon: Painter,
+    totalUsageMinutes: String,
+    modifier: Modifier = Modifier,
+    showDangerLabel: Boolean = true,
+    showLock: Boolean = true,
+    infoText: String? = null,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AppIconSquircleLock(
+                    appIcon = appIcon,
+                    iconSize = 56.dp,
+                    showLock = showLock,
+                )
+                Column(
+                    modifier = Modifier.wrapContentSize(),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    horizontalAlignment = Alignment.Start,
+                ) {
+                    if (showDangerLabel) {
+                        LabelDanger()
+                    }
+                    Text(
+                        text = appName,
+                        style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 120.dp),
+                    )
+                }
+            }
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = "총 사용시간",
+                    style = AppTypography.Caption1.copy(color = AppColors.TextCaption),
+                )
+                Text(
+                    text = totalUsageMinutes,
+                    style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary),
+                )
+            }
+        }
+        infoText?.let { text ->
+            ColeInfoBoxCompact(text = text)
         }
     }
 }
