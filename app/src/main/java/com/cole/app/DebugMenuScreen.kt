@@ -135,6 +135,7 @@ sealed class DebugScreen(val category: String, val label: String) {
     data object AppLimitInfoBottomSheet : DebugScreen("바텀시트", "AppLimitInfoBottomSheet (시간 지정 제한)")
     data object AppLimitInfoBottomSheetDaily : DebugScreen("바텀시트", "AppLimitInfoBottomSheetDaily (일일 사용량 제한)")
     data object AppLimitInfoBottomSheetPaused : DebugScreen("바텀시트", "AppLimitInfoBottomSheetPaused (일시 정지 중)")
+    data object AddAppAppCategoryBottomSheet : DebugScreen("바텀시트", "AddAppAppCategoryBottomSheet (앱의 종류 지정)")
 
     // 앱 제한 일시정지 (UL)
     data object AppLimitPauseProposal : DebugScreen("앱 제한 일시정지", "UL-01: 제안")
@@ -227,10 +228,12 @@ private fun DebugScreenPreview(
         )
         DebugScreen.AddAppDaily01 -> AddAppDailyLimitScreen01(
             selectedAppNames = emptySet(),
+            selectedAppCategory = null,
             selectedDailyMinutes = null,
             selectedDays = emptySet(),
             selectedDuration = null,
             onAppRowClick = { },
+            onCategoryRowClick = { },
             onTimeRowClick = { },
             onDaysRowClick = { },
             onDurationRowClick = { },
@@ -290,7 +293,7 @@ private fun DebugScreenPreview(
         DebugScreen.BaseBottomSheet -> DebugBottomSheetPreview(onBack = onBack) { onSheetDismiss ->
             BaseBottomSheet(
                 title = "앱을 선택해주세요",
-                subtitle = "앱은 최대 3개까지 선택 가능합니다",
+                subtitle = "앱은 최대 1개까지 선택가능 해요\n이미 제한이 진행중인 앱은 선택하실 수 없어요",
                 onDismissRequest = onSheetDismiss,
                 onPrimaryClick = onSheetDismiss,
                 primaryButtonText = "계속 진행",
@@ -394,6 +397,13 @@ private fun DebugScreenPreview(
                 remainingChances = 1,
                 onDismissRequest = onSheetDismiss,
                 onLaunchAppClick = onSheetDismiss,
+            )
+        }
+        DebugScreen.AddAppAppCategoryBottomSheet -> DebugBottomSheetPreview(onBack = onBack) { onSheetDismiss ->
+            AddAppAppCategoryBottomSheet(
+                initialCategory = "게임",
+                onDismissRequest = onSheetDismiss,
+                onPrimaryClick = { onSheetDismiss() },
             )
         }
         DebugScreen.Permission -> PermissionScreen(
@@ -910,6 +920,7 @@ private fun DebugBottomSheetsContent(onBack: () -> Unit) {
                 DebugScreen.AppLimitInfoBottomSheet,
                 DebugScreen.AppLimitInfoBottomSheetDaily,
                 DebugScreen.AppLimitInfoBottomSheetPaused,
+                DebugScreen.AddAppAppCategoryBottomSheet,
                 DebugScreen.AppLimitPauseProposal,
                 DebugScreen.AppLimitPauseConfirm,
                 DebugScreen.AppLimitPauseComplete,
@@ -1131,6 +1142,7 @@ private fun DebugListsContent() {
             ColeInfoBoxCompact(text = "이 시간이면 서울 부산 KTX 왕복 8번이에요!")
             Text("SelectionRow", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
             SelectionRow(label = "앱을 선택해주세요", variant = SelectionRowVariant.Selected, selectedValue = "인스타그램", onClick = {})
+            SelectionRow(label = "앱의 종류를 지정해주세요", variant = SelectionRowVariant.Selected, selectedValue = "게임", onClick = {})
             SelectionRow(label = "앱을 선택해주세요", variant = SelectionRowVariant.Default, onClick = {})
             SelectionRow(label = "앱을 선택해주세요", variant = SelectionRowVariant.Switch, switchChecked = selectionRowSwitch, onSwitchChange = { selectionRowSwitch = it }, onClick = {})
         }

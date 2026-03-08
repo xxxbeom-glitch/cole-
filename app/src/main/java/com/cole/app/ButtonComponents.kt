@@ -97,11 +97,18 @@ fun ColeSecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = 
 }
 
 @Composable
-fun ColeAddAppButton(text: String, icon: Painter, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun ColeAddAppButton(
+    text: String,
+    icon: Painter,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: RoundedCornerShape = RoundedCornerShape(12.dp),
+) {
     Button(
         onClick = onClick, enabled = enabled,
-        modifier = modifier.height(60.dp),
-        shape = RoundedCornerShape(12.dp),
+        modifier = modifier.height(64.dp),
+        shape = shape,
         colors = ButtonDefaults.buttonColors(
             containerColor = AppColors.ButtonPrimaryBgDefault,
             contentColor = AppColors.ButtonPrimaryTextDefault,

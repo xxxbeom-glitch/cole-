@@ -51,7 +51,7 @@ fun MyPageScreen(
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
-            .padding(top = 10.dp),
+            .padding(top = 24.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         // 내 계정

@@ -254,7 +254,7 @@ fun AddAppScreenAA02A01(
 // 검색 필드 + 스크롤 리스트, 최대 3개 선택
 // ─────────────────────────────────────────────
 
-private const val MAX_APP_SELECTION = 1
+private const val MAX_APP_SELECTION = 5
 
 /** 앱 선택 아이템 (name: 표시명, packageName: 아이콘 로드용, null이면 placeholder) */
 private data class AppSelectItem(val name: String, val packageName: String?)
@@ -288,6 +288,7 @@ fun AddAppSelectBottomSheet(
         AppRestrictionRepository(context).getAll().map { it.packageName }.toSet() + additionalRestrictedPackages
     }
 
+    val selfPackageName = context.packageName
     LaunchedEffect(Unit) {
         val items = withContext(Dispatchers.Default) {
             @Suppress("DEPRECATION")
@@ -298,6 +299,7 @@ fun AddAppSelectBottomSheet(
                     .mapNotNull { ri ->
                         runCatching {
                             val pkg = ri.activityInfo.packageName
+                            if (pkg == selfPackageName) return@mapNotNull null // 이 앱(콜) 목록에서 숨김
                             val appInfo = pm.getApplicationInfo(pkg, 0)
                             val label = (pm.getApplicationLabel(appInfo) as? String)?.takeIf { it.isNotBlank() }
                             label?.let { AppSelectItem(it, pkg) }
@@ -321,7 +323,7 @@ fun AddAppSelectBottomSheet(
         when {
             appName in selected -> selected = selected - appName
             selected.size >= MAX_APP_SELECTION -> {
-                Toast.makeText(context, "최대 1개까지만 선택 가능합니다", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "최대 ${MAX_APP_SELECTION}개까지 선택 가능합니다", Toast.LENGTH_SHORT).show()
             }
             else -> selected = selected + appName
         }
@@ -329,7 +331,7 @@ fun AddAppSelectBottomSheet(
 
     BaseBottomSheet(
         title = "앱을 선택해주세요",
-        subtitle = "앱은 최대 1개까지 선택가능 해요\n이미 제한이 진행중인 앱은 선택하실 수 없어요",
+        subtitle = "앱은 최대 ${MAX_APP_SELECTION}개까지 선택가능 해요\n이미 제한이 진행중인 앱은 선택하실 수 없어요",
         onDismissRequest = onDismissRequest,
         onPrimaryClick = {
             if (selected.isNotEmpty()) {
@@ -447,14 +449,17 @@ fun AddAppSelectBottomSheet(
 @Composable
 fun AddAppScreenAA02ATimeSetup(
     selectedAppNames: Set<String>,
+    selectedAppCategory: String?,
     selectedTimeLimit: String?,
     onAppRowClick: () -> Unit,
+    onCategoryRowClick: () -> Unit,
     onTimeRowClick: () -> Unit,
     onNextClick: () -> Unit,
     onBackClick: () -> Unit,
+    headerTitle: String = "시간 지정 제한",
     modifier: Modifier = Modifier,
 ) {
-    val canProceed = selectedAppNames.isNotEmpty() && selectedTimeLimit != null
+    val canProceed = selectedAppNames.isNotEmpty() && selectedAppCategory != null && selectedTimeLimit != null
 
     Column(
         modifier = modifier
@@ -467,7 +472,7 @@ fun AddAppScreenAA02ATimeSetup(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         ColeHeaderSub(
-            title = "앱 제한",
+            title = headerTitle,
             backIcon = painterResource(R.drawable.ic_back),
             onBackClick = onBackClick,
             showNotification = true,
@@ -491,6 +496,12 @@ fun AddAppScreenAA02ATimeSetup(
                     variant = if (selectedAppNames.isNotEmpty()) SelectionRowVariant.Selected else SelectionRowVariant.Default,
                     selectedValue = selectedAppNames.joinToString(", "),
                     onClick = onAppRowClick,
+                )
+                SelectionRow(
+                    label = "앱의 종류를 지정해주세요",
+                    variant = if (selectedAppCategory != null) SelectionRowVariant.Selected else SelectionRowVariant.Default,
+                    selectedValue = selectedAppCategory ?: "",
+                    onClick = onCategoryRowClick,
                 )
                 SelectionRow(
                     label = "제한 시간을 지정해주세요",
@@ -608,10 +619,11 @@ fun AddAppScreenAA02ATimeSummary(
     selectedTimeLimit: String,
     onNextClick: () -> Unit,
     onBackClick: () -> Unit,
+    headerTitle: String = "시간 지정 제한",
     modifier: Modifier = Modifier,
 ) {
     AddAppCommonConfirmSummaryScreen(
-        headerTitle = "앱 제한",
+        headerTitle = headerTitle,
         mainTitle = "선택하신 내용을 확인해주세요",
         showSubtitle = false,
         primaryButtonText = "다음",
@@ -727,6 +739,9 @@ fun AddAppSummaryRow(
 private val DAILY_TIME_STEPS = listOf("30분", "60분", "90분", "120분", "150분", "180분")
 private val DAILY_DAY_LABELS = listOf("월", "화", "수", "목", "금", "토", "일")
 private val DAILY_DURATION_OPTIONS = listOf("오늘 하루만", "1주", "2주", "3주", "4주")
+
+/** Figma 997-3736: 앱의 종류 선택 옵션 — 통계(StatisticsData) 카테고리 라벨과 일치 (기타는 추후 추가 예정) */
+private val APP_CATEGORY_OPTIONS = listOf("게임", "SNS", "쇼핑", "웹툰", "주식,코인", "OTT")
 private val DAILY_DURATION_OPTIONS_FOR_REPEAT = listOf("1주", "2주", "3주", "4주") // AA-02B-05: 반복 ON일 때만 사용
 
 private fun formatSelectedDays(selectedDays: Set<Int>, labels: List<String>): String =
@@ -735,10 +750,12 @@ private fun formatSelectedDays(selectedDays: Set<Int>, labels: List<String>): St
 @Composable
 fun AddAppDailyLimitScreen01(
     selectedAppNames: Set<String>,
+    selectedAppCategory: String?,
     selectedDailyMinutes: String?,
     selectedDays: Set<Int>,
     selectedDuration: String?,
     onAppRowClick: () -> Unit,
+    onCategoryRowClick: () -> Unit,
     onTimeRowClick: () -> Unit,
     onDaysRowClick: () -> Unit,
     onDurationRowClick: () -> Unit,
@@ -747,6 +764,7 @@ fun AddAppDailyLimitScreen01(
     modifier: Modifier = Modifier,
 ) {
     val canProceed = selectedAppNames.isNotEmpty() &&
+        selectedAppCategory != null &&
         selectedDailyMinutes != null &&
         selectedDuration != null &&
         (selectedDays.isNotEmpty() || selectedDuration == "오늘 하루만")
@@ -786,6 +804,12 @@ fun AddAppDailyLimitScreen01(
                     variant = if (selectedAppNames.isNotEmpty()) SelectionRowVariant.Selected else SelectionRowVariant.Default,
                     selectedValue = selectedAppNames.joinToString(", "),
                     onClick = onAppRowClick,
+                )
+                SelectionRow(
+                    label = "앱의 종류를 지정해주세요",
+                    variant = if (selectedAppCategory != null) SelectionRowVariant.Selected else SelectionRowVariant.Default,
+                    selectedValue = selectedAppCategory ?: "",
+                    onClick = onCategoryRowClick,
                 )
                 SelectionRow(
                     label = "하루 사용량을 지정해주세요",
@@ -977,6 +1001,7 @@ fun AddAppCommonTimeScheduleScreen(
     primaryButtonText: String = "다음",
     onPrimaryClick: () -> Unit,
     onBackClick: () -> Unit,
+    headerTitle: String = "앱 제한",
     modifier: Modifier = Modifier,
 ) {
     var timeIndex by remember { mutableIntStateOf(initialTimeIndex) }
@@ -990,7 +1015,7 @@ fun AddAppCommonTimeScheduleScreen(
             .padding(top = AddAppHeaderTopPadding)
             .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
-        ColeHeaderSub(title = "앱 제한", backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
+        ColeHeaderSub(title = headerTitle, backIcon = painterResource(R.drawable.ic_back), onBackClick = onBackClick, showNotification = true, modifier = Modifier.fillMaxWidth())
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -1069,6 +1094,54 @@ fun AddAppDailyDurationBottomSheet(
                 titleColor = AppColors.TextTertiary,
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+// 앱의 종류 지정 바텀시트 (Figma 997-3736)
+// ─────────────────────────────────────────────
+
+@Composable
+fun AddAppAppCategoryBottomSheet(
+    initialCategory: String?,
+    onDismissRequest: () -> Unit,
+    onPrimaryClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val initialIndex = initialCategory?.let { APP_CATEGORY_OPTIONS.indexOf(it) }?.takeIf { it >= 0 } ?: 0
+    var selectedIndex by remember { mutableIntStateOf(initialIndex) }
+
+    BaseBottomSheet(
+        title = "앱의 종류를 지정해주세요",
+        onDismissRequest = onDismissRequest,
+        onPrimaryClick = { onPrimaryClick(APP_CATEGORY_OPTIONS[selectedIndex]) },
+        primaryButtonText = "완료",
+        modifier = modifier,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            APP_CATEGORY_OPTIONS.chunked(2).forEach { rowOptions ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    rowOptions.forEachIndexed { i, option ->
+                        val index = APP_CATEGORY_OPTIONS.indexOf(option)
+                        Box(modifier = Modifier.weight(1f)) {
+                            ColeSelectionCardTitleOnly(
+                                title = option,
+                                selected = index == selectedIndex,
+                                onClick = { selectedIndex = index },
+                                titleStyle = AppTypography.BodyMedium,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                    if (rowOptions.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
         }
     }
 }
@@ -1212,11 +1285,14 @@ fun AddAppFlowHost(
     val context = LocalContext.current
     var step by remember { mutableStateOf(AddAppStep.AA_01) }
     var previousStepBeforeConfirm by remember { mutableStateOf(AddAppStep.AA_02A_TIME_05) }
+    var flowHeaderTitle by remember { mutableStateOf("앱 제한") }
     var selectedAppNames by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selectedAppsForTime by remember { mutableStateOf<List<com.cole.app.model.SelectedAppInfo>>(emptyList()) }
     var selectedAppsForDaily by remember { mutableStateOf<List<com.cole.app.model.SelectedAppInfo>>(emptyList()) }
     var selectedTimeLimit by remember { mutableStateOf<String?>(null) }
+    var selectedAppCategory by remember { mutableStateOf<String?>(null) }
     var showAppSelectSheet by remember { mutableStateOf(false) }
+    var showAppCategorySheet by remember { mutableStateOf(false) }
     var showTimeLimitSheet by remember { mutableStateOf(false) }
     var showDailyAppSelectSheet by remember { mutableStateOf(false) }
     var showDailyTimeSheet by remember { mutableStateOf(false) }
@@ -1231,14 +1307,18 @@ fun AddAppFlowHost(
     when (step) {
         AddAppStep.AA_01 -> AddAppScreenAA01(
             onTimeSpecifiedClick = {
+                flowHeaderTitle = "시간 지정 제한"
                 selectedAppNames = emptySet()
                 selectedAppsForTime = emptyList()
+                selectedAppCategory = null
                 selectedTimeLimit = null
                 step = AddAppStep.AA_02A_TIME_01
             },
             onDailyLimitClick = {
+                flowHeaderTitle = "일일 사용량 제한"
                 selectedAppNames = emptySet()
                 selectedAppsForDaily = emptyList()
+                selectedAppCategory = null
                 dailyLimitMinutes = null
                 dailySelectedDays = emptySet()
                 dailySelectedDuration = null
@@ -1248,16 +1328,20 @@ fun AddAppFlowHost(
         )
         AddAppStep.AA_02A_01 -> AddAppScreenAA02A01(
             onDailyLimitClick = {
+                flowHeaderTitle = "일일 사용량 제한"
                 selectedAppNames = emptySet()
                 selectedAppsForDaily = emptyList()
+                selectedAppCategory = null
                 dailyLimitMinutes = null
                 dailySelectedDays = emptySet()
                 dailySelectedDuration = null
                 step = AddAppStep.AA_DAILY_01
             },
             onTimeSpecifiedClick = {
+                flowHeaderTitle = "시간 지정 제한"
                 selectedAppNames = emptySet()
                 selectedAppsForTime = emptyList()
+                selectedAppCategory = null
                 selectedTimeLimit = null
                 step = AddAppStep.AA_02A_TIME_01
             },
@@ -1268,16 +1352,29 @@ fun AddAppFlowHost(
         AddAppStep.AA_DAILY_01 -> {
             AddAppDailyLimitScreen01(
                 selectedAppNames = selectedAppNames,
+                selectedAppCategory = selectedAppCategory,
                 selectedDailyMinutes = dailyLimitMinutes,
                 selectedDays = dailySelectedDays,
                 selectedDuration = dailySelectedDuration,
                 onAppRowClick = { showDailyAppSelectSheet = true },
+                onCategoryRowClick = { showAppCategorySheet = true },
                 onTimeRowClick = { showDailyTimeSheet = true },
                 onDaysRowClick = { showDailyDaysSheet = true },
                 onDurationRowClick = { if (dailySelectedDays.isNotEmpty()) showDailyDurationSheet = true },
                 onNextClick = { step = AddAppStep.AA_DAILY_04 },
                 onBackClick = { step = AddAppStep.AA_01 },
             )
+            if (showAppCategorySheet) {
+                AddAppAppCategoryBottomSheet(
+                    initialCategory = selectedAppCategory,
+                    onDismissRequest = { showAppCategorySheet = false },
+                    onPrimaryClick = { category ->
+                        selectedAppCategory = category
+                        showAppCategorySheet = false
+                        showDailyTimeSheet = true
+                    },
+                )
+            }
             if (showDailyAppSelectSheet) {
                 AddAppSelectBottomSheet(
                     initialSelected = selectedAppNames,
@@ -1285,7 +1382,7 @@ fun AddAppFlowHost(
                     onSelectComplete = { names ->
                         selectedAppNames = names
                         showDailyAppSelectSheet = false
-                        showDailyTimeSheet = true
+                        showAppCategorySheet = true
                     },
                     onSelectCompleteWithPackages = { selectedAppsForDaily = it },
                     additionalRestrictedPackages = selectedAppsForTime.map { it.packageName }.toSet(),
@@ -1394,12 +1491,26 @@ fun AddAppFlowHost(
         AddAppStep.AA_02A_TIME_01 -> {
             AddAppScreenAA02ATimeSetup(
                 selectedAppNames = selectedAppNames,
+                selectedAppCategory = selectedAppCategory,
                 selectedTimeLimit = selectedTimeLimit,
                 onAppRowClick = { showAppSelectSheet = true },
+                onCategoryRowClick = { showAppCategorySheet = true },
                 onTimeRowClick = { showTimeLimitSheet = true },
                 onNextClick = { step = AddAppStep.AA_02A_TIME_05 },
                 onBackClick = { step = AddAppStep.AA_01 },
+                headerTitle = flowHeaderTitle,
             )
+            if (showAppCategorySheet) {
+                AddAppAppCategoryBottomSheet(
+                    initialCategory = selectedAppCategory,
+                    onDismissRequest = { showAppCategorySheet = false },
+                    onPrimaryClick = { category ->
+                        selectedAppCategory = category
+                        showAppCategorySheet = false
+                        showTimeLimitSheet = true
+                    },
+                )
+            }
             if (showAppSelectSheet) {
                 AddAppSelectBottomSheet(
                     initialSelected = selectedAppNames,
@@ -1407,7 +1518,7 @@ fun AddAppFlowHost(
                     onSelectComplete = { names ->
                         selectedAppNames = names
                         showAppSelectSheet = false
-                        showTimeLimitSheet = true
+                        showAppCategorySheet = true
                     },
                     onSelectCompleteWithPackages = { selectedAppsForTime = it },
                     additionalRestrictedPackages = selectedAppsForDaily.map { it.packageName }.toSet(),
@@ -1441,6 +1552,7 @@ fun AddAppFlowHost(
             selectedTimeLimit = selectedTimeLimit ?: "",
             onNextClick = { previousStepBeforeConfirm = AddAppStep.AA_02A_TIME_05; step = AddAppStep.AA_03_01 },
             onBackClick = { step = AddAppStep.AA_02A_TIME_01 },
+            headerTitle = flowHeaderTitle,
         )
         AddAppStep.AA_02B_02 -> AddAppCommonTimeScheduleScreen(
             title = "차단 시간을 설정해주세요",
@@ -1451,8 +1563,12 @@ fun AddAppFlowHost(
         )
         AddAppStep.AA_03_01 -> {
             val repo = remember { AppRestrictionRepository(context) }
+            val completeHeaderTitle = when (previousStepBeforeConfirm) {
+                AddAppStep.AA_02A_TIME_05 -> flowHeaderTitle
+                else -> "앱 제한"
+            }
             AddAppCommonCompleteScreen(
-                headerTitle = "앱 제한",
+                headerTitle = completeHeaderTitle,
                 summaryContent = {
                     AddAppTimeSummaryBox(
                         selectedAppName = selectedAppNames.joinToString(", ").ifEmpty { "앱" },

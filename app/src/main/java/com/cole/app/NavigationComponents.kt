@@ -202,10 +202,7 @@ fun ColeHeaderTitleWithNotification(
         contentAlignment = Alignment.Center,
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 10.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {

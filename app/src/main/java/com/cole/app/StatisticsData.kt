@@ -210,6 +210,27 @@ object StatisticsData {
         return usageMs.mapValues { Pair(it.value, sessionCounts[it.key] ?: 0) }
     }
 
+    /** 단일 월 범위: monthOffset 0=이번 달, -1=지난달. (startMs, endMs, "N월") */
+    fun getSingleMonthRange(monthOffset: Int): Triple<Long, Long, String> {
+        val cal = Calendar.getInstance()
+        cal.add(Calendar.MONTH, monthOffset)
+        val month = cal.get(Calendar.MONTH) + 1
+        cal.set(Calendar.DAY_OF_MONTH, 1)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val startMs = cal.timeInMillis
+        cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+        cal.set(Calendar.HOUR_OF_DAY, 23)
+        cal.set(Calendar.MINUTE, 59)
+        cal.set(Calendar.SECOND, 59)
+        cal.set(Calendar.MILLISECOND, 999)
+        val endMs = cal.timeInMillis
+        val label = if (monthOffset == 0) "이번 달" else "${month}월"
+        return Triple(startMs, endMs, label)
+    }
+
     /** 월간: yearOffset 0=올해, -1=작년. 해당 연도의 (startMs, endMs, "YYYY") */
     fun getMonthRange(yearOffset: Int): Triple<Long, Long, String> {
         val cal = Calendar.getInstance()
@@ -419,6 +440,36 @@ object StatisticsData {
         val thisWeek = loadDayOfWeekMinutes(context, thisStart, thisEnd)
         val prevWeek = loadDayOfWeekMinutes(context, prevStart, prevEnd)
         return Pair(thisWeek, prevWeek)
+    }
+
+    /** 선택 기간 vs 현재(진행중): (선택 7값, 현재 7값) */
+    fun loadWeekSelectedVsCurrent(context: Context, weekOffset: Int): Pair<List<Long>, List<Long>> {
+        val (selStart, selEnd, _) = getWeekRange(weekOffset)
+        val (curStart, curEnd, _) = getWeekRange(0)
+        return Pair(
+            loadDayOfWeekMinutes(context, selStart, selEnd),
+            loadDayOfWeekMinutes(context, curStart, curEnd),
+        )
+    }
+
+    /** 선택 연도 vs 현재 연도: (선택 12값, 현재 12값) */
+    fun loadMonthSelectedVsCurrent(context: Context, yearOffset: Int): Pair<List<Long>, List<Long>> {
+        val (selStart, selEnd, _) = getMonthRange(yearOffset)
+        val (curStart, curEnd, _) = getMonthRange(0)
+        return Pair(
+            loadMonthMinutes(context, selStart, selEnd),
+            loadMonthMinutes(context, curStart, curEnd),
+        )
+    }
+
+    /** 선택 연도 vs 현재 연도: (선택 N값, 현재 N값) */
+    fun loadYearSelectedVsCurrent(context: Context, yearOffset: Int): Pair<List<Long>, List<Long>> {
+        val (selRanges, _) = getYearRanges(yearOffset)
+        val (curRanges, _) = getYearRanges(0)
+        return Pair(
+            loadYearsMinutes(context, selRanges),
+            loadYearsMinutes(context, curRanges),
+        )
     }
 
     /** 월간: 해당 연도 12개월 vs 전년 12개월 (yearOffset 0=올해) */
@@ -710,6 +761,19 @@ object StatisticsData {
             }
             .sortedByDescending { it.second }
             .map { it.first }
+    }
+
+    /**
+     * 진행 중인 앱이 없을 때 추천용: 최근 1주일 사용기록 → 카테고리별 합산 → 1순위 카테고리 → 해당 카테고리 최다 사용 앱.
+     * @return 추천 앱 (카테고리 매핑된 앱이 없으면 null)
+     */
+    fun loadRecommendedAppForRestriction(context: Context): StatsAppItem? {
+        val (startMs, endMs, _) = getWeekRange(-1)
+        val apps = loadAppUsage(context, startMs, endMs).filter { it.categoryTag != null }
+        if (apps.isEmpty()) return null
+        val byCategory = apps.groupBy { it.categoryTag!! }.mapValues { (_, list) -> list.sumOf { it.usageMs } }
+        val topCategory = byCategory.maxByOrNull { it.value }?.key ?: return null
+        return apps.filter { it.categoryTag == topCategory }.maxByOrNull { it.usageMs }
     }
 
     private fun getUserInstalledPackages(pm: PackageManager): Set<String> {

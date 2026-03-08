@@ -40,13 +40,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -180,7 +187,7 @@ private fun MainCommentSection(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 text = comment,
                 style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary),
@@ -284,52 +291,21 @@ private fun MainAppRestrictionCard(
                 icon = painterResource(R.drawable.ic_add_circle),
                 onClick = onAddAppClick,
                 modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(6.dp),
             )
         }
     }
 }
 
-/** MA-01: 접근권한 허용 카드 (Figma 336:2910, 회색 배경) */
-@Composable
-private fun MainPermissionBanner(
-    onClick: () -> Unit = {},
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(MainCardShape)
-            .background(AppColors.Grey200)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_permission_denied),
-            contentDescription = null,
-            tint = Color.Unspecified,
-            modifier = Modifier.size(24.dp),
-        )
-        Text(
-            text = "접근권한을 허용해주세요",
-            style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
-            modifier = Modifier.weight(1f),
-        )
-        Icon(
-            painter = painterResource(R.drawable.ic_chevron_right),
-            contentDescription = null,
-            tint = AppColors.TextSecondary,
-        )
-    }
-}
-
-/** MA-02: 진행 중인 앱 빈 상태 (Figma 662:2907) */
+/** MA-02: 진행 중인 앱 빈 상태 (Figma 662:2910) — 추천 앱 있을 때 기기 데이터 기반 추천 UI */
 @Composable
 private fun MainAppRestrictionCardEmpty(
     onAddAppClick: () -> Unit,
     modifier: Modifier = Modifier,
-    addButtonText: String = "잠시만 멀어질 앱 추가하기",
+    addButtonText: String = "사용제한 앱 추가",
+    recommendedApp: StatisticsData.StatsAppItem? = null,
+    onRecommendedAppClick: ((String) -> Unit)? = null,
+    onInfoClick: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
@@ -337,30 +313,103 @@ private fun MainAppRestrictionCardEmpty(
             .shadow(6.dp, MainCardShape, false, MainCardShadowColor, MainCardShadowColor)
             .clip(MainCardShape)
             .background(AppColors.SurfaceBackgroundCard)
-            .padding(start = 16.dp, top = 28.dp, end = 16.dp, bottom = 22.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+            .padding(start = 16.dp, top = 26.dp, end = 16.dp, bottom = 26.dp),
+        verticalArrangement = Arrangement.spacedBy(26.dp),
     ) {
-        Text(
-            text = "진행 중인 앱",
-            style = AppTypography.HeadingH2.copy(color = AppColors.TextSecondary),
-        )
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = "아직 진행중인 앱이 없어요",
-                style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = "잠시 제한하고 싶은 앱을 추가해보세요",
-                style = AppTypography.Caption1.copy(color = AppColors.TextSecondary),
-                textAlign = TextAlign.Center,
-            )
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = if (recommendedApp != null) "사용 제한 중인 앱" else "진행 중인 앱",
+                    style = AppTypography.HeadingH2.copy(color = AppColors.TextSecondary),
+                )
+                if (onInfoClick != null) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onInfoClick),
+                    ) {
+                        IcoDisclaimerInfo(modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+            if (recommendedApp != null) {
+                Text(
+                    text = "기기 데이터 기반으로 많이 쓰는 앱을 불러왔어요. 제한하시겠어요?",
+                    style = AppTypography.BodyMedium.copy(color = AppColors.TextTertiary),
+                )
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = "아직 진행중인 앱이 없어요",
+                        style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = "잠시 제한하고 싶은 앱을",
+                        style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = "추가해보세요",
+                        style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
+        if (recommendedApp != null) {
+            Column(verticalArrangement = Arrangement.spacedBy(26.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .then(if (onRecommendedAppClick != null) Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onRecommendedAppClick(recommendedApp.packageName) } else Modifier),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        AppIconBox(
+                            appIcon = rememberAppIconPainter(recommendedApp.packageName),
+                            size = 56.dp,
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            LabelDanger(text = "위험")
+                            Text(
+                                text = recommendedApp.name,
+                                style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = "하루 평균",
+                            style = AppTypography.Caption1.copy(color = AppColors.TextCaption),
+                        )
+                        val dailyAvgMin = (recommendedApp.usageMs / 7 / 60_000).toInt().coerceAtLeast(0)
+                        Text(
+                            text = "${java.text.DecimalFormat("#,###").format(dailyAvgMin)}분 사용",
+                            style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
+                        )
+                    }
+                }
+            }
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -371,6 +420,7 @@ private fun MainAppRestrictionCardEmpty(
                 icon = painterResource(R.drawable.ic_add_circle),
                 onClick = onAddAppClick,
                 modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(6.dp),
             )
         }
     }
@@ -437,15 +487,26 @@ internal fun MainScreenMA01(
         }
     }
 
+    // 진행 중인 앱이 없을 때: 최근 1주일 기반 카테고리 1순위 앱 추천
+    val recommendedApp by produceState<StatisticsData.StatsAppItem?>(
+        initialValue = null,
+        restrictionItems,
+    ) {
+        value = if (restrictionItems.isEmpty()) {
+            withContext(Dispatchers.IO) {
+                StatisticsData.loadRecommendedAppForRestriction(context)
+            }
+        } else null
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
-            .padding(top = 10.dp),
+            .padding(top = 24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        MainPermissionBanner(onClick = onPermissionClick)
         MainCommentSection(
             comment = "최근 인스타그램의 사용시간이\n늘어나고 있어요!",
             subtext = "약간의 제한이 필요해요",
@@ -455,7 +516,9 @@ internal fun MainScreenMA01(
         if (restrictionItems.isEmpty()) {
             MainAppRestrictionCardEmpty(
                 onAddAppClick = onAddAppClick,
-                addButtonText = "잠시만 멀어질 앱 추가하기",
+                addButtonText = if (recommendedApp != null) "사용제한 앱 추가" else "잠시만 멀어질 앱 추가하기",
+                recommendedApp = recommendedApp,
+                onRecommendedAppClick = null,
             )
         } else {
             MainAppRestrictionCard(
@@ -589,7 +652,7 @@ fun MainScreenMA02(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
-            .padding(top = 10.dp),
+            .padding(top = 24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         MainCommentSection(
@@ -628,23 +691,53 @@ fun MainFlowHost(
         NavDestination("설정", R.drawable.ic_nav_mypage_inactive, R.drawable.ic_nav_mypage_active),
     )
 
+    // 통계/챌린지/설정: 아래 스크롤 시 바텀바 숨김, 위 스크롤 시 표시
+    var bottomBarVisible by remember { mutableStateOf(true) }
+    LaunchedEffect(navIndex) {
+        bottomBarVisible = true // 탭 전환 시 바텀바 다시 표시
+    }
+    LaunchedEffect(settingsDetail) {
+        bottomBarVisible = true // 설정 세부 화면 진입 시에도 바텀바 표시 (짧은 화면에서 스크롤 없이 숨겨진 상태 유지 방지)
+    }
+    val scrollToHideConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (navIndex !in listOf(1, 2, 3)) return Offset.Zero
+                val dy = consumed.y
+                if (dy > 8f) bottomBarVisible = true   // 아래로 스크롤 → 바텀바 표시
+                else if (dy < -8f) bottomBarVisible = false // 위로 스크롤 → 바텀바 숨김
+                return Offset.Zero
+            }
+        }
+    }
     // 바텀바 실제 높이 측정 (수동 계산 대신 onGloballyPositioned로 정확히)
     val density = LocalDensity.current
     val navBarInsetBottom = WindowInsets.navigationBars.getBottom(density)
     val navBarPaddingDp = with(density) { navBarInsetBottom.toDp() }
     var bottomBarHeightPx by remember { mutableIntStateOf(0) }
     val bottomBarHeightDp = with(density) { bottomBarHeightPx.toDp() }
+    // 측정값에 windowInsetsPadding 포함됨 (navBar inset 포함)
+    val barHeightPx = bottomBarHeightPx
+    val bottomBarOffsetY by animateFloatAsState(
+        targetValue = if (bottomBarVisible) 0f else 1f,
+        animationSpec = tween(250),
+        label = "bottomBarOffset",
+    )
     // 시스템 네비바 영역 채움: 프리미엄 배너(#2B2B2B) / 유료(카드 배경)
     val bottomFillColor = if (isFreeUser) Color(0xFF2B2B2B) else AppColors.SurfaceBackgroundCard
 
-    // ★ windowInsetsPadding 제거: 바텀바가 화면 최하단에 딱 붙고, 네비바 영역은 Box로 배경 채움
+    // 바텀바 숨김 시 콘텐츠 하단 패딩 축소해 빈 공간 방지
+    val contentBottomPadding = if (bottomBarHeightDp > 0.dp) {
+        if (bottomBarVisible) bottomBarHeightDp else navBarPaddingDp
+    } else 122.dp
+
     Box(modifier = Modifier.fillMaxSize().background(AppColors.SurfaceBackgroundBackground)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(top = 18.dp)
-                .padding(bottom = if (bottomBarHeightDp > 0.dp) bottomBarHeightDp else 122.dp),
+                .padding(bottom = contentBottomPadding),
         ) {
         // 헤더 (설정 2차뎁스일 때만 Sub 헤더; 탭 전환 시 settingsDetail 초기화됨)
         when {
@@ -694,27 +787,24 @@ fun MainFlowHost(
                 }
             }
             1 -> {
-                Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f).fillMaxWidth().nestedScroll(scrollToHideConnection)) {
                     ChallengeScreen()
                 }
             }
             2 -> {
-                Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f).fillMaxWidth().nestedScroll(scrollToHideConnection)) {
                     StatisticsScreen()
                 }
             }
             3 -> {
-                Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f).fillMaxWidth().nestedScroll(scrollToHideConnection)) {
                     when (settingsDetail) {
                         SettingsDetail.AccountManage -> AccountManageScreen(
                             onBack = { settingsDetail = null },
                             onProfileClick = { },
-                            onSocialClick = { },
-                            onPasswordClick = { },
                         )
                         SettingsDetail.Subscription -> SubscriptionManageScreen(
                             onBack = { settingsDetail = null },
-                            onPaymentClick = { },
                         )
                         SettingsDetail.Permission -> PermissionSettingsScreen(
                             onBack = { settingsDetail = null },
@@ -760,33 +850,44 @@ fun MainFlowHost(
         }
         }
 
-        // ── 바텀바 (화면 최하단 고정) ──
-        Column(
+        // 시스템 네비바 영역 채움 (바텀바 숨김 시에도 항상 표시)
+        if (navBarInsetBottom > 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(navBarPaddingDp)
+                    .background(bottomFillColor),
+            )
+        }
+        // ── 바텀바 (스크롤 시 숨김, 시스템 네비 영역 위에서 클리핑해 애매하게 보이지 않게) ──
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .onGloballyPositioned { coordinates ->
-                    bottomBarHeightPx = coordinates.size.height
-                },
+                .padding(bottom = navBarPaddingDp)
+                .graphicsLayer { clip = true },
         ) {
-            ColeBottomNavBar(
-                destinations = navDestinations,
-                selectedIndex = navIndex,
-                onTabSelected = {
-                    if (it != navIndex) {
-                        navIndex = it
-                        if (it != 3) settingsDetail = null
-                    }
-                },
-                showPremiumBanner = isFreeUser,
-                onPremiumClick = { if (isFreeUser) showSubscriptionGuide = true },
-            )
-            if (navBarInsetBottom > 0) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(navBarPaddingDp)
-                        .background(bottomFillColor),
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .graphicsLayer { translationY = bottomBarOffsetY * barHeightPx }
+                    .onGloballyPositioned { coordinates ->
+                        bottomBarHeightPx = coordinates.size.height
+                    },
+            ) {
+                ColeBottomNavBar(
+                    destinations = navDestinations,
+                    selectedIndex = navIndex,
+                    onTabSelected = {
+                        if (it != navIndex) {
+                            navIndex = it
+                            if (it != 3) settingsDetail = null
+                        }
+                    },
+                    showPremiumBanner = isFreeUser,
+                    onPremiumClick = { if (isFreeUser) showSubscriptionGuide = true },
                 )
             }
         }

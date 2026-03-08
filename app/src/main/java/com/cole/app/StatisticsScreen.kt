@@ -119,10 +119,12 @@ fun StatisticsScreen(
     var weekOffsetDateChart by remember { mutableIntStateOf(0) }
     var yearOffsetDateChart by remember { mutableIntStateOf(0) }
     var weekOffsetCategory by remember { mutableIntStateOf(0) }
+    var monthOffsetCategory by remember { mutableIntStateOf(0) } // 월간: 0=이번 달
     var yearOffsetCategory by remember { mutableIntStateOf(0) }
     var weekOffsetRestriction by remember { mutableIntStateOf(0) }
+    var monthOffsetRestriction by remember { mutableIntStateOf(0) } // 월간: 0=이번 달
     var yearOffsetRestriction by remember { mutableIntStateOf(0) }
-    var weekOffsetComparison by remember { mutableIntStateOf(0) }
+    var weekOffsetComparison by remember { mutableIntStateOf(-1) } // 기본: 지난주 vs 이번주
     var yearOffsetComparison by remember { mutableIntStateOf(0) }
 
     val restrictedApps = remember { AppRestrictionRepository(context).getAll() }
@@ -136,7 +138,7 @@ fun StatisticsScreen(
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
-            .padding(top = 10.dp, bottom = 24.dp),
+            .padding(top = 24.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         ColeSegmentedTab(
@@ -158,6 +160,8 @@ fun StatisticsScreen(
             tabEnum = tabEnum,
             weekOffset = weekOffsetCategory,
             onWeekChange = { weekOffsetCategory = it },
+            monthOffset = monthOffsetCategory,
+            onMonthChange = { monthOffsetCategory = it },
             yearOffset = yearOffsetCategory,
             onYearChange = { yearOffsetCategory = it },
             onInfoClick = { showHelpSheet = StatsHelpType.CATEGORY },
@@ -166,6 +170,8 @@ fun StatisticsScreen(
             tabEnum = tabEnum,
             weekOffset = weekOffsetRestriction,
             onWeekChange = { weekOffsetRestriction = it },
+            monthOffset = monthOffsetRestriction,
+            onMonthChange = { monthOffsetRestriction = it },
             yearOffset = yearOffsetRestriction,
             onYearChange = { yearOffsetRestriction = it },
             filterIndex = restrictionFilter,
@@ -446,9 +452,12 @@ private fun StatsDateChartSection(
                 isCurrentYear = yearOffset == 0,
             )
             StatisticsData.Tab.YEARLY -> {
-                val indicesWithData = yearMinutes.indices.filter { yearMinutes[it] > 0L }
-                val displayValues = if (indicesWithData.isEmpty()) yearMinutes else indicesWithData.map { yearMinutes[it] }
-                val displayLabels = if (indicesWithData.isEmpty()) yearLabels else indicesWithData.map { yearLabels[it] }
+                val minSize = minOf(yearMinutes.size, yearLabels.size)
+                val safeMinutes = yearMinutes.take(minSize)
+                val safeYearLabels = yearLabels.take(minSize)
+                val indicesWithData = safeMinutes.indices.filter { safeMinutes.getOrElse(it) { 0L } > 0L }
+                val displayValues = if (indicesWithData.isEmpty()) safeMinutes else indicesWithData.map { safeMinutes.getOrElse(it) { 0L } }
+                val displayLabels = if (indicesWithData.isEmpty()) safeYearLabels else indicesWithData.map { safeYearLabels.getOrElse(it) { "" } }
                 YearBarChart(
                     values = displayValues,
                     labels = displayLabels,
@@ -475,6 +484,28 @@ private fun formatPeriodLabel(tabEnum: StatisticsData.Tab, weekOffset: Int, year
         else -> "${-weekOffset}주 전"
     }
     StatisticsData.Tab.MONTHLY, StatisticsData.Tab.YEARLY -> {
+        val year = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) + yearOffset
+        "${year}년"
+    }
+    else -> ""
+}
+
+/** 카테고리/제한앱 카드용: 월간 탭이면 "3월"/"이번 달" 등 */
+private fun formatPeriodLabelMonthAware(
+    tabEnum: StatisticsData.Tab,
+    weekOffset: Int,
+    monthOffset: Int,
+    yearOffset: Int,
+): String = when (tabEnum) {
+    StatisticsData.Tab.WEEKLY -> when (weekOffset) {
+        0 -> "이번 주"
+        else -> "${-weekOffset}주 전"
+    }
+    StatisticsData.Tab.MONTHLY -> {
+        val (_, _, label) = StatisticsData.getSingleMonthRange(monthOffset)
+        label
+    }
+    StatisticsData.Tab.YEARLY -> {
         val year = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) + yearOffset
         "${year}년"
     }
@@ -768,8 +799,11 @@ private fun YearBarChart(
     isCurrentYear: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    if (values.isEmpty() && labels.isEmpty()) {
+        Box(modifier = modifier.fillMaxWidth().height(BarChartHeight))
+        return
+    }
     val count = values.size.coerceAtLeast(1)
-    val useFlexWidth = count <= 4
     val maxVal = values.maxOrNull()?.takeIf { it > 0 } ?: 1L
     val normalized = values.map { (it.toFloat() / maxVal).coerceIn(0f, 1f) }
     val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
@@ -808,18 +842,15 @@ private fun YearBarChart(
                     val year = yearStr.toIntOrNull() ?: 0
                     val isHighlight = isCurrentYear && year == currentYear && value > 0f
                     Column(
-                        modifier = if (useFlexWidth) Modifier.weight(1f) else Modifier.width(YearBarWidth),
+                        modifier = Modifier.width(YearBarWidth),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Box(
-                            modifier = Modifier
-                                .then(if (useFlexWidth) Modifier.fillMaxWidth() else Modifier.width(YearBarWidth))
-                                .fillMaxHeight(),
+                            modifier = Modifier.width(YearBarWidth).fillMaxHeight(),
                             contentAlignment = Alignment.BottomCenter,
                         ) {
                             Box(
-                                modifier = Modifier
-                                    .then(if (useFlexWidth) Modifier.fillMaxWidth() else Modifier.width(YearBarWidth))
+                                modifier = Modifier.width(YearBarWidth)
                                     .fillMaxHeight(value)
                                     .clip(RoundedCornerShape(BarCornerRadius))
                                     .background(
@@ -839,7 +870,7 @@ private fun YearBarChart(
         ) {
             displayLabels.take(count).forEach { label ->
                 Box(
-                    modifier = if (useFlexWidth) Modifier.weight(1f) else Modifier.width(YearBarWidth),
+                    modifier = Modifier.width(YearBarWidth),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -933,17 +964,20 @@ private fun StatsStackedBarAndAppList(
     tabEnum: StatisticsData.Tab,
     weekOffset: Int,
     onWeekChange: (Int) -> Unit,
+    monthOffset: Int,
+    onMonthChange: (Int) -> Unit,
     yearOffset: Int,
     onYearChange: (Int) -> Unit,
     onInfoClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val nav = remember(tabEnum, weekOffset, yearOffset) {
-        val label = formatPeriodLabel(tabEnum, weekOffset, yearOffset)
+    val nav = remember(tabEnum, weekOffset, monthOffset, yearOffset) {
+        val label = formatPeriodLabelMonthAware(tabEnum, weekOffset, monthOffset, yearOffset)
         when (tabEnum) {
             StatisticsData.Tab.WEEKLY -> NavState(label, true, weekOffset < 0, { onWeekChange(weekOffset - 1) }, { if (weekOffset < 0) onWeekChange(weekOffset + 1) })
-            StatisticsData.Tab.MONTHLY, StatisticsData.Tab.YEARLY -> NavState(label, true, yearOffset < 0, { onYearChange(yearOffset - 1) }, { if (yearOffset < 0) onYearChange(yearOffset + 1) })
+            StatisticsData.Tab.MONTHLY -> NavState(label, true, monthOffset < 0, { onMonthChange(monthOffset - 1) }, { if (monthOffset < 0) onMonthChange(monthOffset + 1) })
+            StatisticsData.Tab.YEARLY -> NavState(label, true, yearOffset < 0, { onYearChange(yearOffset - 1) }, { if (yearOffset < 0) onYearChange(yearOffset + 1) })
             else -> NavState("", false, false, {}, {})
         }
     }
@@ -1206,6 +1240,8 @@ private fun StatsRestrictionSection(
     tabEnum: StatisticsData.Tab,
     weekOffset: Int,
     onWeekChange: (Int) -> Unit,
+    monthOffset: Int,
+    onMonthChange: (Int) -> Unit,
     yearOffset: Int,
     onYearChange: (Int) -> Unit,
     filterIndex: Int,
@@ -1215,11 +1251,12 @@ private fun StatsRestrictionSection(
     onInfoClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    val nav = remember(tabEnum, weekOffset, yearOffset) {
-        val label = formatPeriodLabel(tabEnum, weekOffset, yearOffset)
+    val nav = remember(tabEnum, weekOffset, monthOffset, yearOffset) {
+        val label = formatPeriodLabelMonthAware(tabEnum, weekOffset, monthOffset, yearOffset)
         when (tabEnum) {
             StatisticsData.Tab.WEEKLY -> NavState(label, true, weekOffset < 0, { onWeekChange(weekOffset - 1) }, { if (weekOffset < 0) onWeekChange(weekOffset + 1) })
-            StatisticsData.Tab.MONTHLY, StatisticsData.Tab.YEARLY -> NavState(label, true, yearOffset < 0, { onYearChange(yearOffset - 1) }, { if (yearOffset < 0) onYearChange(yearOffset + 1) })
+            StatisticsData.Tab.MONTHLY -> NavState(label, true, monthOffset < 0, { onMonthChange(monthOffset - 1) }, { if (monthOffset < 0) onMonthChange(monthOffset + 1) })
+            StatisticsData.Tab.YEARLY -> NavState(label, true, yearOffset < 0, { onYearChange(yearOffset - 1) }, { if (yearOffset < 0) onYearChange(yearOffset + 1) })
             else -> NavState("", false, false, {}, {})
         }
     }
@@ -1350,7 +1387,7 @@ private fun StatsGroupedBarSection(
                 label,
                 7,
                 DayLabels,
-                NavState(label, true, weekOffset < 0, { onWeekChange(weekOffset - 1) }, { if (weekOffset < 0) onWeekChange(weekOffset + 1) }),
+                NavState(label, true, weekOffset < -1, { onWeekChange(weekOffset - 1) }, { if (weekOffset < -1) onWeekChange(weekOffset + 1) }),
             )
             StatisticsData.Tab.MONTHLY, StatisticsData.Tab.YEARLY -> {
                 val yr = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) + yearOffset
@@ -1366,36 +1403,40 @@ private fun StatsGroupedBarSection(
     LaunchedEffect(tabEnum, weekOffset, yearOffset) {
         withContext(Dispatchers.IO) {
             comparisonData = when (tabEnum) {
-                StatisticsData.Tab.WEEKLY -> StatisticsData.loadWeekComparisonMinutes(context, weekOffset)
-                StatisticsData.Tab.MONTHLY -> StatisticsData.loadMonthComparisonMinutes(context, yearOffset)
-                StatisticsData.Tab.YEARLY -> StatisticsData.loadYearComparisonMinutes(context, yearOffset)
+                StatisticsData.Tab.WEEKLY -> StatisticsData.loadWeekSelectedVsCurrent(context, weekOffset)
+                StatisticsData.Tab.MONTHLY -> StatisticsData.loadMonthSelectedVsCurrent(context, yearOffset)
+                StatisticsData.Tab.YEARLY -> StatisticsData.loadYearSelectedVsCurrent(context, yearOffset)
                 else -> Pair(List(7) { 0L }, List(7) { 0L })
             }
         }
     }
 
-    val (thisWeek, prevWeek) = comparisonData
-    val (displayThis, displayPrev, displayLabels) = when (tabEnum) {
+    val (selectedData, currentData) = comparisonData
+    val minSize = minOf(selectedData.size, currentData.size, barState.labels.size)
+    val safeSelected = selectedData.take(minSize)
+    val safeCurrent = currentData.take(minSize)
+    val safeLabels = barState.labels.take(minSize)
+    val (displaySelected, displayCurrent, displayLabels) = when (tabEnum) {
         StatisticsData.Tab.YEARLY -> {
-            val indicesWithData = thisWeek.indices.filter { i ->
-                thisWeek.getOrElse(i) { 0L } > 0L || prevWeek.getOrElse(i) { 0L } > 0L
+            val indicesWithData = safeSelected.indices.filter { i ->
+                safeSelected.getOrElse(i) { 0L } > 0L || safeCurrent.getOrElse(i) { 0L } > 0L
             }
             if (indicesWithData.isEmpty()) {
-                Triple(thisWeek, prevWeek, barState.labels)
+                Triple(safeSelected, safeCurrent, safeLabels)
             } else {
                 Triple(
-                    indicesWithData.map { thisWeek[it] },
-                    indicesWithData.map { prevWeek[it] },
-                    indicesWithData.map { barState.labels[it] },
+                    indicesWithData.map { safeSelected.getOrElse(it) { 0L } },
+                    indicesWithData.map { safeCurrent.getOrElse(it) { 0L } },
+                    indicesWithData.map { safeLabels.getOrElse(it) { "" } },
                 )
             }
         }
-        else -> Triple(thisWeek, prevWeek, barState.labels)
+        else -> Triple(safeSelected, safeCurrent, safeLabels)
     }
     val displayCount = displayLabels.size
-    val maxVal = (displayThis + displayPrev).maxOrNull()?.takeIf { it > 0 } ?: 1L
-    val thisNorm = displayThis.map { (it.toFloat() / maxVal).coerceIn(0f, 1f) }
-    val prevNorm = displayPrev.map { (it.toFloat() / maxVal).coerceIn(0f, 1f) }
+    val maxVal = (displaySelected + displayCurrent).maxOrNull()?.takeIf { it > 0 } ?: 1L
+    val selectedNorm = displaySelected.map { (it.toFloat() / maxVal).coerceIn(0f, 1f) }
+    val currentNorm = displayCurrent.map { (it.toFloat() / maxVal).coerceIn(0f, 1f) }
 
     Column(
         modifier = modifier
@@ -1417,9 +1458,14 @@ private fun StatsGroupedBarSection(
             showPeriodSelector = tabEnum != StatisticsData.Tab.YEARLY,
         )
 
+        val (barWidth, barGap, useFlexBar) = when {
+            tabEnum == StatisticsData.Tab.MONTHLY -> Triple(4.dp, 4.dp, false)
+            tabEnum == StatisticsData.Tab.YEARLY -> Triple(16.dp, 4.dp, false)
+            else -> Triple(11.dp, 4.dp, false)
+        }
         Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            horizontalAlignment = if (tabEnum == StatisticsData.Tab.YEARLY) Alignment.Start else Alignment.CenterHorizontally,
         ) {
             Box(modifier = Modifier.fillMaxWidth().height(BarChartHeight)) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
@@ -1435,20 +1481,16 @@ private fun StatsGroupedBarSection(
                         )
                     }
                 }
-                val (barWidth, barGap, useFlexBar) = when {
-                    tabEnum == StatisticsData.Tab.MONTHLY -> Triple(4.dp, 4.dp, false)
-                    tabEnum == StatisticsData.Tab.YEARLY -> Triple(16.dp, 4.dp, displayCount <= 4)
-                    else -> Triple(11.dp, 4.dp, false)
-                }
                 Row(
                     modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    horizontalArrangement = if (tabEnum == StatisticsData.Tab.YEARLY) Arrangement.spacedBy(4.dp, Alignment.Start) else Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.Bottom,
                 ) {
-                    thisNorm.forEachIndexed { index, v1 ->
-                        val v2 = prevNorm.getOrElse(index) { 0f }
+                    selectedNorm.forEachIndexed { index, vSelected ->
+                        val vCurrent = currentNorm.getOrElse(index) { 0f }
+                        val columnMod = if (tabEnum == StatisticsData.Tab.YEARLY) Modifier.width(barWidth * 2 + barGap) else Modifier.weight(1f)
                         Column(
-                            modifier = Modifier.weight(1f),
+                            modifier = columnMod,
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             Row(
@@ -1458,13 +1500,13 @@ private fun StatsGroupedBarSection(
                             ) {
                                 Box(
                                     modifier = (if (useFlexBar) Modifier.weight(1f) else Modifier.width(barWidth))
-                                        .fillMaxHeight(v2)
+                                        .fillMaxHeight(vSelected)
                                         .clip(RoundedCornerShape(BarCornerRadius))
                                         .background(AppColors.Grey350),
                                 )
                                 Box(
                                     modifier = (if (useFlexBar) Modifier.weight(1f) else Modifier.width(barWidth))
-                                        .fillMaxHeight(v1)
+                                        .fillMaxHeight(vCurrent)
                                         .clip(RoundedCornerShape(BarCornerRadius))
                                         .background(AppColors.ChartTrackFill),
                                 )
@@ -1474,22 +1516,27 @@ private fun StatsGroupedBarSection(
                 }
             }
             Spacer(modifier = Modifier.height(10.dp))
-            Row(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = if (tabEnum == StatisticsData.Tab.YEARLY) Arrangement.spacedBy(4.dp, Alignment.Start) else Arrangement.SpaceEvenly,
+            ) {
                 displayLabels.forEach { label ->
                     Text(
                         text = label,
                         style = AppTypography.Caption1.copy(color = AppColors.TextCaption),
-                        modifier = Modifier.weight(1f),
+                        modifier = if (tabEnum == StatisticsData.Tab.YEARLY) Modifier.width(barWidth * 2 + barGap) else Modifier.weight(1f),
                         textAlign = TextAlign.Center,
                     )
                 }
             }
             Spacer(modifier = Modifier.height(10.dp))
-            val legendPrevLabel = when (tabEnum) {
-                StatisticsData.Tab.WEEKLY -> formatPeriodLabel(tabEnum, weekOffset - 1, yearOffset)
-                else -> formatPeriodLabel(tabEnum, weekOffset, yearOffset - 1)
+            val legendSelectedLabel = formatPeriodLabel(tabEnum, weekOffset, yearOffset)
+            val legendCurrentLabel = when (tabEnum) {
+                StatisticsData.Tab.WEEKLY -> "이번 주"
+                StatisticsData.Tab.MONTHLY -> "이번 달"
+                StatisticsData.Tab.YEARLY -> "올해"
+                else -> ""
             }
-            val legendThisLabel = formatPeriodLabel(tabEnum, weekOffset, yearOffset)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
@@ -1506,7 +1553,7 @@ private fun StatsGroupedBarSection(
                             .background(AppColors.Grey350),
                     )
                     Text(
-                        text = legendPrevLabel,
+                        text = legendSelectedLabel,
                         style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
                     )
                 }
@@ -1522,42 +1569,20 @@ private fun StatsGroupedBarSection(
                             .background(AppColors.ChartTrackFill),
                     )
                     Text(
-                        text = legendThisLabel,
+                        text = legendCurrentLabel,
                         style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
                     )
                 }
             }
         }
 
-        val compThisLabel = formatPeriodLabel(tabEnum, weekOffset, yearOffset)
-        val compPrevLabel = when (tabEnum) {
-            StatisticsData.Tab.WEEKLY -> formatPeriodLabel(tabEnum, weekOffset - 1, yearOffset)
-            else -> formatPeriodLabel(tabEnum, weekOffset, yearOffset - 1)
-        }
-        val thisTotal = thisWeek.sum()
-        val prevTotal = prevWeek.sum()
-        val fmt = java.text.DecimalFormat("#,###")
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(83.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(AppColors.Grey100)
-                .border(0.5.dp, AppColors.BorderInfoBox, RoundedCornerShape(6.dp))
-                .padding(horizontal = 0.dp, vertical = StatsCardContentSpacing),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            StatsInsightStatItem(label = compThisLabel, value = "${fmt.format(thisTotal)}분")
-            IcoStatsBriefDivider()
-            StatsInsightStatItem(label = compPrevLabel, value = "${fmt.format(prevTotal)}분")
-        }
+        val selectedLabel = formatPeriodLabel(tabEnum, weekOffset, yearOffset)
 
         ColeInfoBoxCompact(
             text = when (tabEnum) {
-                StatisticsData.Tab.WEEKLY -> "${compPrevLabel}에 비해 사용시간은 큰 차이 없지만 포기하지 않고 노력했어요"
-                StatisticsData.Tab.MONTHLY -> "${compPrevLabel}에 비해 사용시간은 큰 차이 없지만 포기하지 않고 노력했어요"
-                StatisticsData.Tab.YEARLY -> "${compPrevLabel}에 비해 사용시간은 큰 차이 없지만 포기하지 않고 노력했어요"
+                StatisticsData.Tab.WEEKLY -> "${selectedLabel}에 비해 이번 주 사용시간은 큰 차이 없지만 포기하지 않고 노력했어요"
+                StatisticsData.Tab.MONTHLY -> "${selectedLabel}에 비해 이번 달 사용시간은 큰 차이 없지만 포기하지 않고 노력했어요"
+                StatisticsData.Tab.YEARLY -> "${selectedLabel}에 비해 올해 사용시간은 큰 차이 없지만 포기하지 않고 노력했어요"
                 else -> "사용시간은 큰 차이 없지만 포기하지 않고 노력했어요"
             },
         )

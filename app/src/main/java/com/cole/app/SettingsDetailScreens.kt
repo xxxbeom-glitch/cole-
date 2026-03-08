@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
  */
 
 @Composable
-fun AccountManageScreen(onBack: () -> Unit, onProfileClick: () -> Unit, onSocialClick: () -> Unit, onPasswordClick: () -> Unit) {
+fun AccountManageScreen(onBack: () -> Unit, onProfileClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -32,17 +32,13 @@ fun AccountManageScreen(onBack: () -> Unit, onProfileClick: () -> Unit, onSocial
         Spacer(modifier = Modifier.height(24.dp))
         SettingsListCard {
             SettingsRow(iconResId = R.drawable.ic_manageaccount, label = "프로필 정보", onClick = onProfileClick)
-            SettingsDivider()
-            SettingsRow(iconResId = R.drawable.ic_managesubs, label = "비밀번호 변경", onClick = onPasswordClick)
-            SettingsDivider()
-            SettingsRow(iconResId = R.drawable.ic_managesubs, label = "연결된 소셜 계정", onClick = onSocialClick)
         }
         Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
 @Composable
-fun SubscriptionManageScreen(onBack: () -> Unit, onPaymentClick: () -> Unit) {
+fun SubscriptionManageScreen(onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -59,9 +55,6 @@ fun SubscriptionManageScreen(onBack: () -> Unit, onPaymentClick: () -> Unit) {
                 .clip(RoundedCornerShape(12.dp))
                 .background(AppColors.SurfaceBackgroundCard),
         ) {}
-        SettingsListCard {
-            SettingsRow(iconResId = R.drawable.ic_manageaccount, label = "결제 수단 관리", onClick = onPaymentClick)
-        }
         Spacer(modifier = Modifier.height(24.dp))
     }
 }

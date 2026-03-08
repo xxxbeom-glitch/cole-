@@ -58,7 +58,7 @@ fun ChallengeScreen(modifier: Modifier = Modifier) {
             .background(AppColors.SurfaceBackgroundBackground),
     ) {
         // 상단 여백 (헤더와 콘텐츠 사이) — 메인/통계/설정과 카드 시작점 맞춤
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         // 최근 받은 뱃지 카드
         Box(
