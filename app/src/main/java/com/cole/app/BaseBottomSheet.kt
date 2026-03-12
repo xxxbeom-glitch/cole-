@@ -106,9 +106,9 @@ fun BaseBottomSheet(
                     ColeGhostButton(
                         text = secondaryButtonText,
                         onClick = {
-                            scope.launch { sheetState.hide() }.invokeOnCompletion {
-                                if (!sheetState.isVisible) (onSecondaryClick ?: onDismissRequest)()
-                            }
+                            // 취소/뒤로가기: 즉시 콜백 호출 (상태 변경으로 시트 제거)
+                            // invokeOnCompletion 사용 시 Primary 콜백과 충돌해 일시정지가 적용되는 버그 방지
+                            (onSecondaryClick ?: onDismissRequest)()
                         },
                         modifier = Modifier.fillMaxWidth(),
                     )

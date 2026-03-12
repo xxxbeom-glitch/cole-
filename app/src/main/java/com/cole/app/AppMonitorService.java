@@ -6,7 +6,6 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.app.usage.UsageEvents;
-import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.content.Context;
 import android.content.Intent;
@@ -16,10 +15,8 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.util.Log;
 import androidx.core.app.NotificationCompat;
-import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class AppMonitorService extends Service {
@@ -31,6 +28,8 @@ public class AppMonitorService extends Service {
     private long lastCheckedTime = System.currentTimeMillis();
     /** MOVE_TO_FOREGROUND/BACKGROUND 이벤트로 유지되는 현재 포그라운드 앱 */
     private String lastKnownForegroundPkg = null;
+    /** 포그라운드 진입 시각(ms). UsageStats 지연 보정용 */
+    private final Map<String, Long> foregroundStartTimeMap = new HashMap<>();
 
     @Override
     public IBinder onBind(Intent intent) { return null; }
@@ -60,6 +59,7 @@ public class AppMonitorService extends Service {
                 // 오버레이 닫기 또는 일시정지 종료 후 호출 시 포그라운드 앱 초기화
                 // (제한 앱이 아직 포그라운드로 기록된 경우 즉시 차단되는 것을 방지)
                 lastKnownForegroundPkg = null;
+                foregroundStartTimeMap.clear();
             }
             scheduleEventCheck();
         }
@@ -100,13 +100,19 @@ public class AppMonitorService extends Service {
 
                 if (event.getEventType() == UsageEvents.Event.MOVE_TO_FOREGROUND) {
                     lastKnownForegroundPkg = pkg;
+                    foregroundStartTimeMap.put(pkg, event.getTimeStamp());
                     if (currentRestrictionMap.containsKey(pkg)) {
                         Log.d(TAG, "FOREGROUND 감지: " + pkg);
                         checkAndBlockPackage(usm, pkg);
                     }
                 } else if (event.getEventType() == UsageEvents.Event.MOVE_TO_BACKGROUND) {
-                    if (pkg.equals(lastKnownForegroundPkg)) {
-                        lastKnownForegroundPkg = null;
+                    // PiP 등 가시 윈도우가 있으면 포그라운드와 동일하게 카운팅 유지
+                    boolean hasVisibleWindow = new AppVisibilityRepository(this).hasVisibleWindow(pkg);
+                    if (!hasVisibleWindow) {
+                        if (pkg.equals(lastKnownForegroundPkg)) {
+                            lastKnownForegroundPkg = null;
+                        }
+                        foregroundStartTimeMap.remove(pkg);
                     }
                 }
             }
@@ -148,10 +154,14 @@ public class AppMonitorService extends Service {
                 lastKnownForegroundPkg = e.getKey();
             }
         }
+        if (lastKnownForegroundPkg != null) {
+            foregroundStartTimeMap.put(lastKnownForegroundPkg, latestTime);
+        }
         Log.d(TAG, "초기 포그라운드 앱: " + lastKnownForegroundPkg);
     }
 
     private void checkAndBlockPackage(UsageStatsManager usm, String pkg) {
+        long now = System.currentTimeMillis();
         // 일시정지 중이면 차단 건너뜀 (타이머 알림은 PauseTimerNotificationService가 담당)
         PauseRepository pauseRepo = new PauseRepository(this);
         if (pauseRepo.isPaused(pkg)) {
@@ -181,10 +191,21 @@ public class AppMonitorService extends Service {
         } else {
             // 일일 사용량 차단
             int limitMinutes = currentRestrictionMap.getOrDefault(pkg, 60);
-            long todayUsageMs = getTodayUsageMs(usm, pkg);
+            long baselineMs = restriction != null ? restriction.getBaselineTimeMs() : 0L;
+            java.util.Set<String> visiblePkgs = new AppVisibilityRepository(this).getPackagesWithVisibleWindows();
+            long todayUsageMs = UsageStatsUtils.getUsageSinceBaselineMs(usm, pkg, baselineMs, visiblePkgs);
+            // UsageStats는 배치 처리되어 1~5분 지연. 현재 포그라운드 세션 시간을 보정에 추가
+            Long startMs = foregroundStartTimeMap.get(pkg);
+            if (pkg.equals(lastKnownForegroundPkg) && startMs != null) {
+                long sessionMs = now - startMs;
+                long bufferMs = Math.min(sessionMs, USAGE_STATS_LAG_BUFFER_MS);
+                todayUsageMs += bufferMs;
+                Log.d(TAG, "체크(일일) | " + pkg + " 오늘=" + (todayUsageMs / 60000) + "분(보정+" + (bufferMs / 60000) + "분) | 제한=" + limitMinutes + "분");
+            } else {
+                Log.d(TAG, "체크(일일) | " + pkg + " 오늘=" + (todayUsageMs / 60000) + "분 | 제한=" + limitMinutes + "분");
+            }
             long limitMs = limitMinutes * 60L * 1000L;
             shouldBlock = todayUsageMs >= limitMs;
-            Log.d(TAG, "체크(일일) | " + pkg + " 오늘=" + (todayUsageMs / 60000) + "분 | 제한=" + limitMinutes + "분");
         }
 
         if (shouldBlock) {
@@ -217,26 +238,6 @@ public class AppMonitorService extends Service {
         return map;
     }
 
-    private long getTodayUsageMs(UsageStatsManager usageStatsManager, String packageName) {
-        Calendar cal = Calendar.getInstance();
-        cal.set(Calendar.HOUR_OF_DAY, 0);
-        cal.set(Calendar.MINUTE, 0);
-        cal.set(Calendar.SECOND, 0);
-        cal.set(Calendar.MILLISECOND, 0);
-        long startTime = cal.getTimeInMillis();
-        long endTime = System.currentTimeMillis();
-        List<UsageStats> stats = usageStatsManager.queryUsageStats(
-            UsageStatsManager.INTERVAL_DAILY, startTime, endTime);
-        if (stats == null) return 0;
-        long total = 0;
-        for (UsageStats s : stats) {
-            if (packageName.equals(s.getPackageName())) {
-                total += s.getTotalTimeInForeground();
-            }
-        }
-        return total;
-    }
-
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
@@ -262,6 +263,8 @@ public class AppMonitorService extends Service {
     private static final String CHANNEL_ID = "app_monitor";
     private static final int NOTIFICATION_ID = 1001;
     private static final long EVENT_CHECK_INTERVAL_MS = 1_000L;
+    /** UsageStats 배치 지연 보정용 (1~5분). 현재 포그라운드 세션에서 추가할 최대 ms */
+    private static final long USAGE_STATS_LAG_BUFFER_MS = 5 * 60 * 1000L;
     private static final String SEP_ITEM = "|";
     private static final String SEP_KV = ":";
     public static final String EXTRA_RESTRICTION_MAP = "restriction_map";

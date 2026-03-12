@@ -794,7 +794,7 @@ private fun DayOfWeekBarChart(
             Spacer(modifier = Modifier.width(ChartYAxisToChartGap))
             Box(modifier = Modifier.weight(1f).height(TotalChartHeight).padding(vertical = ChartVerticalPadding)) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
+                    val pathEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 12f), 0f)
                     for (i in 0..4) {
                         val y = size.height * (i / 4f)
                         drawLine(
@@ -905,7 +905,7 @@ private fun MonthDailyBarChart(
                         .padding(vertical = ChartVerticalPadding),
                 ) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
-                        val pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
+                        val pathEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 12f), 0f)
                         for (i in 0..4) {
                             val y = size.height * (i / 4f)
                             drawLine(
@@ -992,7 +992,7 @@ private fun MonthBarChart(
             Spacer(modifier = Modifier.width(ChartYAxisToChartGap))
             Box(modifier = Modifier.weight(1f).height(TotalChartHeight).padding(vertical = ChartVerticalPadding)) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
+                    val pathEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 12f), 0f)
                     for (i in 0..4) {
                         val y = size.height * (i / 4f)
                         drawLine(
@@ -1078,7 +1078,7 @@ private fun YearBarChart(
             Spacer(modifier = Modifier.width(ChartYAxisToChartGap))
             Box(modifier = Modifier.weight(1f).height(TotalChartHeight).padding(vertical = ChartVerticalPadding)) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
+                    val pathEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 12f), 0f)
                     for (i in 0..4) {
                         val y = size.height * (i / 4f)
                         drawLine(
@@ -1622,7 +1622,12 @@ private fun StatsTimeSlotSection(
 ) {
     val context = LocalContext.current
     val nav = remember(tabEnum, weekOffset, monthOffset, yearOffset) {
-        val label = formatPeriodLabelMonthAware(tabEnum, weekOffset, monthOffset, yearOffset)
+        val (_, _, label) = when (tabEnum) {
+            StatisticsData.Tab.WEEKLY -> StatisticsData.getLastNDaysRange(7, weekOffset)
+            StatisticsData.Tab.MONTHLY -> StatisticsData.getLastNDaysRange(30, monthOffset)
+            StatisticsData.Tab.YEARLY -> StatisticsData.getLastNDaysRange(365, yearOffset)
+            else -> StatisticsData.getLastNDaysRange(7, 0)
+        }
         when (tabEnum) {
             StatisticsData.Tab.WEEKLY -> NavState(label, true, weekOffset < -1, { onWeekChange(weekOffset - 1) }, { if (weekOffset < -1) onWeekChange(weekOffset + 1) })
             StatisticsData.Tab.MONTHLY -> NavState(label, true, monthOffset < 0, { onMonthChange(monthOffset - 1) }, { if (monthOffset < 0) onMonthChange(monthOffset + 1) })
@@ -1634,21 +1639,33 @@ private fun StatsTimeSlotSection(
     var timeSlotMinutes by remember { mutableStateOf<List<Long>>(List(12) { 0L }) }
     LaunchedEffect(tabEnum, weekOffset, monthOffset, yearOffset) {
         withContext(Dispatchers.IO) {
-            val (startMs, endMs, _) = when (tabEnum) {
-                StatisticsData.Tab.WEEKLY -> StatisticsData.getWeekRange(weekOffset)
-                StatisticsData.Tab.MONTHLY -> StatisticsData.getSingleMonthRange(monthOffset)
-                StatisticsData.Tab.YEARLY -> StatisticsData.getMonthRange(yearOffset)
-                else -> StatisticsData.getWeekRange(0)
+            val (startMs, endMs, divideByDays) = when (tabEnum) {
+                StatisticsData.Tab.WEEKLY -> {
+                    val (s, e, _) = StatisticsData.getLastNDaysRange(7, weekOffset)
+                    Triple(s, e, 0)
+                }
+                StatisticsData.Tab.MONTHLY -> {
+                    val (s, e, _) = StatisticsData.getLastNDaysRange(30, monthOffset)
+                    Triple(s, e, 30)
+                }
+                StatisticsData.Tab.YEARLY -> {
+                    val (s, e, _) = StatisticsData.getLastNDaysRange(365, yearOffset)
+                    Triple(s, e, 365)
+                }
+                else -> {
+                    val (s, e, _) = StatisticsData.getLastNDaysRange(7, 0)
+                    Triple(s, e, 0)
+                }
             }
-            timeSlotMinutes = StatisticsData.loadTimeSlotMinutes12(context, startMs, endMs)
+            timeSlotMinutes = StatisticsData.loadTimeSlot12Minutes(context, startMs, endMs, divideByDays)
         }
     }
 
     val padded = if (timeSlotMinutes.size >= 12) timeSlotMinutes.take(12) else timeSlotMinutes + List(12 - timeSlotMinutes.size) { 0L }
     val maxIdx = padded.indices.maxByOrNull { padded[it] }?.takeIf { padded[it] > 0 } ?: -1
-    val yTicks = computeTimeSlotYTicks()
-    val niceMax = 120L // 2H 고정
-    val normalized = padded.map { (it.toFloat() / niceMax).coerceIn(0f, 1f) }
+    val timeSlotMaxMinutes = 120L // 막대당 최대 2H
+    val yTicks = listOf(0L, 60L, 120L) // 0 / 1H / 2H 고정
+    val normalized = padded.map { (it.toFloat() / timeSlotMaxMinutes).coerceIn(0f, 1f) }
 
     Column(
         modifier = modifier
@@ -1711,11 +1728,15 @@ private fun StatsTimeSlotSection(
     }
 }
 
-/** 시간대별 막대 차트. 4구간×3막대, Y축 0/1H/2H 3개, 최대값 막대 Red300 (Figma 925-7593) */
+/** 시간대별 막대 차트. 12개 2시간 막대, X축 4개 6시간 라벨, Y축 0/1H/2H 고정 (Figma 925-7593) */
 private val TimeSlotBarWidth = 16.dp
-private val TimeSlotBarGap = 8.dp
-/** Figma 925-7593: 말풍선~최대 막대 간격 3px */
-private val SpeechBubbleToBarGap = 3.dp
+/** 말풍선~막대 가로 간격 2px / 막대 윗선 대비 세로 4px 아래 */
+private val SpeechBubbleToBarGapH = 2.dp
+private val SpeechBubbleToBarGapV = 4.dp
+/** 말풍선 너비 예상치 (차트 영역 클램핑용) */
+private val SpeechBubbleEstimatedWidth = 180.dp
+/** 12개 2시간 막대 (0~2,2~4,4~6, 6~8,8~10,10~12, 12~14,14~16,16~18, 18~20,20~22,22~24) */
+private val TimeSlot12BarCount = 12
 
 @Composable
 private fun TimeSlotBarChart(
@@ -1724,7 +1745,8 @@ private fun TimeSlotBarChart(
     maxValueIdx: Int,
     modifier: Modifier = Modifier,
 ) {
-    val padded = if (values.size >= 12) values.take(12) else values + List(12 - values.size) { 0f }
+    val barCount = TimeSlot12BarCount
+    val padded = if (values.size >= barCount) values.take(barCount) else values + List(barCount - values.size) { 0f }
     val density = LocalDensity.current
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -1735,19 +1757,47 @@ private fun TimeSlotBarChart(
             Spacer(modifier = Modifier.width(ChartYAxisToChartGap))
             BoxWithConstraints(modifier = Modifier.weight(1f).height(TotalChartHeight).padding(vertical = ChartVerticalPadding)) {
                 val chartWidthPx = with(density) { maxWidth.roundToPx() }
+                val chartHeightPx = with(density) { maxHeight.roundToPx() }
                 val barWidthPx = with(density) { TimeSlotBarWidth.roundToPx() }
-                val gapPx = if (chartWidthPx > barWidthPx * 12) (chartWidthPx - barWidthPx * 12) / 13 else 0
-                val speechBubbleGapPx = with(density) { SpeechBubbleToBarGap.roundToPx() }
-                val maxBarRightPx = if (maxValueIdx in 0..11 && padded.getOrElse(maxValueIdx) { 0f } > 0f) {
-                    (maxValueIdx + 1) * barWidthPx + maxValueIdx * gapPx
-                } else -1
-                val bubbleOffsetXPx = if (maxBarRightPx >= 0) maxBarRightPx + speechBubbleGapPx else -1
+                val gapPx = if (chartWidthPx > barWidthPx * barCount) (chartWidthPx - barWidthPx * barCount) / (barCount + 1) else 0
+                val speechBubbleGapPx = with(density) { SpeechBubbleToBarGapH.roundToPx() }
+                val speechBubbleGapVPx = with(density) { SpeechBubbleToBarGapV.roundToPx() }
+                val bubbleWidthPx = with(density) { SpeechBubbleEstimatedWidth.roundToPx() }
+                val halfChartPx = chartWidthPx / 2
+
+                val (barLeftPx, barRightPx) = if (maxValueIdx in 0 until barCount && padded.getOrElse(maxValueIdx) { 0f } > 0f) {
+                    val left = gapPx + maxValueIdx * (barWidthPx + gapPx)
+                    val right = left + barWidthPx
+                    left to right
+                } else -1 to -1
+
+                val barCenterPx = if (barLeftPx >= 0) (barLeftPx + barRightPx) / 2 else -1
+                val showBubbleOnRight = barCenterPx in 0..chartWidthPx && barCenterPx < halfChartPx
+
+                val maxBarValue = padded.getOrElse(maxValueIdx) { 0f }
+                val barTopPx = (chartHeightPx * (1f - maxBarValue)).toInt()
+                val offsetYPx = barTopPx + speechBubbleGapVPx
+
+                val (tailDirection, align, offsetXPx) = when {
+                    barLeftPx < 0 -> Triple(TailDirection.Start, Alignment.TopStart, -1)
+                    showBubbleOnRight -> {
+                        val leftEdge = barRightPx + speechBubbleGapPx
+                        val clamped = leftEdge.coerceIn(0, (chartWidthPx - bubbleWidthPx).coerceAtLeast(0))
+                        Triple(TailDirection.Start, Alignment.TopStart, clamped)
+                    }
+                    else -> {
+                        val rightEdge = barLeftPx - speechBubbleGapPx
+                        val clamped = rightEdge.coerceIn(bubbleWidthPx, chartWidthPx)
+                        Triple(TailDirection.End, Alignment.TopEnd, chartWidthPx - clamped)
+                    }
+                }
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
-                        val pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
-                        for (i in 0..2) {
-                            val y = size.height * (i / 2f)
+                        val lineCount = maxOf(1, yTicks.size - 1)
+                        val pathEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 12f), 0f)
+                        for (i in 0 until lineCount) {
+                            val y = size.height * (i.toFloat() / lineCount)
                             drawLine(
                                 color = AppColors.Grey450.copy(alpha = 0.6f),
                                 start = Offset(0f, y),
@@ -1761,7 +1811,7 @@ private fun TimeSlotBarChart(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.Bottom,
                     ) {
-                        (0..11).forEach { idx ->
+                        (0 until barCount).forEach { idx ->
                             val value = padded.getOrElse(idx) { 0f }
                             val isMax = idx == maxValueIdx && value > 0f
                             Box(
@@ -1783,13 +1833,16 @@ private fun TimeSlotBarChart(
                             }
                         }
                     }
-                    if (bubbleOffsetXPx >= 0) {
+                    if (offsetXPx >= 0) {
                         SpeechBubble(
-                            text = "가장 많이 사용한 시간대",
-                            tailDirection = TailDirection.Start,
+                            text = "스마트폰 사용 최다 시간대",
+                            tailDirection = tailDirection,
                             modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .offset { IntOffset(bubbleOffsetXPx, 0) },
+                                .align(align)
+                                .offset {
+                                    val x = if (align == Alignment.TopStart) offsetXPx else -offsetXPx
+                                    IntOffset(x, offsetYPx)
+                                },
                         )
                     }
                 }

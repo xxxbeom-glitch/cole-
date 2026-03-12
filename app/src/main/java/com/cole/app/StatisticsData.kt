@@ -57,8 +57,35 @@ object StatisticsData {
     /** 8개 슬롯 라벨 [3, 6, 9, 12, 15, 18, 21, 24] 순 */
     val SlotLabels = listOf(3, 6, 9, 12, 15, 18, 21, 24)
 
-    /** 시간대별 사용량 4구간×3막대: X축 "0~6시", "6~12시", "12~18시", "18~24시" */
+    /** 시간대별 사용량 4구간: X축 "0~6시", "6~12시", "12~18시", "18~24시" */
     val TimeSlot4SectionLabels = listOf("0~6시", "6~12시", "12~18시", "18~24시")
+
+    /** 지난 N일 범위 (오늘 제외, 완료된 기간만). offset 0=최근 N일, -1=그 이전 N일 */
+    fun getLastNDaysRange(dayCount: Int, offset: Int): Triple<Long, Long, String> {
+        val cal = Calendar.getInstance()
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val todayStart = cal.timeInMillis
+        val off = (-offset).coerceAtLeast(0)
+        val startMs = todayStart - (off * dayCount + dayCount) * 24L * 60 * 60 * 1000
+        cal.timeInMillis = todayStart - (off * dayCount + 1) * 24L * 60 * 60 * 1000
+        cal.add(Calendar.DAY_OF_YEAR, 1)
+        cal.add(Calendar.MILLISECOND, -1)
+        val endMs = cal.timeInMillis
+        cal.timeInMillis = startMs
+        val startCal = cal.clone() as Calendar
+        cal.timeInMillis = endMs
+        val fmt = java.text.SimpleDateFormat("MM.dd", java.util.Locale.KOREAN)
+        val label = when (dayCount) {
+            7 -> if (off == 0) "지난 7일" else "${fmt.format(startCal.time)} ~ ${fmt.format(cal.time)}"
+            30 -> if (off == 0) "지난 30일" else "${fmt.format(startCal.time)} ~ ${fmt.format(cal.time)}"
+            365 -> if (off == 0) "지난 365일" else "${startCal.get(Calendar.YEAR)}.${startCal.get(Calendar.MONTH) + 1} ~ ${cal.get(Calendar.YEAR)}.${cal.get(Calendar.MONTH) + 1}"
+            else -> "${fmt.format(startCal.time)} ~ ${fmt.format(cal.time)}"
+        }
+        return Triple(startMs, endMs, label)
+    }
 
     data class StatsAppItem(
         val packageName: String,
@@ -702,8 +729,77 @@ object StatisticsData {
         return slotMinutes.toList()
     }
 
-    /** 4구간×3막대: 12개 2시간 슬롯 (0~2,2~4,4~6, 6~8,8~10,10~12, 12~14,14~16,16~18, 18~20,20~22,22~24) */
-    fun loadTimeSlotMinutes12(context: Context, startMs: Long, endMs: Long): List<Long> {
+    /**
+     * 시간대별 사용량 4구간 (0~6, 6~12, 12~18, 18~24시).
+     * @param divideByDays 주간=0(합산), 월간=30(일평균), 연간=365(일평균)
+     */
+    fun loadTimeSlot4Minutes(context: Context, startMs: Long, endMs: Long, divideByDays: Int = 0): List<Long> {
+        if (!hasUsageAccess(context)) return List(4) { 0L }
+        val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return List(4) { 0L }
+        val events = usm.queryEvents(startMs, endMs) ?: return List(4) { 0L }
+        val slotMinutes = LongArray(4)
+        val sessionStarts = mutableMapOf<String, Long>()
+        val event = UsageEvents.Event()
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            when (event.eventType) {
+                UsageEvents.Event.MOVE_TO_FOREGROUND ->
+                    sessionStarts[event.packageName + ":" + event.className] = event.timeStamp
+                UsageEvents.Event.MOVE_TO_BACKGROUND -> {
+                    val key = event.packageName + ":" + event.className
+                    val start = sessionStarts.remove(key) ?: continue
+                    val durationMs = (event.timeStamp - start).coerceAtLeast(0)
+                    addDurationToSlots4(slotMinutes, start, durationMs)
+                }
+            }
+        }
+        val list = slotMinutes.toList()
+        return if (divideByDays > 0) list.map { it / divideByDays } else list
+    }
+
+    private fun addDurationToSlots4(slots: LongArray, startMs: Long, durationMs: Long) {
+        var remaining = durationMs
+        var t = startMs
+        val cal = Calendar.getInstance()
+        while (remaining > 0) {
+            cal.timeInMillis = t
+            val hour = cal.get(Calendar.HOUR_OF_DAY)
+            val slotIndex = when {
+                hour in 0..5 -> 0   // 0~6시
+                hour in 6..11 -> 1  // 6~12시
+                hour in 12..17 -> 2 // 12~18시
+                else -> 3           // 18~24시
+            }
+            val slotEndHour = when (slotIndex) {
+                0 -> 6
+                1 -> 12
+                2 -> 18
+                else -> 24
+            }
+            @Suppress("UNCHECKED_CAST")
+            val slotEndCal = cal.clone() as Calendar
+            if (slotEndHour == 24) {
+                slotEndCal.add(Calendar.DAY_OF_YEAR, 1)
+                slotEndCal.set(Calendar.HOUR_OF_DAY, 0)
+            } else {
+                slotEndCal.set(Calendar.HOUR_OF_DAY, slotEndHour)
+            }
+            slotEndCal.set(Calendar.MINUTE, 0)
+            slotEndCal.set(Calendar.SECOND, 0)
+            slotEndCal.set(Calendar.MILLISECOND, 0)
+            val slotEndMs = slotEndCal.timeInMillis
+            val chunkMs = minOf(remaining, slotEndMs - t).coerceAtLeast(0)
+            slots[slotIndex] += chunkMs / 60_000
+            remaining -= chunkMs
+            t += chunkMs
+        }
+    }
+
+    /**
+     * 12개 2시간 슬롯 (0~2,2~4,4~6, 6~8,8~10,10~12, 12~14,14~16,16~18, 18~20,20~22,22~24).
+     * @param divideByDays 주간=0(합산), 월간=30(일평균), 연간=365(일평균)
+     */
+    fun loadTimeSlot12Minutes(context: Context, startMs: Long, endMs: Long, divideByDays: Int = 0): List<Long> {
         if (!hasUsageAccess(context)) return List(12) { 0L }
         val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return List(12) { 0L }
         val events = usm.queryEvents(startMs, endMs) ?: return List(12) { 0L }
@@ -723,8 +819,13 @@ object StatisticsData {
                 }
             }
         }
-        return slotMinutes.toList()
+        val list = slotMinutes.toList()
+        return if (divideByDays > 0) list.map { it / divideByDays } else list
     }
+
+    /** @deprecated loadTimeSlot12Minutes 사용 */
+    fun loadTimeSlotMinutes12(context: Context, startMs: Long, endMs: Long): List<Long> =
+        loadTimeSlot12Minutes(context, startMs, endMs, 0)
 
     private fun addDurationToSlots12(slots: LongArray, startMs: Long, durationMs: Long) {
         var remaining = durationMs

@@ -220,15 +220,7 @@ class BlockOverlayService : android.app.Service() {
             gravity = Gravity.CENTER
             setOnClickListener {
                 if (remainingCount > 0) {
-                    pauseRepo.startPause(packageName, pauseMinutes)
-                    val pauseUntilMs = pauseRepo.getPauseUntilMs(packageName)
-                    PauseTimerNotificationService.start(
-                        this@BlockOverlayService,
-                        packageName,
-                        appName,
-                        pauseUntilMs,
-                    )
-                    launchPauseCompleteFlow(packageName, appName)
+                    launchPauseFlow(packageName, appName, blockUntilMs)
                     dismiss(skipHome = true)
                 }
             }
@@ -255,11 +247,12 @@ class BlockOverlayService : android.app.Service() {
         windowManager?.addView(root, layoutParams)
     }
 
-    private fun launchPauseCompleteFlow(packageName: String, appName: String) {
+    private fun launchPauseFlow(packageName: String, appName: String, blockUntilMs: Long) {
         val intent = Intent(this, MainActivity::class.java).apply {
-            action = ACTION_PAUSE_COMPLETE_FROM_OVERLAY
+            action = ACTION_PAUSE_FLOW_FROM_OVERLAY
             putExtra(EXTRA_PACKAGE_NAME, packageName)
             putExtra(EXTRA_APP_NAME, appName)
+            putExtra(EXTRA_BLOCK_UNTIL_MS, blockUntilMs)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
         startActivity(intent)
@@ -307,8 +300,8 @@ class BlockOverlayService : android.app.Service() {
         const val EXTRA_APP_NAME = "app_name"
         /** 시간 지정 차단 시 제한 해제 시각(ms). 0이면 일일 사용량 제한(자정 해제) */
         const val EXTRA_BLOCK_UNTIL_MS = "block_until_ms"
-        /** 일시정지 완료 플로우용 Intent action */
-        const val ACTION_PAUSE_COMPLETE_FROM_OVERLAY = "com.cole.app.PAUSE_COMPLETE_FROM_OVERLAY"
+        /** 일시정지 3단계 플로우 시작용 Intent action (1단계 제안 → 2단계 확인 → 3단계 완료) */
+        const val ACTION_PAUSE_FLOW_FROM_OVERLAY = "com.cole.app.PAUSE_FLOW_FROM_OVERLAY"
         /** AppMonitorService에서 중복 실행 방지용 플래그 */
         @JvmField
         var isRunning: Boolean = false

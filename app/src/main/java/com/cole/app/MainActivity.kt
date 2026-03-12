@@ -35,19 +35,26 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun ColeRootContent(
-    pendingPauseCompleteFromOverlay: Pair<String, String>? = null,
+    pendingPauseFlowFromOverlay: PendingPauseFlowFromOverlay? = null,
 ) {
     var showDebugMenu by remember { mutableStateOf(true) }
     if (showDebugMenu) {
         DebugFlowHost(
             onStartNormalFlow = { showDebugMenu = false },
             modifier = Modifier.fillMaxSize(),
-            pendingPauseCompleteFromOverlay = pendingPauseCompleteFromOverlay,
+            pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay,
         )
     } else {
-        SignUpFlowHost(pendingPauseCompleteFromOverlay = pendingPauseCompleteFromOverlay)
+        SignUpFlowHost(pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay)
     }
 }
+
+/** 차단 오버레이에서 일시정지 클릭 시 1단계(제안)부터 시작하는 플로우용 데이터 */
+data class PendingPauseFlowFromOverlay(
+    val packageName: String,
+    val appName: String,
+    val blockUntilMs: Long,
+)
 
 enum class SignUpStep {
     SPLASH,
@@ -74,20 +81,20 @@ class MainActivity : ComponentActivity() {
     /** 네이버 로그인 결과를 외부(코루틴)로 전달하기 위한 콜백 */
     var naverLoginCallback: NidOAuthCallback? = null
 
-    /** 앱 제한 오버레이에서 일시정지 클릭 후 표시할 pause complete 플로우 데이터 */
-    private val pendingPauseCompleteState = mutableStateOf<Pair<String, String>?>(null)
-    var pendingPauseCompleteFromOverlay: Pair<String, String>?
-        get() = pendingPauseCompleteState.value
-        set(value) { pendingPauseCompleteState.value = value }
+    /** 앱 제한 오버레이에서 일시정지 클릭 후 1단계(제안)부터 시작할 플로우 데이터 (packageName, appName, blockUntilMs) */
+    private val pendingPauseFlowState = mutableStateOf<PendingPauseFlowFromOverlay?>(null)
+    var pendingPauseFlowFromOverlay: PendingPauseFlowFromOverlay?
+        get() = pendingPauseFlowState.value
+        set(value) { pendingPauseFlowState.value = value }
 
-    fun clearPendingPauseCompleteFromOverlay() {
-        pendingPauseCompleteState.value = null
+    fun clearPendingPauseFlowFromOverlay() {
+        pendingPauseFlowState.value = null
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        pendingPauseCompleteState.value = extractPauseCompleteFromIntent(intent)
+        pendingPauseFlowState.value = extractPauseFlowFromIntent(intent)
     }
 
     override fun onResume() {
@@ -120,7 +127,7 @@ class MainActivity : ComponentActivity() {
         WindowInsetsControllerCompat(window, window.decorView).apply {
             isAppearanceLightStatusBars = true
         }
-        pendingPauseCompleteState.value = extractPauseCompleteFromIntent(intent)
+        pendingPauseFlowState.value = extractPauseFlowFromIntent(intent)
         setContent {
             ColeTheme {
                 Surface(
@@ -128,36 +135,37 @@ class MainActivity : ComponentActivity() {
                     color = AppColors.SurfaceBackgroundBackground,
                 ) {
                     if (BuildConfig.DEBUG) {
-                        ColeRootContent(pendingPauseCompleteFromOverlay = pendingPauseCompleteFromOverlay)
+                        ColeRootContent(pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay)
                     } else {
-                        SignUpFlowHost(pendingPauseCompleteFromOverlay = pendingPauseCompleteFromOverlay)
+                        SignUpFlowHost(pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay)
                     }
                 }
             }
         }
     }
 
-    private fun extractPauseCompleteFromIntent(i: Intent?): Pair<String, String>? {
-        if (i?.action != BlockOverlayService.ACTION_PAUSE_COMPLETE_FROM_OVERLAY) return null
+    private fun extractPauseFlowFromIntent(i: Intent?): PendingPauseFlowFromOverlay? {
+        if (i?.action != BlockOverlayService.ACTION_PAUSE_FLOW_FROM_OVERLAY) return null
         val pkg = i.getStringExtra(BlockOverlayService.EXTRA_PACKAGE_NAME)
         val name = i.getStringExtra(BlockOverlayService.EXTRA_APP_NAME)
-        return if (pkg != null && name != null) pkg to name else null
+        val blockUntilMs = i.getLongExtra(BlockOverlayService.EXTRA_BLOCK_UNTIL_MS, 0L)
+        return if (pkg != null && name != null) PendingPauseFlowFromOverlay(pkg, name, blockUntilMs) else null
     }
 }
 
 @Composable
 fun SignUpFlowHost(
-    pendingPauseCompleteFromOverlay: Pair<String, String>? = null,
+    pendingPauseFlowFromOverlay: PendingPauseFlowFromOverlay? = null,
 ) {
     val context = LocalContext.current
     val activity = context as? MainActivity
     var step by remember {
         mutableStateOf(
-            if (pendingPauseCompleteFromOverlay != null) SignUpStep.MAIN else SignUpStep.SPLASH
+            if (pendingPauseFlowFromOverlay != null) SignUpStep.MAIN else SignUpStep.SPLASH
         )
     }
-    LaunchedEffect(pendingPauseCompleteFromOverlay) {
-        if (pendingPauseCompleteFromOverlay != null) step = SignUpStep.MAIN
+    LaunchedEffect(pendingPauseFlowFromOverlay) {
+        if (pendingPauseFlowFromOverlay != null) step = SignUpStep.MAIN
     }
     var selfTestAnswers by remember { mutableStateOf<Map<Int, Int>>(emptyMap()) }
     var loginError by remember { mutableStateOf<String?>(null) }
@@ -268,8 +276,8 @@ fun SignUpFlowHost(
         SignUpStep.MAIN -> MainFlowHost(
             onAddAppClick = { step = SignUpStep.ADD_APP },
             onLogout = { step = SignUpStep.LOGIN },
-            initialPauseCompleteFromOverlay = pendingPauseCompleteFromOverlay,
-            onPauseCompleteConsumed = { activity?.clearPendingPauseCompleteFromOverlay() },
+            initialPauseFlowFromOverlay = pendingPauseFlowFromOverlay,
+            onPauseFlowConsumed = { activity?.clearPendingPauseFlowFromOverlay() },
         )
         // 비활성화: 비밀번호 찾기 플로우
         SignUpStep.PASSWORD_RESET_EMAIL,

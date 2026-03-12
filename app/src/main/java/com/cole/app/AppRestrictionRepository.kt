@@ -32,7 +32,7 @@ class AppRestrictionRepository(private val context: Context) {
 
     private fun serialize(list: List<AppRestriction>): String {
         return list.joinToString(SEP_ITEM) {
-            "${it.packageName}$SEP_FIELD${it.appName}$SEP_FIELD${it.limitMinutes}$SEP_FIELD${it.blockUntilMs}"
+            "${it.packageName}$SEP_FIELD${it.appName}$SEP_FIELD${it.limitMinutes}$SEP_FIELD${it.blockUntilMs}$SEP_FIELD${it.baselineTimeMs}$SEP_FIELD${it.repeatDays}$SEP_FIELD${it.durationWeeks}"
         }
     }
 
@@ -46,6 +46,9 @@ class AppRestrictionRepository(private val context: Context) {
                     appName = parts[1],
                     limitMinutes = parts[2].toIntOrNull() ?: 60,
                     blockUntilMs = parts.getOrNull(3)?.toLongOrNull() ?: 0L,
+                    baselineTimeMs = parts.getOrNull(4)?.toLongOrNull() ?: 0L,
+                    repeatDays = parts.getOrNull(5) ?: "",
+                    durationWeeks = parts.getOrNull(6)?.toIntOrNull() ?: 0,
                 )
             } else null
         }

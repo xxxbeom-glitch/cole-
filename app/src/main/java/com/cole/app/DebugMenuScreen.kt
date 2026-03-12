@@ -60,13 +60,13 @@ import androidx.compose.ui.unit.dp
 fun DebugFlowHost(
     onStartNormalFlow: () -> Unit,
     modifier: Modifier = Modifier,
-    pendingPauseCompleteFromOverlay: Pair<String, String>? = null,
+    pendingPauseFlowFromOverlay: PendingPauseFlowFromOverlay? = null,
 ) {
     var selectedScreen by remember { mutableStateOf<DebugScreen?>(null) }
     val menuScrollState = rememberScrollState()
 
-    LaunchedEffect(pendingPauseCompleteFromOverlay) {
-        if (pendingPauseCompleteFromOverlay != null) {
+    LaunchedEffect(pendingPauseFlowFromOverlay) {
+        if (pendingPauseFlowFromOverlay != null) {
             selectedScreen = DebugScreen.MainFlow
         }
     }
@@ -86,8 +86,8 @@ fun DebugFlowHost(
                     selectedScreen = addAppReturnTo ?: null
                     addAppReturnTo = null
                 },
-                pendingPauseCompleteFromOverlay = pendingPauseCompleteFromOverlay,
-                onPauseCompleteConsumed = { activity?.clearPendingPauseCompleteFromOverlay() },
+                pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay,
+                onPauseFlowConsumed = { activity?.clearPendingPauseFlowFromOverlay() },
             )
         }
     } else {
@@ -161,8 +161,8 @@ private fun DebugScreenPreview(
     onBack: () -> Unit,
     onNavigateToScreen: (DebugScreen) -> Unit = {},
     onAddAppComplete: () -> Unit = {},
-    pendingPauseCompleteFromOverlay: Pair<String, String>? = null,
-    onPauseCompleteConsumed: () -> Unit = {},
+    pendingPauseFlowFromOverlay: PendingPauseFlowFromOverlay? = null,
+    onPauseFlowConsumed: () -> Unit = {},
 ) {
     when (screen) {
         DebugScreen.Splash -> DebugSplashPreview(onBack = onBack)
@@ -200,12 +200,10 @@ private fun DebugScreenPreview(
         )
         DebugScreen.AddAppDaily01 -> AddAppDailyLimitScreen01(
             selectedAppNames = emptySet(),
-            selectedAppCategory = null,
             selectedDailyMinutes = null,
             selectedDays = emptySet(),
             selectedDuration = null,
             onAppRowClick = { },
-            onCategoryRowClick = { },
             onTimeRowClick = { },
             onDaysRowClick = { },
             onDurationRowClick = { },
@@ -244,8 +242,8 @@ private fun DebugScreenPreview(
             onAddAppClick = { onNavigateToScreen(DebugScreen.AddAppFlowHost) },
             onLogout = { onBack() },
             isFreeUser = !SubscriptionManager.isSubscribed(LocalContext.current),
-            initialPauseCompleteFromOverlay = pendingPauseCompleteFromOverlay,
-            onPauseCompleteConsumed = onPauseCompleteConsumed,
+            initialPauseFlowFromOverlay = pendingPauseFlowFromOverlay,
+            onPauseFlowConsumed = onPauseFlowConsumed,
         )
         DebugScreen.SpacingTest -> DebugSpacingTestScreen(onBack = onBack)
         DebugScreen.GaugeTest -> DebugGaugeTestScreen(onBack = onBack)

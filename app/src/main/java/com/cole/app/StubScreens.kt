@@ -544,6 +544,52 @@ internal fun MainScreenMA01(
     }
 }
 
+/** ms를 HH:MM:SS 형식으로 포맷 */
+private fun formatDurationHhMmSs(ms: Long): String {
+    val totalSec = (ms / 1000).coerceAtLeast(0)
+    val h = totalSec / 3600
+    val m = (totalSec % 3600) / 60
+    val s = totalSec % 60
+    return "%02d:%02d:%02d".format(h, m, s)
+}
+
+/** Calendar.DAY_OF_WEEK(일=1..토=7) → 요일 인덱스(월=0..일=6) */
+private fun todayDayIndex(): Int {
+    val dow = Calendar.getInstance().get(Calendar.DAY_OF_WEEK)
+    return if (dow == Calendar.SUNDAY) 6 else dow - 2
+}
+
+private fun parseRepeatDays(repeatDays: String): Set<Int> =
+    repeatDays.split(",").mapNotNull { it.trim().toIntOrNull() }.filter { it in 0..6 }.toSet()
+
+/** 제한 요일 중 다음 제한일까지 남은 일수. 오늘이 제한일이면 0. */
+private fun daysUntilNextRestriction(todayIdx: Int, restrictionDayIndices: Set<Int>): Int {
+    if (todayIdx in restrictionDayIndices) return 0
+    for (d in 1..7) {
+        val idx = (todayIdx + d) % 7
+        if (idx in restrictionDayIndices) return d
+    }
+    return 7
+}
+
+/** durationWeeks > 0일 때 기준 시각부터 N주가 지났는지 */
+private fun isDurationExpired(baselineTimeMs: Long, durationWeeks: Int): Boolean {
+    if (durationWeeks <= 0) return false
+    val endMs = baselineTimeMs + durationWeeks * 7L * 24 * 60 * 60 * 1000
+    return System.currentTimeMillis() >= endMs
+}
+
+/** 오늘 하루만: baseline 날짜가 오늘 이전이면 만료 */
+private fun isTodayOnlyExpired(baselineTimeMs: Long): Boolean {
+    val cal = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    return baselineTimeMs < cal.timeInMillis
+}
+
 private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem> {
     val repo = AppRestrictionRepository(context)
     val restrictions = repo.getAll()
@@ -551,30 +597,34 @@ private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem>
 
     val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
     val pauseRepo = PauseRepository(context)
+    val visiblePkgs = AppVisibilityRepository(context).getPackagesWithVisibleWindows()
+    val todayIdx = todayDayIndex()
+    var needsServiceRefresh = false
 
-    return restrictions.mapNotNull { restriction ->
+    val result = restrictions.mapNotNull { restriction ->
         val isTimeSpecified = restriction.blockUntilMs > 0
         if (isTimeSpecified) {
-            val remainingMs = restriction.blockUntilMs - System.currentTimeMillis()
-            val remainingMin = (remainingMs / 60000).toInt().coerceAtLeast(0)
-            val todayMinutes = (usm?.let { getTodayUsageMinutes(it, restriction.packageName) } ?: 0).toInt().coerceAtLeast(0)
+            // 1. 시간지정: 제한 종료 시 목록에서 즉시 제거
+            val now = System.currentTimeMillis()
+            val remainingMs = restriction.blockUntilMs - now
+            if (remainingMs <= 0) {
+                repo.delete(restriction.packageName)
+                needsServiceRefresh = true
+                return@mapNotNull null
+            }
+            val todayMinutes = (usm?.let {
+                UsageStatsUtils.getUsageSinceBaselineMinutes(it, restriction.packageName, restriction.baselineTimeMs, visiblePkgs)
+            } ?: 0).toInt().coerceAtLeast(0)
             val isPaused = pauseRepo.isPaused(restriction.packageName)
             val pauseUsedCount = pauseRepo.getTodayCount(restriction.packageName)
             val pauseRemainingCount = pauseRepo.getRemainingCount(restriction.packageName)
             val pauseUntilMs = pauseRepo.getPauseUntilMs(restriction.packageName)
-            val pauseLeftMs = (pauseUntilMs - System.currentTimeMillis()).coerceAtLeast(0)
-            val pauseLeftMin = (pauseLeftMs / 60000).toInt()
-            val pauseLeftSec = ((pauseLeftMs % 60000) / 1000).toInt()
-            // 일시정지 중: "2/5분" (빨강) + "일시정지 중" (secondary)
-            // 만료됨: "해제됨" + "종료" (secondary)
-            // 정상: "32분 후" (highlight) + "제한 해제" (secondary)
+            val pauseLeftMs = (pauseUntilMs - now).coerceAtLeast(0)
+            val pauseStartMs = pauseUntilMs - 5 * 60 * 1000
+            val pauseElapsedMs = (now - pauseStartMs).coerceAtLeast(0)
             val (usageText, usageLabel) = when {
-                isPaused -> {
-                    val maxPauseMin = 5
-                    "${pauseLeftMin}/${maxPauseMin}분" to "일시정지 중"
-                }
-                remainingMs <= 0 -> "해제됨" to "종료"
-                else -> "${remainingMin}분 후" to "제한 해제"
+                isPaused -> formatDurationHhMmSs(pauseElapsedMs) to "일시정지 중"
+                else -> "${formatDurationHhMmSs(remainingMs.coerceAtLeast(0))} 후" to "해제"
             }
             MainAppRestrictionItem(
                 appName = restriction.appName,
@@ -589,25 +639,57 @@ private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem>
                 isPaused = isPaused,
                 pauseUsedCount = pauseUsedCount,
                 pauseRemainingCount = pauseRemainingCount,
-                pauseLeftMin = pauseLeftMin,
+                pauseLeftMin = (pauseLeftMs / 60000).toInt(),
                 usageTextColor = when {
                     isPaused -> AppColors.Red300
-                    remainingMs <= 0 -> AppColors.TextSecondary
                     else -> AppColors.TextHighlight
                 },
                 usageLabelColor = AppColors.TextSecondary,
             )
         } else {
-            val rawToday = DebugTestSettings.debugTodayUsageMinutes
-                ?: usm?.let { getTodayUsageMinutes(it, restriction.packageName) } ?: 0L
-            val todayMinutes = rawToday.toInt().coerceAtLeast(0)
+            // 일일 사용량: repeatDays 분기
+            val repeatDaySet = parseRepeatDays(restriction.repeatDays)
+
+            // 2. 오늘 하루만: 00시 기준 목록에서 제거
+            if (repeatDaySet.isEmpty()) {
+                if (isTodayOnlyExpired(restriction.baselineTimeMs)) {
+                    repo.delete(restriction.packageName)
+                    needsServiceRefresh = true
+                    return@mapNotNull null
+                }
+            } else {
+                // 3. 매일 반복 / 4. 격일·특정요일: 기간 만료 시 제거
+                if (isDurationExpired(restriction.baselineTimeMs, restriction.durationWeeks)) {
+                    repo.delete(restriction.packageName)
+                    needsServiceRefresh = true
+                    return@mapNotNull null
+                }
+            }
+
+            val usageMs = usm?.let {
+                UsageStatsUtils.getUsageSinceBaselineMs(it, restriction.packageName, restriction.baselineTimeMs, visiblePkgs)
+            } ?: (DebugTestSettings.debugTodayUsageMinutes?.let { it * 60 * 1000 } ?: 0L)
+            val limitMs = restriction.limitMinutes * 60L * 1000L
+            val remainingMs = (limitMs - usageMs).coerceAtLeast(0)
+            val todayMinutes = (usageMs / 60_000).toInt().coerceAtLeast(0)
             val todaySessionCount = (usm?.let { getTodaySessionCount(it, restriction.packageName) } ?: 0).toInt().coerceAtLeast(0)
             val limitMinutes = restriction.limitMinutes
+
+            // 4. 격일·특정요일: 제한 없는 날 "N일 후 제한 예정" 표시
+            val isEveryDay = repeatDaySet.size == 7
+            val daysUntil = if (!isEveryDay && repeatDaySet.isNotEmpty()) daysUntilNextRestriction(todayIdx, repeatDaySet) else 0
+            val (usageText, usageLabel) = when {
+                daysUntil > 0 -> "${daysUntil}일 후 제한 예정" to "예정"
+                remainingMs <= 0 -> "사용 가능한 시간 없음" to "남음"
+                isEveryDay -> formatDurationHhMmSs(remainingMs) to "남음"
+                else -> formatDurationHhMmSs(remainingMs) to "남음"
+            }
+
             MainAppRestrictionItem(
                 appName = restriction.appName,
                 packageName = restriction.packageName,
-                usageText = "${todayMinutes}/${limitMinutes}분",
-                usageLabel = "사용 중",
+                usageText = usageText,
+                usageLabel = usageLabel,
                 showDetailButton = true,
                 limitMinutes = limitMinutes,
                 todayUsageMinutes = todayMinutes,
@@ -615,27 +697,18 @@ private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem>
                 usageMinutes = "${todayMinutes}분",
                 sessionCount = "${todaySessionCount}회",
                 dailyLimitMinutes = "${limitMinutes}분",
-                usageTextColor = AppColors.TextHighlight,
+                usageTextColor = if (remainingMs <= 0) AppColors.Red300 else AppColors.TextHighlight,
                 usageLabelColor = AppColors.TextSecondary,
             )
         }
     }
-}
 
-private fun getTodayUsageMinutes(usm: UsageStatsManager, packageName: String): Long {
-    val cal = Calendar.getInstance().apply {
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
+    if (needsServiceRefresh) {
+        val map = repo.toRestrictionMap()
+        AppMonitorService.stop(context)
+        if (map.isNotEmpty()) AppMonitorService.start(context, map)
     }
-    val stats = usm.queryUsageStats(
-        UsageStatsManager.INTERVAL_DAILY,
-        cal.timeInMillis,
-        System.currentTimeMillis(),
-    ) ?: return 0
-    val ms = stats.filter { it.packageName == packageName }.sumOf { it.totalTimeInForeground }
-    return ms / 60_000
+    return result
 }
 
 private fun getTodaySessionCount(usm: UsageStatsManager, packageName: String): Long {
@@ -688,8 +761,8 @@ fun MainFlowHost(
     onAddAppClick: () -> Unit,
     onLogout: () -> Unit,
     isFreeUser: Boolean = true,
-    initialPauseCompleteFromOverlay: Pair<String, String>? = null,
-    onPauseCompleteConsumed: () -> Unit = {},
+    initialPauseFlowFromOverlay: PendingPauseFlowFromOverlay? = null,
+    onPauseFlowConsumed: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var navIndex by remember { mutableIntStateOf(0) }
@@ -708,18 +781,19 @@ fun MainFlowHost(
     var showPauseCompleteSheet by remember { mutableStateOf(false) }
     var selectedAppForPause by remember { mutableStateOf<MainAppRestrictionItem?>(null) }
 
-    // 앱 제한 오버레이에서 일시정지 클릭 후 Cole 앱으로 진입 시 pause complete 바텀시트 표시
-    LaunchedEffect(initialPauseCompleteFromOverlay) {
-        val pending = initialPauseCompleteFromOverlay ?: return@LaunchedEffect
-        val (packageName, appName) = pending
+    // 앱 제한 오버레이에서 일시정지 클릭 후 Cole 앱으로 진입 시 1단계(제안)부터 표시
+    LaunchedEffect(initialPauseFlowFromOverlay) {
+        val pending = initialPauseFlowFromOverlay ?: return@LaunchedEffect
         selectedAppForPause = MainAppRestrictionItem(
-            appName = appName,
-            packageName = packageName,
+            appName = pending.appName,
+            packageName = pending.packageName,
             usageText = "",
             usageLabel = "",
             showDetailButton = false,
+            limitMinutes = 90, // pauseAvailable (60분 초과) 조건 충족
+            blockUntilMs = pending.blockUntilMs,
         )
-        showPauseCompleteSheet = true
+        showPauseProposalSheet = true
     }
 
     val navDestinations = listOf(
@@ -1045,12 +1119,20 @@ fun MainFlowHost(
                 pauseItem.limitMinutes > 60 &&
                 PauseRepository(context).getRemainingCount(pauseItem.packageName) > 0
             AppLimitPauseProposalBottomSheet(
-                onDismissRequest = { showPauseProposalSheet = false },
+                onDismissRequest = {
+                    showPauseProposalSheet = false
+                    selectedAppForPause = null
+                    onPauseFlowConsumed()
+                },
                 onContinueClick = {
                     showPauseProposalSheet = false
                     showPauseConfirmSheet = true
                 },
-                onBackClick = { showPauseProposalSheet = false },
+                onBackClick = {
+                    showPauseProposalSheet = false
+                    selectedAppForPause = null
+                    onPauseFlowConsumed()
+                },
                 canPause = pauseAvailable,
             )
         }
@@ -1064,7 +1146,16 @@ fun MainFlowHost(
                 appIcon = appIcon,
                 usageText = "${remainingMin}분 후 제한 해제",
                 usageLabel = "",
-                onDismissRequest = { showPauseConfirmSheet = false },
+                onDismissRequest = {
+                    showPauseConfirmSheet = false
+                    selectedAppForPause = null
+                    onPauseFlowConsumed()
+                },
+                onBackClick = {
+                    showPauseConfirmSheet = false
+                    selectedAppForPause = null
+                    onPauseFlowConsumed()
+                },
                 onPauseClick = {
                     val pauseRepo = PauseRepository(context)
                     pauseRepo.startPause(item.packageName, 5)
@@ -1078,7 +1169,6 @@ fun MainFlowHost(
                     showPauseConfirmSheet = false
                     showPauseCompleteSheet = true
                 },
-                onBackClick = { showPauseConfirmSheet = false },
             )
         }
 
@@ -1093,14 +1183,14 @@ fun MainFlowHost(
                 onDismissRequest = {
                     showPauseCompleteSheet = false
                     selectedAppForPause = null
-                    onPauseCompleteConsumed()
+                    onPauseFlowConsumed()
                 },
                 onLaunchAppClick = {
                     showPauseCompleteSheet = false
                     val launchIntent = context.packageManager.getLaunchIntentForPackage(item.packageName)
                     launchIntent?.let { context.startActivity(it) }
                     selectedAppForPause = null
-                    onPauseCompleteConsumed()
+                    onPauseFlowConsumed()
                 },
             )
         }
