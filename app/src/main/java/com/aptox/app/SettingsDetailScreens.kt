@@ -456,26 +456,6 @@ fun AppInfoScreen(onBack: () -> Unit, onTermsClick: () -> Unit, onPrivacyClick: 
 }
 
 @Composable
-fun BugReportScreen(onBack: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
-        Spacer(modifier = Modifier.height(24.dp))
-        SettingsListCard {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SimpleTextRow(text = "문제가 발생했나요? 아래 이메일로 연락해 주세요")
-                SimpleTextRow(text = "support@aptox.app")
-            }
-        }
-        Spacer(modifier = Modifier.height(24.dp))
-    }
-}
-
-@Composable
 fun OpenSourceScreen(onBack: () -> Unit) {
     Column(
         modifier = Modifier

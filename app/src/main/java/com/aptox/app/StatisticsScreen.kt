@@ -556,6 +556,15 @@ private fun StatsDateChartSection(
             }
             else -> {}
         }
+        val dateChartInsight = remember(tabEnum, dayMinutes, dayOfMonthMinutes, yearMinutes, yearLabels, weekOffset, monthOffset, yearOffset) {
+            formatDateChartInsight(tabEnum, dayMinutes, dayOfMonthMinutes, yearMinutes, yearLabels, weekOffset, monthOffset, yearOffset)
+        }
+        AptoxInfoBoxCompactNewDesign(
+            text = dateChartInsight,
+            maxLines = 2,
+            contentPaddingHorizontal = 16.dp,
+            contentPaddingVertical = 18.dp,
+        )
     }
 }
 
@@ -566,6 +575,44 @@ private data class NavState(
     val onPrev: () -> Unit,
     val onNext: () -> Unit,
 )
+
+/** 기간별 사용량 하단 인사이트 메시지 (Figma 919:3520 텍스트 카드) */
+private fun formatDateChartInsight(
+    tabEnum: StatisticsData.Tab,
+    dayMinutes: List<Long>,
+    dayOfMonthMinutes: List<Long>,
+    yearMinutes: List<Long>,
+    yearLabels: List<String>,
+    weekOffset: Int,
+    monthOffset: Int,
+    yearOffset: Int,
+): String {
+    val periodPrefix = when {
+        (tabEnum == StatisticsData.Tab.WEEKLY && weekOffset == 0) ||
+        (tabEnum == StatisticsData.Tab.MONTHLY && monthOffset == 0) ||
+        (tabEnum == StatisticsData.Tab.YEARLY && yearOffset == 0) -> "이번"
+        else -> "지난"
+    }
+    return when (tabEnum) {
+        StatisticsData.Tab.WEEKLY -> {
+            val maxIdx = dayMinutes.withIndex().maxByOrNull { it.value }?.index ?: -1
+            if (maxIdx < 0 || dayMinutes.all { it == 0L }) "사용량 데이터가 없어요"
+            else "${periodPrefix}주엔 ${DayLabels[maxIdx]}요일의 스마트폰 사용시간이 가장 높았어요"
+        }
+        StatisticsData.Tab.MONTHLY -> {
+            val maxIdx = dayOfMonthMinutes.withIndex().maxByOrNull { it.value }?.index ?: -1
+            if (maxIdx < 0 || dayOfMonthMinutes.all { it == 0L }) "사용량 데이터가 없어요"
+            else "${periodPrefix} 달 ${maxIdx + 1}일의 스마트폰 사용시간이 가장 높았어요"
+        }
+        StatisticsData.Tab.YEARLY -> {
+            val minSize = minOf(yearMinutes.size, yearLabels.size)
+            val maxIdx = yearMinutes.take(minSize).withIndex().maxByOrNull { it.value }?.index ?: -1
+            if (maxIdx < 0 || yearMinutes.all { it == 0L }) "사용량 데이터가 없어요"
+            else "${yearLabels.getOrNull(maxIdx) ?: ""}의 스마트폰 사용시간이 가장 높았어요"
+        }
+        else -> "사용량 데이터가 없어요"
+    }
+}
 
 /** 우측 날짜/기간 표기: 주간="이번 주"/"N주 전", 월간="이번 달"/"N월", 연간="2025년" 등 */
 private fun formatPeriodLabel(tabEnum: StatisticsData.Tab, weekOffset: Int, monthOffset: Int, yearOffset: Int): String = when (tabEnum) {
@@ -1388,7 +1435,24 @@ private fun StatsStackedBarAndAppList(
                 )
             }
         }
+        val categoryInsight = remember(segments) { formatCategoryStatsInsight(segments) }
+        AptoxInfoBoxCompactNewDesign(
+            text = categoryInsight,
+            maxLines = 2,
+            contentPaddingHorizontal = 16.dp,
+            contentPaddingVertical = 18.dp,
+        )
     }
+}
+
+/** 카테고리 통계 하단 인사이트 메시지 (Figma 925:7299 텍스트 카드) */
+private fun formatCategoryStatsInsight(segments: List<Pair<String, Float>>): String {
+    if (segments.isEmpty()) return "카테고리 데이터가 없어요"
+    val (topCat, topPct) = segments.first()
+    val secondPct = segments.getOrNull(1)?.second ?: 0f
+    val diff = (topPct - secondPct).toInt().coerceAtLeast(0)
+    return if (diff > 0) "${topCat} 앱의 사용량이 다른 카테고리에 비해 ${diff}%나 더 많아요"
+    else "${topCat} 앱을 가장 많이 사용했어요"
 }
 
 /** Figma 925:7299 — 앱 row: 아이콘(56dp) + 태그(위) + 앱 이름(아래) + 사용시간 */
@@ -1690,8 +1754,8 @@ private fun StatsTimeSlotSection(
         TimeSlotBarChartComponent(
             values = normalized,
             maxValueIdx = maxIdx,
-            showSpeechBubble = true,
-            speechBubbleText = "스마트폰 사용 최다 시간대",
+            showSpeechBubble = false,
+            // speechBubbleText = "스마트폰 사용 최다 시간대", // 말풍선 제거
             modifier = Modifier.fillMaxWidth(),
         )
 

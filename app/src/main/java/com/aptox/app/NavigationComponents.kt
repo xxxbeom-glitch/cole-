@@ -53,7 +53,7 @@ fun AptoxBottomNavBar(
     selectedIndex: Int,
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    showPremiumBanner: Boolean = true,
+    showPremiumBanner: Boolean = false,
     onPremiumClick: (() -> Unit)? = null,
     premiumBannerText: String = "더 강하게 제한하고 싶다면 프리미엄으로",
 ) {
@@ -96,33 +96,16 @@ fun AptoxBottomNavBar(
             }
         }
 
-        if (showPremiumBanner) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(42.dp)
-                    .background(Color(0xFF2B2B2B))
-                    .then(
-                        if (onPremiumClick != null) Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onPremiumClick() }
-                        else Modifier
-                    )
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                Text(
-                    text = premiumBannerText,
-                    style = AppTypography.ButtonSmall.copy(color = AppColors.TextInvert),
-                )
-                Spacer(modifier = Modifier.size(4.dp))
-                Icon(
-                    painter = painterResource(R.drawable.ic_chevron_right),
-                    contentDescription = null,
-                    tint = AppColors.TextInvert,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-        }
+        // 구독 유도 배너 — 유료 구독 플랜 없으므로 비활성화
+        // if (showPremiumBanner) {
+        //     Row(
+        //         modifier = Modifier
+        //             .fillMaxWidth()
+        //             .height(42.dp)
+        //             .background(Color(0xFF2B2B2B))
+        //             ...
+        //     ) { ... }
+        // }
     }
 }
 

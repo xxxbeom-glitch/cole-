@@ -79,7 +79,29 @@ class AppDataPreloadRepository(private val context: Context) {
      * Step 3: AI 카테고리 분류 — 캐시 미스 앱만 Claude API 호출 후 캐시 저장.
      */
     suspend fun classifyAndCacheApps(installedApps: List<AppInfo>): Unit = withContext(Dispatchers.IO) {
-        if (installedApps.isEmpty()) return@withContext
+        classifyAndCacheAppsInternal(installedApps, targetProgress = 1f) {}
+    }
+
+    /**
+     * AI 카테고리 분류의 일부만 수행 (스플래시에서 ~30% 진행 후 중단).
+     * @param targetProgress 0f~1f. 이 비율까지 분류 후 반환. 예: 0.3f = 30%까지만.
+     * @param onProgress suspend (처리된 앱 수 / 전체 needClassify 수) 0f~1f — Main에서 호출 가능
+     * @return 실제 수행된 비율
+     */
+    suspend fun classifyAndCacheAppsPartial(
+        installedApps: List<AppInfo>,
+        targetProgress: Float,
+        onProgress: suspend (Float) -> Unit,
+    ): Float = withContext(Dispatchers.IO) {
+        classifyAndCacheAppsInternal(installedApps, targetProgress, onProgress)
+    }
+
+    private suspend fun classifyAndCacheAppsInternal(
+        installedApps: List<AppInfo>,
+        targetProgress: Float,
+        onProgress: suspend (Float) -> Unit,
+    ): Float {
+        if (installedApps.isEmpty()) return 1f
         val cacheRepo = AppCategoryCacheRepository(context)
         val installedPkgs = installedApps.map { it.packageName }.toSet()
         cacheRepo.pruneUninstalled(installedPkgs)
@@ -87,14 +109,26 @@ class AppDataPreloadRepository(private val context: Context) {
         val needClassify = installedApps
             .filter { it.packageName !in cached }
             .map { it.packageName to it.name }
-        if (needClassify.isEmpty()) return@withContext
-        val repo = ClaudeRepository()
+        if (needClassify.isEmpty()) {
+            onProgress(1f)
+            return 1f
+        }
+        val totalCount = needClassify.size
         val batchSize = 25
-        for (batch in needClassify.chunked(batchSize)) {
+        val batches = needClassify.chunked(batchSize)
+        var processedCount = 0
+        val repo = ClaudeRepository()
+        for (batch in batches) {
             val results = repo.classifyApps(batch).getOrNull() ?: continue
             val newEntries = results.associate { it.packageName to it.category }
             cacheRepo.saveCategories(newEntries)
+            processedCount += batch.size
+            val progress = (processedCount.toFloat() / totalCount).coerceIn(0f, 1f)
+            onProgress(progress)
+            if (progress >= targetProgress) return progress
         }
+        onProgress(1f)
+        return 1f
     }
 
     private fun getUserInstalledPackages(pm: PackageManager): Set<String> {

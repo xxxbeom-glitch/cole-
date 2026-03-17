@@ -1,7 +1,11 @@
 package com.aptox.app
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +22,8 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,13 +33,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 /**
  * 앱 접근 권한 안내 화면 (풀스크린).
- * Figma 861-4229 원본 디자인 기반.
+ * Figma 1125-5261 기반. 아이콘 원본 사이즈 유지, 설정 바로가기 → 기기 설정 연동.
  */
 @Composable
 fun PermissionScreen(
@@ -41,6 +48,7 @@ fun PermissionScreen(
     onGhostClick: () -> Unit, // DebugMenuScreen 호환성을 위해 시그니처 유지
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -64,8 +72,8 @@ fun PermissionScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "서비스 이용을 위해 다음의 허용이 필요합니다",
-                style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
+                text = "서비스 이용을 위해 다음의 허용이 필요해요",
+                style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
                 textAlign = TextAlign.Center
             )
             
@@ -78,16 +86,24 @@ fun PermissionScreen(
                         iconResId = R.drawable.ic_perm_usage,
                         title = "앱 사용정보 접근 (필수)",
                         description = "앱별 사용 시간 측정과 사용 제한 기능 작동에 필요한 권한입니다",
+                        onSettingsClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) },
                     ),
                     PermissionItem(
                         iconResId = R.drawable.ic_perm_overlay,
                         title = "다른 앱 위에 표시 (필수)",
                         description = "사용 제한 시 안내 화면을 화면 위에 표시하기 위해 필요합니다",
+                        onSettingsClick = {
+                            context.startActivity(
+                                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                                    .setData(Uri.parse("package:${context.packageName}"))
+                            )
+                        },
                     ),
                     PermissionItem(
                         iconResId = R.drawable.ic_perm_accessibility,
                         title = "접근성 서비스 (필수)",
                         description = "제한 중인 앱으로 이동할 때 사용 제한 화면을 표시하기 위해 필요합니다",
+                        onSettingsClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
                     ),
                 ),
             )
@@ -101,6 +117,13 @@ fun PermissionScreen(
                         iconResId = R.drawable.ic_perm_notification,
                         title = "알림 (선택)",
                         description = "사용 시간 초과 알림과 목표 달성 소식을 알림으로 알리기 위해 필요합니다",
+                        onSettingsClick = {
+                            context.startActivity(
+                                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                }
+                            )
+                        },
                     ),
                 ),
             )
@@ -126,16 +149,16 @@ fun PermissionScreen(
             }
         }
 
-        // 하단 버튼 ("나중에 하기" 단일 구성)
+        // 하단 버튼: 1라인, 배경 없는 스타일 (Figma 1125-5261)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 24.dp)
                 .windowInsetsPadding(WindowInsets.navigationBars),
         ) {
-            AptoxPrimaryButton(
-                text = "나중에 하기",
-                onClick = onPrimaryClick, // 메인 액션 바인딩
+            AptoxTextOnlyButton(
+                text = "다음에 하기",
+                onClick = onPrimaryClick,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -146,6 +169,7 @@ private data class PermissionItem(
     val iconResId: Int,
     val title: String,
     val description: String,
+    val onSettingsClick: () -> Unit,
 )
 
 private val PermissionCardShape = RoundedCornerShape(12.dp)
@@ -175,6 +199,7 @@ private fun PermissionCard(
                 iconResId = item.iconResId,
                 title = item.title,
                 description = item.description,
+                onSettingsClick = item.onSettingsClick,
             )
         }
     }
@@ -185,23 +210,24 @@ private fun PermissionItemRow(
     iconResId: Int,
     title: String,
     description: String,
+    onSettingsClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically, // 아이콘과 텍스트 그룹 간 수직 중앙 정렬로 수정
+        verticalAlignment = Alignment.Top,
     ) {
-        // 아이콘 리사이징 및 박스 배경 제거. 원본 리소스 직접 사용.
+        // 아이콘: 첨부된 이미지 사이즈(96x96) 그대로 사용, ContentScale.Fit으로 비율 유지
         Image(
             painter = painterResource(iconResId),
             contentDescription = null,
             modifier = Modifier.size(48.dp),
             contentScale = ContentScale.Fit,
         )
-        
+
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
                 text = title,
@@ -211,6 +237,24 @@ private fun PermissionItemRow(
                 text = description,
                 style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
             )
+            Row(
+                modifier = Modifier
+                    .clickable(onClick = onSettingsClick)
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = "설정 바로가기",
+                    style = AppTypography.Caption2.copy(color = AppColors.Red300),
+                )
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = AppColors.Red300,
+                )
+            }
         }
     }
 }

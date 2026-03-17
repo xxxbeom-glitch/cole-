@@ -132,3 +132,77 @@ SpeechBubble(
 
 enum class TailDirection { Start, End }
 ```
+
+---
+
+## 하루 사용량 지정 — 시간 선택 칩 Row (304-1760)
+
+**Figma:** 304-1760 (일일사용량제한_사용량지정 바텀시트), node 1164:4824
+
+일일 사용량 제한 바텀시트에서 사용 시간을 선택하는 UI. 기존 슬라이더(AptoxStepBar) 대신 가로 칩 Row로 변경.
+
+### 레이아웃 스펙
+
+| 속성 | 값 | 비고 |
+|------|-----|------|
+| display | flex (Row) | 가로 배치 |
+| width | 328px (fillMaxWidth) | 바텀시트 콘텐츠 영역 기준 (360 - 32 padding) |
+| align-items | center | 세로 중앙 정렬 |
+| gap | 12dp | 칩 간 간격 |
+
+### 개별 칩(옵션) 스펙
+
+| 속성 | 선택됨 | 비선택 |
+|------|--------|--------|
+| 크기 | 80×60dp | 80×60dp |
+| 모서리 | 12dp | 12dp |
+| 배경 | Primary200 (`#E9EBF8`) | White900 또는 Grey150 |
+| 테두리 | 없음 | 1dp Grey250 (`#E8E8E8`) 선택사항 |
+| 텍스트 | HeadingH3, Primary300 (`#6C54DD`) | HeadingH3, TextTertiary (`#333333`) |
+| 텍스트 정렬 | 중앙 | 중앙 |
+
+### Kotlin/Compose 매핑
+
+```kotlin
+// Row 레이아웃
+Row(
+    modifier = Modifier
+        .fillMaxWidth()
+        .widthIn(max = 328.dp),  // 필요 시
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
+    verticalAlignment = Alignment.CenterVertically,
+) { /* 칩들 */ }
+
+// 개별 칩
+Box(
+    modifier = Modifier
+        .size(80.dp, 60.dp)
+        .clip(RoundedCornerShape(12.dp))
+        .then(
+            if (selected) Modifier.background(AppColors.Primary200)
+            else Modifier
+                .background(AppColors.White900)
+                .border(1.dp, AppColors.Grey250, RoundedCornerShape(12.dp))
+        )
+        .clickable { onClick() },
+    contentAlignment = Alignment.Center,
+) {
+    Text(
+        text = label,  // e.g. "30분", "60분", "90분"
+        style = AppTypography.HeadingH3.copy(
+            color = if (selected) AppColors.TextHighlight else AppColors.TextTertiary,
+            textAlign = TextAlign.Center,
+        ),
+    )
+}
+```
+
+### 옵션 예시 (일일 사용량)
+
+- `30분`, `50분`, `60분`, `90분`, `120분` (Figma 기준)
+- 또는 `listOf("30분", "60분", "90분", "120분", "150분", "180분")` (기존 AptoxStepBar steps)
+
+### 사용처
+
+- `AddAppDailyLimitScreen01` — "하루 사용량을 지정해주세요" 바텀시트
+- `AppLimitSetupTimeBottomSheet` → 일일 전용으로 변경 시

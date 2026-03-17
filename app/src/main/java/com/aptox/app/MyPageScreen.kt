@@ -64,12 +64,13 @@ fun MyPageScreen(
                     label = "계정 관리",
                     onClick = onAccountManageClick,
                 )
-                MyPageDivider()
-                MyPageRowItem(
-                    iconResId = R.drawable.ic_managesubs,
-                    label = "구독 관리",
-                    onClick = onSubscriptionManageClick,
-                )
+                // 구독 관리 — 유료 구독 플랜 없으므로 비활성화
+                // MyPageDivider()
+                // MyPageRowItem(
+                //     iconResId = R.drawable.ic_managesubs,
+                //     label = "구독 관리",
+                //     onClick = onSubscriptionManageClick,
+                // )
             }
 
             // 시스템

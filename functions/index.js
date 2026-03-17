@@ -591,24 +591,31 @@ exports.callClaude = functions.https.onCall(async (data, context) => {
 });
 
 /**
- * 버그 신고 제출 - Firestore에만 저장
+ * 버그 신고 제출 - Storage URL 수신 후 Firestore 저장
+ * data: { title?: string, content: string, imageUrls?: string[] }
  */
 exports.submitBugReport = functions.https.onCall(async (data, context) => {
+  const title = data?.title;
   const content = data?.content;
+  const imageUrls = Array.isArray(data?.imageUrls) ? data.imageUrls : [];
   if (!content || typeof content !== "string") {
     throw new functions.https.HttpsError("invalid-argument", "내용을 입력해주세요.");
   }
 
-  const trimmed = content.trim();
-  if (trimmed.length === 0) {
+  const trimmedContent = content.trim();
+  if (trimmedContent.length === 0) {
     throw new functions.https.HttpsError("invalid-argument", "내용을 입력해주세요.");
   }
+
+  const trimmedTitle = (title && typeof title === "string") ? title.trim() : "";
 
   let docRef;
   try {
     const db = admin.firestore();
     docRef = await db.collection("bugReports").add({
-      content: trimmed,
+      title: trimmedTitle || null,
+      content: trimmedContent,
+      imageUrls: imageUrls.length > 0 ? imageUrls : null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       userId: context.auth?.uid || null,
     });

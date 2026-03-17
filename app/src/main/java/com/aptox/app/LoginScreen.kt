@@ -65,14 +65,18 @@ fun SplashLoginScreen(
     errorMessage: String? = null,
     onClearError: () -> Unit = {},
     isLoading: Boolean = false,
+    /** true면 스플래시 애니메이션 없이 바로 로그인 버튼 표시 (LOGIN 단계 전용) */
+    initialButtonsVisible: Boolean = false,
 ) {
-    var buttonsVisible by remember { mutableStateOf(false) }
+    var buttonsVisible by remember { mutableStateOf(initialButtonsVisible) }
     var logoHeightPx by remember { mutableStateOf(0f) }
     var loadingProvider by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(Unit) {
-        delay(1500L)
-        buttonsVisible = true
+    LaunchedEffect(initialButtonsVisible) {
+        if (!initialButtonsVisible) {
+            delay(1500L)
+            buttonsVisible = true
+        }
     }
 
     val density = LocalDensity.current

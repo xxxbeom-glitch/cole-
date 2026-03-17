@@ -800,6 +800,14 @@ private val DAILY_DURATION_OPTIONS_FOR_REPEAT = listOf("1주", "2주", "3주", "
 private fun formatSelectedDays(selectedDays: Set<Int>, labels: List<String>): String =
     selectedDays.sorted().joinToString(", ") { labels.getOrElse(it) { "" } }
 
+/** 요일 선택에 따른 "몇 주 동안 진행할까요" 서브텍스트 prefix */
+private fun formatDurationSubtitlePrefix(selectedDays: Set<Int>): String = when {
+    selectedDays.size == 7 -> "매일마다"
+    selectedDays == setOf(0, 1, 2, 3, 4) -> "평일에만"
+    selectedDays == setOf(5, 6) -> "주말에만"
+    else -> "매주 ${formatSelectedDays(selectedDays, DAILY_DAY_LABELS)} 마다"
+}
+
 @Composable
 fun AddAppDailyLimitScreen01(
     selectedAppNames: Set<String>,
@@ -830,7 +838,7 @@ fun AddAppDailyLimitScreen01(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         AptoxHeaderSub(
-            title = "일일 사용량 제한",
+            title = "하루 사용량 제한",
             backIcon = painterResource(R.drawable.ic_back),
             onBackClick = onBackClick,
             showNotification = true,
@@ -984,7 +992,7 @@ fun AddAppDailyLimitScreen04(
     modifier: Modifier = Modifier,
 ) {
     AddAppCommonConfirmSummaryScreen(
-        headerTitle = "일일 사용량 제한",
+        headerTitle = "하루 사용량 제한",
         mainTitle = mainTitle,
         showSubtitle = showSubtitle,
         primaryButtonText = primaryButtonText,
@@ -1013,7 +1021,7 @@ fun AddAppDailyLimitScreen05(
     modifier: Modifier = Modifier,
 ) {
     AddAppCommonCompleteScreen(
-        headerTitle = "일일 사용량 제한",
+        headerTitle = "하루 사용량 제한",
         summaryContent = {
             AddAppDailyCompleteSummaryBox(
                 appName = appName,
@@ -1022,7 +1030,7 @@ fun AddAppDailyLimitScreen05(
                 duration = duration,
             )
         },
-        primaryButtonText = "홈으로 가기",
+        primaryButtonText = "카운트 시작하기",
         secondaryButtonText = "다른 앱 추가하기",
         onPrimaryClick = onCompleteClick,
         onSecondaryClick = onAddAnotherClick,
@@ -1088,6 +1096,7 @@ fun AddAppCommonTimeScheduleScreen(
 fun AddAppDailyDurationBottomSheet(
     options: List<String> = DAILY_DURATION_OPTIONS_FOR_REPEAT,
     initialIndex: Int = 0,
+    selectedDays: Set<Int> = emptySet(),
     selectedDaysText: String = "",
     limitMinutes: String = "30분",
     onDismissRequest: () -> Unit,
@@ -1097,14 +1106,12 @@ fun AddAppDailyDurationBottomSheet(
 ) {
     var selectedIndex by remember { mutableIntStateOf(initialIndex.coerceIn(0, options.lastIndex)) }
     val selectedDuration = options.getOrElse(selectedIndex) { options.firstOrNull() ?: "1주" }
+    val prefix = formatDurationSubtitlePrefix(selectedDays)
 
-    val subtitleAnnotated = remember(selectedDaysText, limitMinutes, selectedDuration) {
+    val subtitleAnnotated = remember(prefix, limitMinutes, selectedDuration) {
         buildAnnotatedString {
-            append("매주 ")
-            pushStyle(SpanStyle(color = AppColors.TextHighlight))
-            append(selectedDaysText.ifEmpty { "—" })
-            pop()
-            append(" 마다 ")
+            append(prefix)
+            append(" ")
             pushStyle(SpanStyle(color = AppColors.TextHighlight))
             append("$limitMinutes/일")
             pop()
@@ -1213,7 +1220,7 @@ fun AddAppDailyDurationScreen(
             .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
         AptoxHeaderSub(
-            title = "일일 사용량 제한",
+            title = "하루 사용량 제한",
             backIcon = painterResource(R.drawable.ic_back),
             onBackClick = onBackClick,
             showNotification = true,
@@ -1325,11 +1332,13 @@ fun AddAppFlowHost(
     onComplete: () -> Unit,
     onBackFromFirst: () -> Unit,
     modifier: Modifier = Modifier,
+    /** 일일 사용량 제한 완료 후 "카운트 시작하기" 탭 시 첫 번째 앱의 packageName 전달 */
+    onCompleteWithFirstPackage: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
-    var step by remember { mutableStateOf(AddAppStep.AA_01) }
+    var step by remember { mutableStateOf(AddAppStep.AA_DAILY_01) }
     var previousStepBeforeConfirm by remember { mutableStateOf(AddAppStep.AA_02A_TIME_05) }
-    var flowHeaderTitle by remember { mutableStateOf("앱 제한") }
+    var flowHeaderTitle by remember { mutableStateOf("하루 사용량 제한") }
     var selectedAppNames by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selectedAppsForTime by remember { mutableStateOf<List<com.aptox.app.model.SelectedAppInfo>>(emptyList()) }
     var selectedAppsForDaily by remember { mutableStateOf<List<com.aptox.app.model.SelectedAppInfo>>(emptyList()) }
@@ -1348,28 +1357,10 @@ fun AddAppFlowHost(
     var dailySelectedDuration by remember { mutableStateOf<String?>(null) }
 
     when (step) {
-        AddAppStep.AA_01 -> AddAppScreenAA01(
-            onTimeSpecifiedClick = {
-                flowHeaderTitle = "시간 지정 제한"
-                selectedAppNames = emptySet()
-                selectedAppsForTime = emptyList()
-                selectedTimeLimit = null
-                step = AddAppStep.AA_02A_TIME_01
-            },
-            onDailyLimitClick = {
-                flowHeaderTitle = "일일 사용량 제한"
-                selectedAppNames = emptySet()
-                selectedAppsForDaily = emptyList()
-                dailyLimitMinutes = null
-                dailySelectedDays = emptySet()
-                dailySelectedDuration = null
-                step = AddAppStep.AA_DAILY_01
-            },
-            onBackClick = onBackFromFirst,
-        )
+        AddAppStep.AA_01 -> { /* 사용 안 함 — 바로 AA_DAILY_01로 진입 */ }
         AddAppStep.AA_02A_01 -> AddAppScreenAA02A01(
             onDailyLimitClick = {
-                flowHeaderTitle = "일일 사용량 제한"
+                flowHeaderTitle = "하루 사용량 제한"
                 selectedAppNames = emptySet()
                 selectedAppsForDaily = emptyList()
                 dailyLimitMinutes = null
@@ -1391,9 +1382,9 @@ fun AddAppFlowHost(
                     showAccessibilityRequiredSheet = true
                 }
             },
-            onBackClick = { step = AddAppStep.AA_01 },
+                onBackClick = onBackFromFirst,
         )
-        // 일일사용량 제한 플로우 (5화면)
+        // 하루 사용량 제한 플로우 (5화면)
         AddAppStep.AA_DAILY_01 -> {
             AddAppDailyLimitScreen01(
                 selectedAppNames = selectedAppNames,
@@ -1404,8 +1395,8 @@ fun AddAppFlowHost(
                 onTimeRowClick = { showDailyTimeSheet = true },
                 onDaysRowClick = { showDailyDaysSheet = true },
                 onDurationRowClick = { if (dailySelectedDays.isNotEmpty()) showDailyDurationSheet = true },
-                onNextClick = { step = AddAppStep.AA_DAILY_04 },
-                onBackClick = { step = AddAppStep.AA_01 },
+                onNextClick = { step = AddAppStep.AA_DAILY_05 },
+                onBackClick = onBackFromFirst,
             )
             if (showDailyAppSelectSheet) {
                 AddAppSelectBottomSheet(
@@ -1423,7 +1414,7 @@ fun AddAppFlowHost(
             if (showDailyTimeSheet) {
                 AppLimitSetupTimeBottomSheet(
                     title = "하루 사용량을 지정해주세요",
-                    subtitle = "본인의 사용패턴을 생각해 시간을 선택해주세요",
+                    subtitle = "사용 시간을 너무 짧게 시작하면 역효과가 생겨요",
                     steps = DAILY_TIME_STEPS,
                     feedbackMessages = listOf(
                         "하루 30분, 스마트폰과 거리두기의 첫걸음이에요",
@@ -1467,6 +1458,7 @@ fun AddAppFlowHost(
                 AddAppDailyDurationBottomSheet(
                     options = DAILY_DURATION_OPTIONS_FOR_REPEAT,
                     initialIndex = dailySelectedDuration?.let { DAILY_DURATION_OPTIONS_FOR_REPEAT.indexOf(it) }?.takeIf { it >= 0 } ?: 0,
+                    selectedDays = dailySelectedDays,
                     selectedDaysText = formatSelectedDays(dailySelectedDays, DAILY_DAY_LABELS),
                     limitMinutes = dailyLimitMinutes ?: "30분",
                     onDismissRequest = { showDailyDurationSheet = false },
@@ -1481,16 +1473,20 @@ fun AddAppFlowHost(
         AddAppStep.AA_DAILY_02, AddAppStep.AA_DAILY_03 -> {
             LaunchedEffect(Unit) { step = AddAppStep.AA_DAILY_01 }
         }
-        AddAppStep.AA_DAILY_04 ->         AddAppDailyLimitScreen04(
-            limitMinutes = dailyLimitMinutes ?: "30분",
-            selectedDaysText = if (dailySelectedDays.isNotEmpty()) formatSelectedDays(dailySelectedDays, DAILY_DAY_LABELS) else "오늘 하루만",
-            duration = dailySelectedDuration ?: "",
-            mainTitle = "선택하신 내용을 확인해주세요",
-            showSubtitle = false,
-            primaryButtonText = "다음",
-            onConfirmClick = { step = AddAppStep.AA_DAILY_05 },
-            onBackClick = { step = AddAppStep.AA_DAILY_01 },
-        )
+        // 확인 화면(AA_DAILY_04) — 스킵: 다음 버튼 탭 시 바로 완료 화면으로 이동
+        // AddAppStep.AA_DAILY_04 -> AddAppDailyLimitScreen04(
+        //     limitMinutes = dailyLimitMinutes ?: "30분",
+        //     selectedDaysText = if (dailySelectedDays.isNotEmpty()) formatSelectedDays(dailySelectedDays, DAILY_DAY_LABELS) else "오늘 하루만",
+        //     duration = dailySelectedDuration ?: "",
+        //     mainTitle = "선택하신 내용을 확인해주세요",
+        //     showSubtitle = false,
+        //     primaryButtonText = "다음",
+        //     onConfirmClick = { step = AddAppStep.AA_DAILY_05 },
+        //     onBackClick = { step = AddAppStep.AA_DAILY_01 },
+        // )
+        AddAppStep.AA_DAILY_04 -> {
+            LaunchedEffect(Unit) { step = AddAppStep.AA_DAILY_05 }
+        }
         AddAppStep.AA_DAILY_05 -> {
             val repo = remember { AppRestrictionRepository(context) }
             LaunchedEffect(Unit) {
@@ -1521,9 +1517,19 @@ fun AddAppFlowHost(
                 limitMinutes = dailyLimitMinutes ?: "30분",
                 selectedDaysText = if (dailySelectedDays.isNotEmpty()) formatSelectedDays(dailySelectedDays, DAILY_DAY_LABELS) else "오늘 하루만",
                 duration = dailySelectedDuration ?: "",
-                onCompleteClick = onComplete,
-                onAddAnotherClick = { step = AddAppStep.AA_01 },
-                onBackClick = { step = AddAppStep.AA_DAILY_04 },
+                onCompleteClick = {
+                    val firstPkg = selectedAppsForDaily.firstOrNull()?.packageName ?: ""
+                    if (firstPkg.isNotBlank()) onCompleteWithFirstPackage(firstPkg) else onComplete()
+                },
+                onAddAnotherClick = {
+                    selectedAppNames = emptySet()
+                    selectedAppsForDaily = emptyList()
+                    dailyLimitMinutes = null
+                    dailySelectedDays = emptySet()
+                    dailySelectedDuration = null
+                    step = AddAppStep.AA_DAILY_01
+                },
+                onBackClick = { step = AddAppStep.AA_DAILY_01 },
             )
         }
         // 시간지정제한 플로우
@@ -1534,7 +1540,7 @@ fun AddAppFlowHost(
                 onAppRowClick = { showAppSelectSheet = true },
                 onTimeRowClick = { showTimeLimitSheet = true },
                 onNextClick = { step = AddAppStep.AA_02A_TIME_05 },
-                onBackClick = { step = AddAppStep.AA_01 },
+                onBackClick = onBackFromFirst,
                 headerTitle = flowHeaderTitle,
             )
             if (showAppSelectSheet) {
@@ -1638,7 +1644,14 @@ fun AddAppFlowHost(
     }
     onComplete()
 },
-                onSecondaryClick = { step = AddAppStep.AA_01 },
+                onSecondaryClick = {
+                    selectedAppNames = emptySet()
+                    selectedAppsForDaily = emptyList()
+                    dailyLimitMinutes = null
+                    dailySelectedDays = emptySet()
+                    dailySelectedDuration = null
+                    step = AddAppStep.AA_DAILY_01
+                },
                 onBackClick = { step = previousStepBeforeConfirm },
             )
         }

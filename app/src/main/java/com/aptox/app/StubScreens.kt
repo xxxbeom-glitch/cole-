@@ -110,24 +110,72 @@ fun rawScoreToResultType(rawScore: Int): SelfTestResultType = when {
 }
 
 /**
- * 스플래시 화면 (Figma SP-01, node 409:6664)
- * - 배경: Primary300 #6C54DD
- * - 로고: 280x150, 화면 중앙, 좌우 40dp
- * - WindowInsets 적용
+ * 스플래시 화면 (Figma 409-6664)
+ * - 로그인 제거, 로고 + 로딩 바
+ * - 0% → 30% (실제 AI 캐싱) → 잠시 정지 → 99% → 잠시 정지 → 100% → onFinish
  */
 @Composable
 fun SplashScreen(onFinish: () -> Unit) {
+    val context = LocalContext.current
+    var progress by remember { mutableStateOf(0f) }
+
     LaunchedEffect(Unit) {
-        delay(2000)
+        val preload = AppDataPreloadRepository(context)
+
+        // 1. 설치된 앱 로드
+        val installedApps = withContext(Dispatchers.IO) { preload.loadInstalledApps() }
+
+        // 2. 0 → 30%: AI 캐싱 일부 수행 (실제 진행률과 동기화)
+        preload.classifyAndCacheAppsPartial(installedApps, targetProgress = 0.3f) { p ->
+            withContext(Dispatchers.Main.immediate) { progress = p * 0.3f } // 0~30% 구간
+        }
+        progress = 0.3f
+
+        // 3. 30%에서 잠시 멈춤
+        delay(400)
+
+        // 4. 30 → 99%: 애니메이션 (약 1초)
+        val steps = 35
+        for (i in 1..steps) {
+            progress = 0.3f + (0.69f * i / steps)
+            delay(30)
+        }
+        progress = 0.99f
+
+        // 5. 99%에서 잠시 멈춤
+        delay(400)
+
+        // 6. 100% → 화면 전환
+        progress = 1f
+        delay(150)
         onFinish()
     }
-    Box(
+
+    SplashWithLoadingBar(
+        progress = progress,
         modifier = Modifier
             .fillMaxSize()
             .background(AppColors.Primary300)
             .windowInsetsPadding(WindowInsets.statusBars)
             .windowInsetsPadding(WindowInsets.navigationBars),
-        contentAlignment = Alignment.Center,
+    )
+}
+
+@Composable
+private fun SplashWithLoadingBar(
+    progress: Float,
+    modifier: Modifier = Modifier,
+) {
+    val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = progress.coerceIn(0f, 1f),
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 200),
+        label = "splash_progress",
+    )
+
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
         Image(
             painter = painterResource(R.drawable.ic_splash_logo),
@@ -137,6 +185,24 @@ fun SplashScreen(onFinish: () -> Unit) {
                 .height(150.dp),
             contentScale = ContentScale.Fit,
         )
+        Spacer(modifier = Modifier.height(52.dp))
+        // 로딩 바: Figma 1175-5109 — height 6dp, 트랙 Primary600, 진행 Primary200
+        Box(
+            modifier = Modifier
+                .widthIn(max = 328.dp)
+                .fillMaxWidth(0.9f)
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(AppColors.Primary600),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(animatedProgress)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(AppColors.Primary200),
+            )
+        }
     }
 }
 
@@ -677,6 +743,7 @@ private sealed class SettingsDetail(val title: String) {
     data object Notification : SettingsDetail("알림")
     data object Permission : SettingsDetail("권한설정")
     data object Withdraw : SettingsDetail("탈퇴하기")
+    data object BugReport : SettingsDetail("버그 신고")
 }
 
 /** MA-01 메인 화면: 실제 AppRestrictionRepository 데이터 사용 (Figma 336-2910, 1104-5627) */
@@ -983,6 +1050,8 @@ fun MainFlowHost(
     isFreeUser: Boolean = true,
     initialPauseFlowFromOverlay: PendingPauseFlowFromOverlay? = null,
     onPauseFlowConsumed: () -> Unit = {},
+    /** 일일 사용량 제한 완료 후 "카운트 시작하기" 탭 시 자동으로 바텀시트를 열 packageName */
+    initialAutoOpenPackage: String? = null,
 ) {
     val context = LocalContext.current
     val authRepository = remember { AuthRepository() }
@@ -993,7 +1062,6 @@ fun MainFlowHost(
     }
     var navIndex by remember { mutableIntStateOf(0) }
     var settingsDetail by remember { mutableStateOf<SettingsDetail?>(null) }
-    var showBugReportSheet by remember { mutableStateOf(false) }
     var showTermsSheet by remember { mutableStateOf(false) }
     var showPrivacySheet by remember { mutableStateOf(false) }
     var showNotificationOverlay by remember { mutableStateOf(false) }
@@ -1006,6 +1074,23 @@ fun MainFlowHost(
     var showPauseConfirmSheet by remember { mutableStateOf(false) }
     var showPauseCompleteSheet by remember { mutableStateOf(false) }
     var selectedAppForPause by remember { mutableStateOf<MainAppRestrictionItem?>(null) }
+
+    // 일일 사용량 제한 완료 후 "카운트 시작하기" 탭 시 해당 앱 바텀시트 자동 오픈
+    LaunchedEffect(initialAutoOpenPackage) {
+        val pkg = initialAutoOpenPackage ?: return@LaunchedEffect
+        val restrictions = AppRestrictionRepository(context).getAll()
+        val restriction = restrictions.firstOrNull { it.packageName == pkg } ?: return@LaunchedEffect
+        selectedAppForDetail = MainAppRestrictionItem(
+            appName = restriction.appName,
+            packageName = restriction.packageName,
+            usageText = "",
+            usageLabel = "",
+            showDetailButton = true,
+            limitMinutes = restriction.limitMinutes,
+            restrictionType = RestrictionType.DAILY_USAGE,
+        )
+        showAppLimitInfoSheet = true
+    }
 
     // 앱 제한 오버레이에서 일시정지 클릭 후 aptox 앱으로 진입 시 1단계(제안)부터 표시
     LaunchedEffect(initialPauseFlowFromOverlay) {
@@ -1200,15 +1285,17 @@ fun MainFlowHost(
                                     },
                                     onWithdrawClick = { settingsDetail = SettingsDetail.Withdraw },
                                 )
-                                SettingsDetail.Subscription -> SubscriptionManageScreen(
-                                    onBack = { settingsDetail = null },
-                                    onCancelSubscription = {
-                                        val uri = Uri.parse("https://play.google.com/store/account/subscriptions")
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, uri).apply {
-                                            setPackage("com.android.vending")
-                                        })
-                                    },
-                                )
+                                // 구독 관리 — 유료 구독 플랜 없으므로 비활성화
+                                // SettingsDetail.Subscription -> SubscriptionManageScreen(
+                                //     onBack = { settingsDetail = null },
+                                //     onCancelSubscription = {
+                                //         val uri = Uri.parse("https://play.google.com/store/account/subscriptions")
+                                //         context.startActivity(Intent(Intent.ACTION_VIEW, uri).apply {
+                                //             setPackage("com.android.vending")
+                                //         })
+                                //     },
+                                // )
+                                SettingsDetail.Subscription -> { settingsDetail = null }
                                 SettingsDetail.Notification -> NotificationSettingsScreen(
                                     onBack = { settingsDetail = null },
                                 )
@@ -1226,6 +1313,56 @@ fun MainFlowHost(
                                         context.startActivity(intent)
                                     },
                                 )
+                                SettingsDetail.BugReport -> BugReportScreen(
+                                    onBack = { settingsDetail = null },
+                                    onSubmit = { title, content, imageUris ->
+                                        try {
+                                            val urls = if (imageUris.isEmpty()) {
+                                                emptyList()
+                                            } else {
+                                                try {
+                                                    BugReportRepository.uploadImages(context, imageUris)
+                                                } catch (up: Exception) {
+                                                    throw RuntimeException("이미지 업로드에 실패했어요. 다시 시도해주세요")
+                                                }
+                                            }
+                                            FirebaseFunctions.getInstance()
+                                                .getHttpsCallable("submitBugReport")
+                                                .withTimeout(60, TimeUnit.SECONDS)
+                                                .call(hashMapOf(
+                                                    "title" to title,
+                                                    "content" to content,
+                                                    "imageUrls" to urls,
+                                                ))
+                                                .await()
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "버그 신고가 등록되었어요. 감사해요!",
+                                                android.widget.Toast.LENGTH_SHORT,
+                                            ).show()
+                                        } catch (e: Exception) {
+                                            val fe = (e as? FirebaseFunctionsException) ?: (e.cause as? FirebaseFunctionsException)
+                                            val msg = when {
+                                                fe != null -> when (fe.code) {
+                                                        FirebaseFunctionsException.Code.DEADLINE_EXCEEDED ->
+                                                            "등록이 완료됐을 수 있어요. Firebase 콘솔에서 확인해주세요."
+                                                        FirebaseFunctionsException.Code.NOT_FOUND -> "함수를 찾을 수 없어요. Functions 배포를 확인해주세요."
+                                                        FirebaseFunctionsException.Code.UNAVAILABLE -> "인터넷 연결을 확인해주세요."
+                                                        FirebaseFunctionsException.Code.FAILED_PRECONDITION -> "Firebase 설정을 확인해주세요."
+                                                        FirebaseFunctionsException.Code.INTERNAL -> "서버 오류가 발생했어요. Firebase 콘솔에서 등록 여부를 확인해주세요."
+                                                        FirebaseFunctionsException.Code.INVALID_ARGUMENT -> fe.message ?: "입력값을 확인해주세요."
+                                                        FirebaseFunctionsException.Code.PERMISSION_DENIED -> "권한이 없어요."
+                                                        FirebaseFunctionsException.Code.UNIMPLEMENTED -> "함수가 아직 배포되지 않았을 수 있어요. Firebase에서 Functions 배포를 확인해주세요."
+                                                        FirebaseFunctionsException.Code.UNAUTHENTICATED -> "로그인이 필요해요."
+                                                        else -> fe.message?.takeIf { it.isNotBlank() } ?: "등록에 실패했어요. Firebase 콘솔에서 확인해주세요."
+                                                    }
+                                                    else -> e.message?.takeIf { it.isNotBlank() } ?: "등록에 실패했어요. 네트워크를 확인해주세요."
+                                                }
+                                            Log.e("Aptox", "버그신고: ${e.message}", e)
+                                            throw RuntimeException(msg)
+                                        }
+                                    },
+                                )
                                 SettingsDetail.Withdraw -> WithdrawConfirmScreen(
                                     onBack = { settingsDetail = SettingsDetail.AccountManage },
                                     onConfirmWithdraw = {
@@ -1235,10 +1372,10 @@ fun MainFlowHost(
                                 )
                                 null -> MyPageScreen(
                                     onAccountManageClick = { settingsDetail = SettingsDetail.AccountManage },
-                                    onSubscriptionManageClick = { settingsDetail = SettingsDetail.Subscription },
+                                    onSubscriptionManageClick = { /* 구독 관리 비활성화 */ },
                                     onNotificationClick = { settingsDetail = SettingsDetail.Notification },
                                     onPermissionClick = { settingsDetail = SettingsDetail.Permission },
-                                    onBugReportClick = { showBugReportSheet = true },
+                                    onBugReportClick = { settingsDetail = SettingsDetail.BugReport },
                                     onTermsClick = { showTermsSheet = true },
                                     onPrivacyClick = { showPrivacySheet = true },
                                 )
@@ -1365,19 +1502,11 @@ fun MainFlowHost(
                 // ── 스크린샷2: 일일사용량 제한 ──
                 item.restrictionType == RestrictionType.DAILY_USAGE -> {
                     AppLimitInfoBottomSheetDaily(
-                        title = "제한 중인 앱",
+                        packageName = item.packageName,
                         appName = item.appName,
                         appIcon = appIcon,
-                        usageMinutes = item.usageMinutes,
-                        sessionCount = item.sessionCount,
-                        summaryRows = listOf(
-                            AppLimitSummaryRow("일일 사용량", item.dailyLimitMinutes),
-                            AppLimitSummaryRow("현재 사용량", item.usageMinutes),
-                            AppLimitSummaryRow("제한 방식", "일일 사용량 제한"),
-                        ),
+                        limitMinutes = item.limitMinutes,
                         onDismissRequest = dismiss,
-                        onPrimaryClick = dismiss,
-                        primaryButtonText = "닫기",
                     )
                 }
             }
@@ -1483,49 +1612,6 @@ fun MainFlowHost(
                 onNotificationSettingsClick = null,
             )
         }
-    }
-    // 버그 신고 바텀시트 (scope는 상위 MainFlowHost 것 사용 - 시트 닫힐 때 composition 벗어나면 scope 취소됨 방지)
-    if (showBugReportSheet) {
-        BugReportBottomSheet(
-            onDismiss = { showBugReportSheet = false },
-            onSubmit = { content ->
-                showBugReportSheet = false
-                scope.launch {
-                    try {
-                        FirebaseFunctions.getInstance()
-                            .getHttpsCallable("submitBugReport")
-                            .withTimeout(60, TimeUnit.SECONDS)
-                            .call(hashMapOf("content" to content))
-                            .await()
-                        android.widget.Toast.makeText(
-                            context,
-                            "버그 신고가 등록되었어요. 감사해요!",
-                            android.widget.Toast.LENGTH_SHORT,
-                        ).show()
-                    } catch (e: Exception) {
-                        val fe = (e as? FirebaseFunctionsException) ?: (e.cause as? FirebaseFunctionsException)
-                        val msg = when {
-                            fe != null -> when (fe.code) {
-                                FirebaseFunctionsException.Code.DEADLINE_EXCEEDED ->
-                                    "등록이 완료됐을 수 있어요. Firebase 콘솔에서 확인해주세요."
-                                FirebaseFunctionsException.Code.NOT_FOUND -> "함수를 찾을 수 없어요. Functions 배포를 확인해주세요."
-                                FirebaseFunctionsException.Code.UNAVAILABLE -> "인터넷 연결을 확인해주세요."
-                                FirebaseFunctionsException.Code.FAILED_PRECONDITION -> "Firebase 설정을 확인해주세요."
-                                FirebaseFunctionsException.Code.INTERNAL -> "서버 오류가 발생했어요. Firebase 콘솔에서 등록 여부를 확인해주세요."
-                                FirebaseFunctionsException.Code.INVALID_ARGUMENT -> fe.message ?: "입력값을 확인해주세요."
-                                FirebaseFunctionsException.Code.PERMISSION_DENIED -> "권한이 없어요."
-                                FirebaseFunctionsException.Code.UNIMPLEMENTED -> "함수가 아직 배포되지 않았을 수 있어요. Firebase에서 Functions 배포를 확인해주세요."
-                                FirebaseFunctionsException.Code.UNAUTHENTICATED -> "로그인이 필요해요."
-                                else -> fe.message?.takeIf { it.isNotBlank() } ?: "등록에 실패했어요. Firebase 콘솔에서 확인해주세요."
-                            }
-                            else -> e.message?.takeIf { it.isNotBlank() } ?: "등록에 실패했어요. 네트워크를 확인해주세요."
-                        }
-                        Log.e("Aptox", "버그신고: code=${fe?.code}, msg=${e.message}", e)
-                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
-                    }
-                }
-            },
-        )
     }
     // 이용약관 바텀시트
     if (showTermsSheet) {

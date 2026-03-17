@@ -1,0 +1,10 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // 버그 신고 이미지: bug-reports/{userId}/{timestamp}/image_*.jpg
+    match /bug-reports/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow write: if userId == 'anonymous';
+    }
+  }
+}

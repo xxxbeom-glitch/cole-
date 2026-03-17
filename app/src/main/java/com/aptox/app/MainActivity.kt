@@ -38,6 +38,10 @@ import kotlinx.coroutines.launch
 fun AptoxRootContent(
     pendingPauseFlowFromOverlay: PendingPauseFlowFromOverlay? = null,
 ) {
+    if (!BuildConfig.DEBUG) {
+        SignUpFlowHost(pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay)
+        return
+    }
     var showDebugMenu by remember { mutableStateOf(true) }
     if (showDebugMenu) {
         DebugFlowHost(
@@ -59,6 +63,7 @@ data class PendingPauseFlowFromOverlay(
 
 enum class SignUpStep {
     SPLASH,
+    PERMISSION,
     LOGIN,
     EMAIL,
     PASSWORD,
@@ -170,23 +175,27 @@ fun SignUpFlowHost(
     LaunchedEffect(pendingPauseFlowFromOverlay) {
         if (pendingPauseFlowFromOverlay != null) step = SignUpStep.MAIN
     }
-    LaunchedEffect(Unit) {
-        if (pendingPauseFlowFromOverlay != null) return@LaunchedEffect
-        if (FirebaseAuth.getInstance().currentUser != null) {
-            step = SignUpStep.MAIN
-        }
-    }
     var selfTestAnswers by remember { mutableStateOf<Map<Int, Int>>(emptyMap()) }
     var selfTestUserName by remember { mutableStateOf("") }
     var loginError by remember { mutableStateOf<String?>(null) }
     var loginLoading by remember { mutableStateOf(false) }
+    var autoOpenPackage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val authRepository = remember { AuthRepository() }
 
     // 현재 화면 렌더링
     when (step) {
-        // SPLASH + LOGIN이 통합된 SplashLoginScreen (애니메이션 포함)
-        SignUpStep.SPLASH -> SplashLoginScreen(
+        SignUpStep.SPLASH -> SplashScreen(
+            onFinish = {
+                step = if (FirebaseAuth.getInstance().currentUser != null) SignUpStep.MAIN else SignUpStep.PERMISSION
+            },
+        )
+        SignUpStep.PERMISSION -> PermissionScreen(
+            onPrimaryClick = { step = SignUpStep.MAIN },
+            onGhostClick = { step = SignUpStep.MAIN },
+        )
+        SignUpStep.LOGIN -> SplashLoginScreen(
+            initialButtonsVisible = true,
             onNaverLoginClick = {
                 val activity = context as? MainActivity ?: return@SplashLoginScreen
                 loginError = null
@@ -243,12 +252,6 @@ fun SignUpFlowHost(
             onClearError = { loginError = null },
             isLoading = loginLoading,
         )
-        SignUpStep.LOGIN -> {
-            // LOGIN 스텝은 SPLASH로 리다이렉트 (통합 화면 사용)
-            Box(modifier = Modifier.fillMaxSize()) {
-                LaunchedEffect(Unit) { step = SignUpStep.SPLASH }
-            }
-        }
         // 비활성화: 회원가입 플로우 (EMAIL, PASSWORD, NAME_BIRTH_PHONE, VERIFICATION, COMPLETE)
         SignUpStep.EMAIL,
         SignUpStep.PASSWORD,
@@ -294,12 +297,17 @@ fun SignUpFlowHost(
         SignUpStep.ADD_APP -> AddAppFlowHost(
             onComplete = { step = SignUpStep.MAIN },
             onBackFromFirst = { step = SignUpStep.MAIN },
+            onCompleteWithFirstPackage = { pkg ->
+                autoOpenPackage = pkg
+                step = SignUpStep.MAIN
+            },
         )
         SignUpStep.MAIN -> MainFlowHost(
             onAddAppClick = { step = SignUpStep.ADD_APP },
             onLogout = { step = SignUpStep.LOGIN },
             initialPauseFlowFromOverlay = pendingPauseFlowFromOverlay,
             onPauseFlowConsumed = { activity?.clearPendingPauseFlowFromOverlay() },
+            initialAutoOpenPackage = autoOpenPackage,
         )
         // 비활성화: 비밀번호 찾기 플로우
         SignUpStep.PASSWORD_RESET_EMAIL,

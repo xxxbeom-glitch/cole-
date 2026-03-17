@@ -103,13 +103,16 @@ fun DebugFlowHost(
 /** 디버그 메뉴에서 이동 가능한 화면 */
 sealed class DebugScreen(val category: String, val label: String) {
     // 인증/온보딩
-    data object Splash : DebugScreen("인증/온보딩", "Splash")
+    data object Splash : DebugScreen("인증/온보딩", "스플래시")
+    data object Permission : DebugScreen("인증/온보딩", "기기 권한 안내")
+    data object SelfTestVer2 : DebugScreen("인증/온보딩", "스마트폰 사용패턴 테스트")
+    data object SelfTestLoading : DebugScreen("인증/온보딩", "테스트 결과 로딩 애니메이션")
+    data object UsagePatternAnalysis : DebugScreen("인증/온보딩", "사용패턴 분석 결과")
+    data object AppExplanationOnboarding : DebugScreen("인증/온보딩", "앱 설명 온보딩 (미구현)")
+    // 화면 목차에서 제거됨 (바로가기/자가테스트 플로우)
     data object Login : DebugScreen("인증/온보딩", "Login")
     data object Onboarding : DebugScreen("인증/온보딩", "온보딩")
     data object SelfTest : DebugScreen("인증/온보딩", "자가테스트")
-    data object SelfTestVer2 : DebugScreen("인증/온보딩", "자가테스트 진단 ver2")
-    data object SelfTestLoading : DebugScreen("인증/온보딩", "자가테스트 로딩")
-    data object UsagePatternAnalysis : DebugScreen("인증/온보딩", "사용패턴 분석 안내 (Figma 1127-5788)")
     data object SelfTestResult : DebugScreen("인증/온보딩", "자가테스트 결과")
     // 앱 제한
     data object AddAppAA01 : DebugScreen("앱 제한", "AA-01: 제한 방법 선택")
@@ -148,8 +151,7 @@ sealed class DebugScreen(val category: String, val label: String) {
     data object AppLimitPauseConfirm : DebugScreen("앱 제한 일시정지", "UL-02: 확인")
     data object AppLimitPauseComplete : DebugScreen("앱 제한 일시정지", "UL-03: 완료")
 
-    // 권한
-    data object Permission : DebugScreen("권한", "권한 요청 화면")
+    // 권한 — 화면 목차에서 제거 (인증/온보딩에 Permission 사용)
 
     // 사용시간/모니터링/오버레이
     data object UsageStatsTest : DebugScreen("테스트", "앱별 사용시간 (UsageStats)")
@@ -314,19 +316,11 @@ private fun DebugScreenPreview(
         }
         DebugScreen.AppLimitInfoBottomSheetDaily -> DebugBottomSheetPreview(onBack = onBack) { onSheetDismiss ->
             AppLimitInfoBottomSheetDaily(
-                title = "제한 중인 앱",
+                packageName = "com.netflix.mediaclient",
                 appName = "넷플릭스",
                 appIcon = painterResource(R.drawable.ic_app_placeholder),
-                usageMinutes = "45분",
-                sessionCount = "7회",
-                summaryRows = listOf(
-                    AppLimitSummaryRow("선택된 앱", "넷플릭스"),
-                    AppLimitSummaryRow("일일 사용시간", "1시간 30분"),
-                    AppLimitSummaryRow("반복 요일", "월, 화, 수, 목"),
-                    AppLimitSummaryRow("적용 기간", "4주"),
-                ),
+                limitMinutes = 90,
                 onDismissRequest = onSheetDismiss,
-                onPrimaryClick = onSheetDismiss,
             )
         }
         DebugScreen.AppLimitInfoBottomSheetPaused -> DebugBottomSheetPreview(onBack = onBack) { onSheetDismiss ->
@@ -383,6 +377,8 @@ private fun DebugScreenPreview(
             onPrimaryClick = onBack,
             onGhostClick = onBack,
         )
+        // 앱 설명 온보딩: 미구현 — 목차에만 표시, 탭 시 아무 동작 없음
+        // DebugScreen.AppExplanationOnboarding -> (호출되지 않음)
         DebugScreen.UsageStatsTest -> UsageStatsTestScreen(onBack = onBack)
         DebugScreen.AppMonitorTest -> AppMonitorTestScreen(onBack = onBack)
         DebugScreen.BlockOverlayTest -> BlockOverlayTestScreen(onBack = onBack)
@@ -644,109 +640,130 @@ private fun DebugScreenListSection(
             .padding(top = 48.dp, bottom = 8.dp, start = 16.dp, end = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        // 바로가기
-        Text(
-            text = "바로가기",
-            style = AppTypography.Caption2.copy(color = AppColors.TextHighlight),
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            listOf(DebugScreen.Splash, DebugScreen.Login).forEach { screen ->
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(AppColors.Primary300)
-                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onScreenSelect(screen) }
-                        .padding(16.dp),
-                ) {
-                    Text(
-                        text = screen.label,
-                        style = AppTypography.BodyMedium.copy(color = AppColors.TextInvert),
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "자가테스트 플로우",
-            style = AppTypography.Caption2.copy(color = AppColors.TextHighlight),
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            listOf(DebugScreen.SelfTest, DebugScreen.SelfTestLoading, DebugScreen.UsagePatternAnalysis, DebugScreen.SelfTestResult).forEach { screen ->
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(AppColors.Primary300)
-                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onScreenSelect(screen) }
-                        .padding(12.dp),
-                ) {
-                    Text(
-                        text = screen.label,
-                        style = AppTypography.Caption1.copy(color = AppColors.TextInvert),
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(12.dp))
+        // 바로가기 영역 — 삭제됨 (주석 보존)
+        // Text(text = "바로가기", ...)
+        // Row { Splash, Login }
 
-        // 앱 제한: 작업 중인 플로우만 (바텀시트/앱 제한 일시정지 → 디자인시스템 탭에서)
-        val allScreens = listOf(
+        // 자가테스트 플로우 영역 — 삭제됨 (주석 보존)
+        // Text(text = "자가테스트 플로우", ...)
+        // Row { SelfTest, SelfTestLoading, UsagePatternAnalysis, SelfTestResult }
+
+        // 인증/온보딩: 재정렬된 순서
+        Text(
+            text = "인증/온보딩",
+            style = AppTypography.Caption2.copy(color = AppColors.TextHighlight),
+        )
+        listOf(
             DebugScreen.Splash,
-            DebugScreen.Login,
-            DebugScreen.SpacingTest,
-            DebugScreen.GaugeTest,
-            DebugScreen.GaugeTest2,
-            DebugScreen.SelfTestResultST10,
-            DebugScreen.LoadingAnimation,
-            DebugScreen.AppIconTest,
-            DebugScreen.Onboarding,
-            DebugScreen.SelfTest,
+            DebugScreen.Permission,
             DebugScreen.SelfTestVer2,
             DebugScreen.SelfTestLoading,
             DebugScreen.UsagePatternAnalysis,
-            DebugScreen.SelfTestResult,
-            DebugScreen.AddAppFlowHost,
-            DebugScreen.MainFlow,
-            DebugScreen.Permission,
-            DebugScreen.UsageStatsTest,
-            DebugScreen.AppMonitorTest,
-            DebugScreen.BlockOverlayTest,
-            DebugScreen.DailyUsageLimitOverlayPreview,
-        )
-        val grouped = allScreens.groupBy { it.category }
-
-        grouped.forEach { (category, screens) ->
-            Text(
-                text = category,
-                style = AppTypography.Caption2.copy(color = AppColors.TextHighlight),
-            )
-            screens.forEach { screen ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(AppColors.SurfaceBackgroundCard)
-                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onScreenSelect(screen) }
-                        .padding(16.dp),
-                ) {
-                    Text(
-                        text = screen.label,
-                        style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
+            DebugScreen.AppExplanationOnboarding,
+        ).forEach { screen ->
+            val isNonNavigable = screen == DebugScreen.AppExplanationOnboarding
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        if (isNonNavigable) AppColors.SurfaceBackgroundCard.copy(alpha = 0.7f)
+                        else AppColors.SurfaceBackgroundCard
                     )
-                }
+                    .then(
+                        if (isNonNavigable) Modifier
+                        else Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { onScreenSelect(screen) }
+                    )
+                    .padding(16.dp),
+            ) {
+                Text(
+                    text = screen.label,
+                    style = AppTypography.BodyMedium.copy(
+                        color = if (isNonNavigable) AppColors.TextSecondary else AppColors.TextPrimary,
+                    ),
+                )
             }
-            Spacer(modifier = Modifier.height(4.dp))
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // 앱 제한 플로우
+        Text(
+            text = "앱 제한",
+            style = AppTypography.Caption2.copy(color = AppColors.TextHighlight),
+        )
+        listOf(DebugScreen.AddAppFlowHost).forEach { screen ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(AppColors.SurfaceBackgroundCard)
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onScreenSelect(screen) }
+                    .padding(16.dp),
+            ) {
+                Text(text = screen.label, style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary))
+            }
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // 메인
+        Text(text = "메인", style = AppTypography.Caption2.copy(color = AppColors.TextHighlight))
+        listOf(DebugScreen.MainFlow).forEach { screen ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(AppColors.SurfaceBackgroundCard)
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onScreenSelect(screen) }
+                    .padding(16.dp),
+            ) {
+                Text(text = screen.label, style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary))
+            }
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // 바텀시트 / 앱 제한 일시정지 — 앱 제한 플로우 영역 유지
+        Text(text = "바텀시트", style = AppTypography.Caption2.copy(color = AppColors.TextHighlight))
+        listOf(
+            DebugScreen.BaseBottomSheet,
+            DebugScreen.TermsBottomSheet,
+            DebugScreen.AppLimitSetupTime,
+            DebugScreen.AppLimitSetupDay,
+            DebugScreen.AppLimitInfoBottomSheet,
+            DebugScreen.AppLimitInfoBottomSheetDaily,
+            DebugScreen.AppLimitInfoBottomSheetPaused,
+            DebugScreen.AddAppAppCategoryBottomSheet,
+        ).forEach { screen ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(AppColors.SurfaceBackgroundCard)
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onScreenSelect(screen) }
+                    .padding(16.dp),
+            ) {
+                Text(text = screen.label, style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary))
+            }
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(text = "앱 제한 일시정지", style = AppTypography.Caption2.copy(color = AppColors.TextHighlight))
+        listOf(
+            DebugScreen.AppLimitPauseProposal,
+            DebugScreen.AppLimitPauseConfirm,
+            DebugScreen.AppLimitPauseComplete,
+        ).forEach { screen ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(AppColors.SurfaceBackgroundCard)
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onScreenSelect(screen) }
+                    .padding(16.dp),
+            ) {
+                Text(text = screen.label, style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary))
+            }
         }
     }
 }
@@ -766,6 +783,8 @@ private sealed class DesignSystemSection(val label: String) {
     data object Dialogs : DesignSystemSection("다이얼로그")
     data object MedalAnimation : DesignSystemSection("메달 애니메이션 테스트")
     data object AiAppCategoryClassification : DesignSystemSection("AI 앱 카테고리 분류 테스트")
+    /** 테스트 영역에서 이동 — 화면 목차 테스트 영역 삭제된 항목 */
+    data object Tests : DesignSystemSection("테스트")
 }
 
 @Composable
@@ -803,6 +822,7 @@ private fun DebugDesignSystemSection() {
                 DesignSystemSection.Dialogs,
                 DesignSystemSection.MedalAnimation,
                 DesignSystemSection.AiAppCategoryClassification,
+                DesignSystemSection.Tests,
             ).forEach { section ->
                 Box(
                     modifier = Modifier
@@ -849,6 +869,50 @@ private fun DebugDesignSystemDetailSection(
             DesignSystemSection.Dialogs -> DebugDialogsContent()
             DesignSystemSection.MedalAnimation -> MedalAnimationTestScreen(onBack = onBack)
             DesignSystemSection.AiAppCategoryClassification -> AiAppCategoryClassificationScreen(onBack = onBack)
+            DesignSystemSection.Tests -> DebugTestsContent(onBack = onBack)
+        }
+    }
+}
+
+@Composable
+private fun DebugTestsContent(onBack: () -> Unit) {
+    var selectedScreen by remember { mutableStateOf<DebugScreen?>(null) }
+    val testScreens = listOf(
+        DebugScreen.AppIconTest,
+        DebugScreen.UsageStatsTest,
+        DebugScreen.AppMonitorTest,
+        DebugScreen.BlockOverlayTest,
+        DebugScreen.DailyUsageLimitOverlayPreview,
+    )
+    if (selectedScreen != null) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            DebugScreenPreview(
+                screen = selectedScreen!!,
+                onBack = { selectedScreen = null },
+            )
+        }
+    } else {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            AptoxGhostButton(text = "← 목차로", onClick = onBack)
+            DebugSectionTitle("테스트")
+            testScreens.forEach { screen ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AppColors.SurfaceBackgroundCard)
+                        .clickable { selectedScreen = screen }
+                        .padding(16.dp),
+                ) {
+                    Text(
+                        text = screen.label,
+                        style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
+                    )
+                }
+            }
         }
     }
 }

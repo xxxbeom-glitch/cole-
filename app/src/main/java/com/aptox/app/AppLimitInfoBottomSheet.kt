@@ -13,6 +13,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -184,27 +190,69 @@ fun AppLimitInfoBottomSheetPaused(
 }
 
 /**
- * 제한 중인 앱 정보 바텀시트 - 일일 사용량 제한 (Figma 782-2776)
+ * 제한 중인 앱 정보 바텀시트 - 일일 사용량 제한 (Figma 1159-4418, 1159-4492)
+ * 수동 타이머(카운트 시작/정지) 연동.
  */
 @Composable
 fun AppLimitInfoBottomSheetDaily(
-    title: String,
+    packageName: String,
     appName: String,
     appIcon: Painter,
-    usageMinutes: String,
-    sessionCount: String,
-    summaryRows: List<AppLimitSummaryRow>,
+    limitMinutes: Int,
     onDismissRequest: () -> Unit,
-    onPrimaryClick: () -> Unit,
-    primaryButtonText: String = "계속 진행",
     modifier: Modifier = Modifier,
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val repo = remember { ManualTimerRepository(context) }
+
+    fun launchApp() {
+        val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
+        if (launchIntent != null) context.startActivity(launchIntent)
+    }
+    var todayUsageMinutes by remember { mutableStateOf((repo.getTodayUsageMs(packageName) / 60_000).toInt()) }
+    var isCountActive by remember { mutableStateOf(repo.isSessionActive(packageName)) }
+
+    LaunchedEffect(packageName) {
+        todayUsageMinutes = (repo.getTodayUsageMs(packageName) / 60_000).toInt()
+        isCountActive = repo.isSessionActive(packageName)
+    }
+    // 카운트 진행 중일 때 1초마다 사용량 갱신
+    LaunchedEffect(packageName, isCountActive) {
+        if (!isCountActive) return@LaunchedEffect
+        while (true) {
+            delay(1000L)
+            todayUsageMinutes = (repo.getTodayUsageMs(packageName) / 60_000).toInt()
+            if (todayUsageMinutes >= limitMinutes) {
+                repo.endSession(packageName)
+                isCountActive = false
+                return@LaunchedEffect
+            }
+            isCountActive = repo.isSessionActive(packageName)
+        }
+    }
+
+    val usageExhausted = todayUsageMinutes >= limitMinutes
+
     BaseBottomSheet(
-        title = title,
+        title = "사용량 확인",
         onDismissRequest = onDismissRequest,
-        onPrimaryClick = onPrimaryClick,
-        primaryButtonText = primaryButtonText,
-        secondaryButtonText = null,
+        onPrimaryClick = {
+            if (usageExhausted) return@BaseBottomSheet
+            if (isCountActive) {
+                repo.endSession(packageName)
+                isCountActive = false
+                todayUsageMinutes = (repo.getTodayUsageMs(packageName) / 60_000).toInt()
+            } else {
+                repo.startSession(packageName)
+                isCountActive = true
+                launchApp()
+            }
+        },
+        primaryButtonText = if (usageExhausted) "오늘 사용량을 전부 사용하셨어요" else "카운트 시작 / 정지",
+        primaryButtonEnabled = !usageExhausted,
+        secondaryButtonText = "닫기",
+        onSecondaryClick = onDismissRequest,
+        dismissOnPrimaryClick = usageExhausted,
         modifier = modifier,
     ) {
         Column(
@@ -214,9 +262,10 @@ fun AppLimitInfoBottomSheetDaily(
             AppStatusRow(
                 appName = appName,
                 appIcon = appIcon,
-                variant = AppStatusVariant.DataView,
-                usageMinutes = usageMinutes,
-                sessionCount = sessionCount,
+                variant = AppStatusVariant.Button,
+                usageText = if (usageExhausted) "사용 완료" else "$todayUsageMinutes/${limitMinutes}분",
+                usageLabel = if (usageExhausted) "" else "사용 중",
+                usageTextColor = AppColors.TextHighlight,
             )
 
             Column(
@@ -228,7 +277,11 @@ fun AppLimitInfoBottomSheetDaily(
                     .padding(horizontal = 16.dp, vertical = 22.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                summaryRows.forEach { row ->
+                listOf(
+                    AppLimitSummaryRow("일일 사용량", "${limitMinutes}분"),
+                    AppLimitSummaryRow("현재 사용량", "${todayUsageMinutes}분"),
+                    AppLimitSummaryRow("제한 방식", "일일 사용량 제한", valueColor = AppColors.TextHighlight),
+                ).forEach { row ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -249,3 +302,13 @@ fun AppLimitInfoBottomSheetDaily(
         }
     }
 }
+
+/*
+ * [기존 UsageStats 기반 - 주석 처리]
+ * fun AppLimitInfoBottomSheetDailyLegacy(
+ *     title: String, appName: String, appIcon: Painter,
+ *     usageMinutes: String, sessionCount: String, summaryRows: List<AppLimitSummaryRow>,
+ *     onDismissRequest: () -> Unit, onPrimaryClick: () -> Unit,
+ *     primaryButtonText: String = "계속 진행", modifier: Modifier = Modifier,
+ * ) { ... }
+ */

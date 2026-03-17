@@ -41,6 +41,7 @@ fun BaseBottomSheet(
     secondaryButtonText: String? = null,
     onSecondaryClick: (() -> Unit)? = null,
     primaryButtonEnabled: Boolean = true,
+    dismissOnPrimaryClick: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -96,8 +97,12 @@ fun BaseBottomSheet(
                     text = primaryButtonText,
                     enabled = primaryButtonEnabled,
                     onClick = {
-                        scope.launch { sheetState.hide() }.invokeOnCompletion {
-                            if (!sheetState.isVisible) onPrimaryClick()
+                        if (dismissOnPrimaryClick) {
+                            scope.launch { sheetState.hide() }.invokeOnCompletion {
+                                if (!sheetState.isVisible) onPrimaryClick()
+                            }
+                        } else {
+                            onPrimaryClick()
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),

@@ -148,6 +148,27 @@ fun AptoxOutlinedTextButton(text: String, onClick: () -> Unit, modifier: Modifie
     }
 }
 
+/** 1라인, 배경 없는 텍스트 버튼 (기기 권한 안내 하단 등) */
+@Composable
+fun AptoxTextOnlyButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.fillMaxWidth().height(60.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color.Transparent,
+            contentColor = AppColors.ButtonGhostTextDefault,
+            disabledContainerColor = Color.Transparent,
+            disabledContentColor = AppColors.ButtonGhostTextDisabled,
+        ),
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 16.dp),
+        elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp, 0.dp),
+    ) {
+        Text(text = text, style = AppTypography.ButtonLarge, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+    }
+}
+
 @Composable
 fun AptoxInvertButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     OutlinedButton(
