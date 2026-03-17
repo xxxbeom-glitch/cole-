@@ -13,11 +13,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -211,12 +215,32 @@ fun AppLimitInfoBottomSheetDaily(
     }
     var todayUsageMinutes by remember { mutableStateOf((repo.getTodayUsageMs(packageName) / 60_000).toInt()) }
     var isCountActive by remember { mutableStateOf(repo.isSessionActive(packageName)) }
+    var showCountStartDialog by remember { mutableStateOf(false) }
+
+    fun refreshFromRepo() {
+        repo.ensureMidnightResetIfNeeded()
+        val usage = (repo.getTodayUsageMs(packageName) / 60_000).toInt()
+        todayUsageMinutes = usage
+        isCountActive = repo.isSessionActive(packageName)
+        if (isCountActive && usage >= limitMinutes) {
+            repo.endSession(packageName)
+            isCountActive = false
+        }
+    }
 
     LaunchedEffect(packageName) {
-        todayUsageMinutes = (repo.getTodayUsageMs(packageName) / 60_000).toInt()
-        isCountActive = repo.isSessionActive(packageName)
+        refreshFromRepo()
     }
-    // 카운트 진행 중일 때 1초마다 사용량 갱신
+    // 앱 포그라운드 복귀 시 저장된 startTimeMs 기준으로 경과 시간 재계산 (백그라운드에서 멈춘 것처럼 보이는 버그 방지)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) refreshFromRepo()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    // 카운트 진행 중일 때 1초마다 사용량 갱신 (startTimeMs 기준 now-startMs 계산으로 포그라운드에서 실시간 표시)
     LaunchedEffect(packageName, isCountActive) {
         if (!isCountActive) return@LaunchedEffect
         while (true) {
@@ -230,6 +254,14 @@ fun AppLimitInfoBottomSheetDaily(
             isCountActive = repo.isSessionActive(packageName)
         }
     }
+    // 카운트 중지 상태에서도 자정 경과 시 사용량 초기화 반영 (30초마다 날짜 체크)
+    LaunchedEffect(packageName) {
+        while (true) {
+            delay(30_000L)
+            repo.ensureMidnightResetIfNeeded()
+            refreshFromRepo()
+        }
+    }
 
     val usageExhausted = todayUsageMinutes >= limitMinutes
 
@@ -239,22 +271,42 @@ fun AppLimitInfoBottomSheetDaily(
         onPrimaryClick = {
             if (usageExhausted) return@BaseBottomSheet
             if (isCountActive) {
+                // 카운트 정지: 세션 종료 후 바텀시트 자동 닫기
                 repo.endSession(packageName)
                 isCountActive = false
                 todayUsageMinutes = (repo.getTodayUsageMs(packageName) / 60_000).toInt()
+                onDismissRequest()
             } else {
+                // 카운트 시작: 세션 시작 → 안내 팝업 → 확인 시 앱 실행
                 repo.startSession(packageName)
                 isCountActive = true
-                launchApp()
+                todayUsageMinutes = (repo.getTodayUsageMs(packageName) / 60_000).toInt()
+                showCountStartDialog = true
             }
         },
-        primaryButtonText = if (usageExhausted) "오늘 사용량을 전부 사용하셨어요" else "카운트 시작 / 정지",
+        primaryButtonText = when {
+            usageExhausted -> "오늘 사용량을 전부 사용하셨어요"
+            isCountActive -> "카운트 정지"
+            else -> "카운트 시작"
+        },
         primaryButtonEnabled = !usageExhausted,
         secondaryButtonText = "닫기",
         onSecondaryClick = onDismissRequest,
-        dismissOnPrimaryClick = usageExhausted,
+        dismissOnPrimaryClick = usageExhausted || isCountActive,
         modifier = modifier,
     ) {
+        if (showCountStartDialog) {
+            AptoxConfirmDialog(
+                onDismissRequest = { showCountStartDialog = false },
+                title = "카운트가 시작됐어요",
+                subtitle = "앱 사용이 끝나면 반드시\n카운트 종료를 눌러주세요\n종료하지 않으면 사용시간이\n계속 누적돼요",
+                confirmButtonText = "확인",
+                onConfirmClick = {
+                    showCountStartDialog = false
+                    launchApp()
+                },
+            )
+        }
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(16.dp),

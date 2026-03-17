@@ -57,7 +57,13 @@ import kotlinx.coroutines.withContext
 /** Figma Shadow/Card: X=0, Y=0, Blur=6, Spread=0, #000000 6% */
 private val CardShadowColor = Color.Black.copy(alpha = 0.06f)
 
-private enum class CenterPhase { TITLE, CARDS }
+private enum class CenterPhase { TITLE, CARDS, START_BUTTON }
+
+/** 카드 1용: 최다 사용 앱 이름, 7일 총 시간(h), 일평균(h) */
+private data class Card1Data(val appName: String, val totalHours: Int, val averageHours: Double)
+
+/** 카드 2용: 메시지, 카테고리별 막대 비율(0~1) */
+private data class Card2Data(val message: String, val categoryBars: List<Pair<String, Float>>)
 
 /** 애니메이션 설정: duration(ms), stagger(ms) */
 private data class SmoothnessConfig(
@@ -73,11 +79,44 @@ fun UsagePatternAnalysisScreen(
     onFinish: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     var titleVisible by remember { mutableStateOf(false) }
     var phase by remember { mutableStateOf(CenterPhase.TITLE) }
     var card1Show by remember { mutableStateOf(false) }
     var card2Show by remember { mutableStateOf(false) }
     var card3Show by remember { mutableStateOf(false) }
+    var card1Data by remember { mutableStateOf<Card1Data?>(null) }
+    var card2Data by remember { mutableStateOf<Card2Data?>(null) }
+
+    LaunchedEffect(Unit) {
+        val (startMs, endMs) = StatisticsData.getLastNDaysRange(7, 0).let { it.first to it.second }
+        val apps = withContext(Dispatchers.IO) {
+            StatisticsData.loadAppUsageForAllowedCategories(context, startMs, endMs)
+        }
+        val topApp = apps.maxByOrNull { it.usageMs }
+        card1Data = topApp?.let { app ->
+            val totalHours = (app.usageMs / (1000 * 60 * 60)).toInt()
+            val averageHours = totalHours / 7.0
+            Card1Data(appName = app.name, totalHours = totalHours, averageHours = averageHours)
+        }
+        val usageByCategory = apps
+            .filter { it.categoryTag != null }
+            .groupBy { it.categoryTag!! }
+            .mapValues { (_, list) -> list.sumOf { it.usageMs } }
+        val totalMs = usageByCategory.values.sum()
+        val topCategory = usageByCategory.maxByOrNull { it.value }?.key
+        card2Data = if (usageByCategory.isNotEmpty() && totalMs > 0) {
+            val maxMs = usageByCategory.values.maxOrNull() ?: 1L
+            val bars = usageByCategory
+                .toList()
+                .sortedByDescending { it.second }
+                .map { (cat, ms) -> cat to (ms.toFloat() / maxMs).coerceIn(0f, 1f) }
+            val message = topCategory?.let {
+                "${userName}님은 $it 앱을 상당히 많이 사용하시고 계세요"
+            } ?: "사용 패턴을 확인해보세요"
+            Card2Data(message = message, categoryBars = bars)
+        } else null
+    }
 
     val config = SmoothnessConfig(800, 550, "보통")
     val ease = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f)
@@ -90,11 +129,19 @@ fun UsagePatternAnalysisScreen(
         titleVisible = true
         delay(600 + 1600)
         phase = CenterPhase.CARDS
+        // 모든 카드 한꺼번에 표시
         card1Show = true
-        delay(200)
         card2Show = true
-        delay(400)
         card3Show = true
+        // 2.8초 대기 후 카드 하나씩 사라지며 다음 페이지로
+        delay(2800)
+        card1Show = false
+        delay(350)
+        card2Show = false
+        delay(350)
+        card3Show = false
+        delay(400)
+        phase = CenterPhase.START_BUTTON
     }
 
     Box(
@@ -197,14 +244,20 @@ fun UsagePatternAnalysisScreen(
                                     .offset(y = offset1)
                                     .alpha(alpha1),
                             ) {
-                                UsagePatternCard1Animated(
-                                    appName = "유튜브",
-                                    totalHours = 304,
-                                    recommendedHours = 1.0,
-                                    averageHours = 6.5,
-                                    config = config,
-                                    ease = ease,
-                                )
+                                val data = card1Data
+                                if (data != null) {
+                                    UsagePatternCard1Animated(
+                                        userName = userName,
+                                        appName = data.appName,
+                                        totalHours = data.totalHours,
+                                        recommendedHours = 1.0,
+                                        averageHours = data.averageHours,
+                                        config = config,
+                                        ease = ease,
+                                    )
+                                } else {
+                                    UsagePatternCard1Empty()
+                                }
                             }
                             Box(
                                 modifier = Modifier
@@ -212,16 +265,18 @@ fun UsagePatternAnalysisScreen(
                                     .offset(y = offset2)
                                     .alpha(alpha2),
                             ) {
-                                UsagePatternCard2Animated(
-                                    message = "아영님은 OTT 앱을 상당히 많이 사용하시고 계세요",
-                                    categoryBars = listOf(
-                                        "OTT" to 133f / 160f,
-                                        "쇼핑" to 96f / 160f,
-                                        "SNS" to 51f / 160f,
-                                    ),
-                                    config = config,
-                                    ease = ease,
-                                )
+                                val data = card2Data
+                                if (data != null) {
+                                    UsagePatternCard2Animated(
+                                        userName = userName,
+                                        message = data.message,
+                                        categoryBars = data.categoryBars,
+                                        config = config,
+                                        ease = ease,
+                                    )
+                                } else {
+                                    UsagePatternCard2Empty()
+                                }
                             }
                             Box(
                                 modifier = Modifier
@@ -232,6 +287,19 @@ fun UsagePatternAnalysisScreen(
                                 UsagePatternCard3Animated(userName = userName, config = config, ease = ease)
                             }
                         }
+                    }
+                    CenterPhase.START_BUTTON -> Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .windowInsetsPadding(WindowInsets.navigationBars),
+                        verticalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Spacer(modifier = Modifier.height(0.dp))
+                        AptoxPrimaryButton(
+                            text = "시작하기",
+                            onClick = onFinish,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
                 }
             }
@@ -247,6 +315,7 @@ private val stepSpringSpec = spring<Float>(
 /** 카드 1: 앱 사용량 요약 (유튜브 304시간) - 카드 → 타이틀 → 본문 순 단계별 애니메이션 */
 @Composable
 private fun UsagePatternCard1Animated(
+    userName: String,
     appName: String,
     totalHours: Int,
     recommendedHours: Double,
@@ -300,7 +369,7 @@ private fun UsagePatternCard1Animated(
                 exit = fadeOut(animationSpec = stepSpringSpec),
             ) {
                 Text(
-                    text = "아영님은 하루 평균 ${averageHours}시간 사용하셨어요",
+                    text = "${userName}님은 하루 평균 ${"%.1f".format(averageHours)}시간 사용하셨어요",
                     style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
                 )
             }
@@ -308,9 +377,30 @@ private fun UsagePatternCard1Animated(
     }
 }
 
+@Composable
+private fun UsagePatternCard1Empty() {
+    UsagePatternCard(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "사용량 데이터가 없어요",
+            style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
+        )
+    }
+}
+
+@Composable
+private fun UsagePatternCard2Empty() {
+    UsagePatternCard(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "카테고리 데이터가 없어요",
+            style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
+        )
+    }
+}
+
 /** 카드 1: 앱 사용량 요약 (유튜브 304시간) - 기본 버전 */
 @Composable
 private fun UsagePatternCard1(
+    userName: String,
     appName: String,
     totalHours: Int,
     recommendedHours: Double,
@@ -335,7 +425,7 @@ private fun UsagePatternCard1(
                 style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
             )
             Text(
-                text = "아영님은 하루 평균 ${averageHours}시간 사용하셨어요",
+                text = "${userName}님은 하루 평균 ${"%.1f".format(averageHours)}시간 사용하셨어요",
                 style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
             )
         }
@@ -345,6 +435,7 @@ private fun UsagePatternCard1(
 /** 카드 2: 카테고리별 사용량 막대 - 타이틀 → 막대 순 단계별 애니메이션 */
 @Composable
 private fun UsagePatternCard2Animated(
+    userName: String,
     message: String,
     categoryBars: List<Pair<String, Float>>,
     config: SmoothnessConfig,
@@ -368,12 +459,7 @@ private fun UsagePatternCard2Animated(
                 exit = fadeOut(animationSpec = stepSpringSpec),
             ) {
                 Text(
-                    text = buildAnnotatedString {
-                        append("아영님은 ")
-                        withStyle(SpanStyle(color = AppColors.Primary300)) { append("OTT 앱") }
-                        append("을\n")
-                        withStyle(SpanStyle(color = AppColors.Primary300)) { append("상당히 많이 사용하시고 계세요") }
-                    },
+                    text = message,
                     style = AppTypography.HeadingH3.copy(
                         color = AppColors.TextPrimary,
                         lineHeight = AppTypography.HeadingH3.lineHeight,
@@ -428,7 +514,24 @@ private fun CategoryBar(
     }
 }
 
-/** 카드 3: 밤 11시~12시 시간대별 그래프 - 타이틀 → 차트 순 단계별 애니메이션 */
+/** 12개 슬롯(0~2,2~4,...,22~24시) 인덱스 → 시간대 문구 */
+private fun formatTimeSlotInsight(maxIdx: Int): String = when (maxIdx) {
+    0 -> "새벽 0시부터 2시까지"
+    1 -> "새벽 2시부터 4시까지"
+    2 -> "새벽 4시부터 6시까지"
+    3 -> "아침 6시부터 8시까지"
+    4 -> "오전 8시부터 10시까지"
+    5 -> "오전 10시부터 12시까지"
+    6 -> "낮 12시부터 2시까지"
+    7 -> "오후 2시부터 4시까지"
+    8 -> "오후 4시부터 6시까지"
+    9 -> "저녁 6시부터 8시까지"
+    10 -> "저녁 8시부터 10시까지"
+    11 -> "밤 10시부터 12시까지"
+    else -> "사용량이 가장 많은 시간대"
+}
+
+/** 카드 3: 시간대별 그래프 - 타이틀 → 차트 순 단계별 애니메이션 */
 @Composable
 private fun UsagePatternCard3Animated(
     userName: String,
@@ -453,12 +556,12 @@ private fun UsagePatternCard3Animated(
         step = 2
     }
 
-    // 실제 데이터 없을 때 Figma 디자인용 더미 (18~24시 peak)
     val padded = timeSlotMinutes?.let { if (it.size >= 12) it.take(12) else it + List(12 - it.size) { 0L } }
-        ?: listOf(6L, 6L, 8L, 35L, 74L, 62L, 52L, 25L, 62L, 81L, 109L, 87L)
-    val maxIdx = padded.indices.maxByOrNull { padded[it] }?.takeIf { padded[it] > 0 } ?: 10
+        ?: List(12) { 0L }
+    val maxIdx = padded.indices.maxByOrNull { padded[it] }?.takeIf { padded[it] > 0 } ?: -1
     val timeSlotMaxMinutes = 120L
     val normalized = padded.map { (it.toFloat() / timeSlotMaxMinutes).coerceIn(0f, 1f) }
+    val insightText = if (maxIdx >= 0) "${formatTimeSlotInsight(maxIdx)}\n사용량이 가장 많았어요" else "사용량 데이터가 없어요"
 
     UsagePatternCard(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(26.dp)) {
@@ -468,7 +571,7 @@ private fun UsagePatternCard3Animated(
                 exit = fadeOut(animationSpec = stepSpringSpec),
             ) {
                 Text(
-                    text = "밤 11시부터 12시까지\n사용량이 가장 많았어요",
+                    text = insightText,
                     style = AppTypography.HeadingH3.copy(
                         color = AppColors.TextPrimary,
                         lineHeight = AppTypography.HeadingH3.lineHeight,

@@ -2,10 +2,13 @@ package com.aptox.app
 
 import com.aptox.app.model.BadgeDefinition
 import com.aptox.app.model.BadgeMasterData
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,8 +31,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.key
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,14 +41,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
 private val ChallengeCardShape = RoundedCornerShape(12.dp)
@@ -59,12 +59,31 @@ private val BadgeCardPadding = 16.dp
 private val BadgeToTextGap = 6.dp
 private val TextToDateGap = 4.dp
 
+private val DateFormatBadge = SimpleDateFormat("yyyy. M.d", Locale.KOREAN)
+
 /**
  * 챌린지 화면 (Figma CH_01 310:1865)
  */
 @Composable
 fun ChallengeScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
     val scrollState = rememberScrollState()
+    var selectedBadgeId by remember { mutableStateOf<String?>(null) }
+
+    val challengeBadgeItems by produceState(
+        initialValue = buildChallengeBadgeItems(emptyMap()),
+        context, FirebaseAuth.getInstance().currentUser?.uid,
+    ) {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid
+        value = if (userId != null) {
+            withContext(Dispatchers.IO) {
+                val earnedMap = BadgeRepository(FirebaseFirestore.getInstance()).getAllEarnedBadges(userId)
+                buildChallengeBadgeItems(earnedMap)
+            }
+        } else {
+            buildChallengeBadgeItems(emptyMap())
+        }
+    }
 
     Column(
         modifier = modifier
@@ -75,7 +94,8 @@ fun ChallengeScreen(modifier: Modifier = Modifier) {
     ) {
         Spacer(modifier = Modifier.height(24.dp))
 
-        // 최근 받은 뱃지 카드
+        // 최근 받은 뱃지 카드 (가장 최근 획득 1개 또는 미획득 시 첫 뱃지, Figma 310-2465)
+        val featuredItem = challengeBadgeItems.firstOrNull { it.earned } ?: challengeBadgeItems.first()
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -83,6 +103,10 @@ fun ChallengeScreen(modifier: Modifier = Modifier) {
                 .shadow(ChallengeCardShadowElevation, ChallengeCardShape, false, ChallengeCardShadowColor, ChallengeCardShadowColor)
                 .clip(ChallengeCardShape)
                 .background(AppColors.SurfaceBackgroundCard)
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                ) { selectedBadgeId = featuredItem.badge.id }
                 .padding(vertical = 28.dp, horizontal = 24.dp),
         ) {
             Column(
@@ -90,39 +114,46 @@ fun ChallengeScreen(modifier: Modifier = Modifier) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                // 대표 뱃지 (첫 번째 획득 뱃지 - badge_004 첫 성취)
-                val featuredBadge = BadgeMasterData.badges[3] // badge_004
+                val topTextColor = if (featuredItem.earned) AppColors.TextPrimary else AppColors.TextDisabled
+                val topDescText = if (featuredItem.earned) featuredItem.badge.description else "-"
                 Box(
                     modifier = Modifier.size(72.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Image(
-                        painter = painterResource(R.drawable.bg_active),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.FillBounds,
-                    )
-                    Image(
-                        painter = painterResource(featuredBadge.iconResId),
-                        contentDescription = null,
-                        modifier = Modifier.size(52.dp),
-                        contentScale = ContentScale.Fit,
-                    )
+                    if (featuredItem.earned) {
+                        Image(
+                            painter = painterResource(R.drawable.bg_active),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.FillBounds,
+                        )
+                        Image(
+                            painter = painterResource(featuredItem.badge.iconResId),
+                            contentDescription = null,
+                            modifier = Modifier.size(52.dp),
+                            contentScale = ContentScale.Fit,
+                        )
+                    } else {
+                        // Figma 310-1987: 획득 메달 없을 때 상단 카드 — 스쿠시클 배경+자물쇠 합성 아이콘
+                        Image(
+                            painter = painterResource(R.drawable.ico_lock_challange_card),
+                            contentDescription = null,
+                            modifier = Modifier.size(72.dp),
+                            contentScale = ContentScale.Fit,
+                        )
+                    }
                 }
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = featuredBadge.title,
-                        style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary),
-                    )
-                    Text(
-                        text = featuredBadge.description,
-                        style = AppTypography.BodyMedium.copy(color = AppColors.TextTertiary),
-                        textAlign = TextAlign.Center,
-                    )
-                }
+                Text(
+                    text = featuredItem.badge.title,
+                    style = AppTypography.HeadingH3.copy(color = topTextColor),
+                )
+                Text(
+                    text = topDescText,
+                    style = AppTypography.BodyMedium.copy(
+                        color = if (featuredItem.earned) AppColors.TextTertiary else AppColors.TextDisabled,
+                    ),
+                    textAlign = TextAlign.Center,
+                )
             }
         }
 
@@ -145,6 +176,7 @@ fun ChallengeScreen(modifier: Modifier = Modifier) {
                             BadgeGridItem(
                                 modifier = Modifier.weight(1f),
                                 item = item,
+                                onTap = { selectedBadgeId = item.badge.id },
                             )
                         }
                     }
@@ -156,6 +188,13 @@ fun ChallengeScreen(modifier: Modifier = Modifier) {
         }
         Spacer(modifier = Modifier.height(48.dp))
     }
+
+    if (selectedBadgeId != null) {
+        BadgeDetailBottomSheet(
+            badgeId = selectedBadgeId!!,
+            onDismissRequest = { selectedBadgeId = null },
+        )
+    }
 }
 
 private data class ChallengeBadgeItem(
@@ -164,99 +203,39 @@ private data class ChallengeBadgeItem(
     val date: String,
 )
 
-/** 배지 그리드 아이템 (BadgeMasterData + 획득 여부/날짜 - 추후 Firestore users/{uid}/badges 연동) */
-private val challengeBadgeItems: List<ChallengeBadgeItem> = BadgeMasterData.badges.mapIndexed { index, badge ->
-    ChallengeBadgeItem(
-        badge = badge,
-        earned = index < 15, // 목업: 1~15 획득, 16~18 미획득
-        date = "2026. 3.31",
-    )
-}
-
-@Composable
-private fun AnimatedEarnedBadgeMedal(
-    iconResId: Int,
-    trigger: Int = 0,
-) {
-    val size = BadgeIconSize
-    val scaleAnim = remember { Animatable(1f) }
-    val rotationAnim = remember { Animatable(0f) }
-    val sparkleProgress = remember { Animatable(0f) }
-
-    LaunchedEffect(trigger) {
-        if (trigger == 0) return@LaunchedEffect
-        scaleAnim.snapTo(1f)
-        rotationAnim.snapTo(0f)
-        sparkleProgress.snapTo(0f)
-        scaleAnim.animateTo(
-            targetValue = 1.2f,
-            animationSpec = tween(250, easing = FastOutSlowInEasing),
+/**
+ * BadgeMasterData + Firestore 획득 정보로 챌린지 뱃지 목록 생성.
+ * 정렬: 획득한 뱃지(획득 일시 최신순) → 미획득 뱃지(order순)
+ */
+private fun buildChallengeBadgeItems(earnedMap: Map<String, Long>): List<ChallengeBadgeItem> {
+    val earnedByAchievedAt = earnedMap.entries
+        .sortedByDescending { it.value }
+        .map { it.key }
+        .toList()
+    val unearned = BadgeMasterData.badges.filter { it.id !in earnedMap.keys }.sortedBy { it.order }
+    val earnedBadges = earnedByAchievedAt.mapNotNull { id -> BadgeMasterData.badges.find { it.id == id } }
+    return (earnedBadges.map { badge ->
+        val achievedAtMs = earnedMap[badge.id] ?: 0L
+        ChallengeBadgeItem(
+            badge = badge,
+            earned = true,
+            date = if (achievedAtMs > 0) DateFormatBadge.format(Date(achievedAtMs)) else "-",
         )
-        rotationAnim.animateTo(
-            targetValue = 720f,
-            animationSpec = tween(500, easing = FastOutSlowInEasing),
-        )
-        scaleAnim.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(150, easing = FastOutSlowInEasing),
-        )
-        sparkleProgress.snapTo(0f)
-        sparkleProgress.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(250, easing = FastOutSlowInEasing),
-        )
-        sparkleProgress.snapTo(0f)
-    }
-
-    val density = LocalDensity.current.density
-    Box(
-        modifier = Modifier
-            .size(size)
-            .graphicsLayer {
-                scaleX = scaleAnim.value
-                scaleY = scaleAnim.value
-                rotationY = rotationAnim.value
-                transformOrigin = TransformOrigin.Center
-                cameraDistance = (8f * density).coerceAtLeast(1f)
-            },
-    ) {
-        Image(
-            painter = painterResource(iconResId),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Fit,
-        )
-        if (sparkleProgress.value in 0.01f..0.99f) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val w = this.size.width
-                val stripW = w * 0.35f
-                val sweepX = sparkleProgress.value * 1.4f - 0.2f
-                val left = (sweepX * w).coerceIn(-stripW, w)
-                drawRect(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.White.copy(alpha = 0.8f),
-                            Color.Transparent,
-                        ),
-                        startX = left,
-                        endX = left + stripW,
-                    ),
-                )
-            }
-        }
-    }
+    } + unearned.map { badge ->
+        ChallengeBadgeItem(badge = badge, earned = false, date = "-")
+    })
 }
 
 @Composable
 private fun BadgeGridItem(
     modifier: Modifier = Modifier,
     item: ChallengeBadgeItem,
+    onTap: () -> Unit = {},
 ) {
-    var tapTrigger by remember { mutableStateOf(0) }
     val textColor = if (item.earned) AppColors.TextBody else AppColors.TextDisabled
     val dateColor = if (item.earned) AppColors.TextCaption else AppColors.TextDisabled
     val bgResId = if (item.earned) R.drawable.bg_active else R.drawable.bg_disable
+    val dateText = if (item.earned) item.date else "-" // Figma 310-2465: 미획득 시 "-" 표시
 
     Box(
         modifier = modifier
@@ -264,6 +243,10 @@ private fun BadgeGridItem(
             .shadow(ChallengeCardShadowElevation, ChallengeCardShape, false, ChallengeCardShadowColor, ChallengeCardShadowColor)
             .clip(ChallengeCardShape)
             .background(AppColors.SurfaceBackgroundCard)
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() },
+            ) { onTap() }
             .padding(BadgeCardPadding),
     ) {
         Column(
@@ -272,14 +255,7 @@ private fun BadgeGridItem(
             verticalArrangement = Arrangement.spacedBy(BadgeToTextGap),
         ) {
             Box(
-                modifier = Modifier
-                    .size(BadgeBackgroundSize)
-                    .then(
-                        if (item.earned) Modifier.clickable(
-                            indication = null,
-                            interactionSource = remember { MutableInteractionSource() },
-                        ) { tapTrigger++ } else Modifier
-                    ),
+                modifier = Modifier.size(BadgeBackgroundSize),
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
@@ -289,9 +265,11 @@ private fun BadgeGridItem(
                     contentScale = ContentScale.FillBounds,
                 )
                 if (item.earned) {
-                    AnimatedEarnedBadgeMedal(
-                        iconResId = item.badge.iconResId,
-                        trigger = tapTrigger,
+                    Image(
+                        painter = painterResource(item.badge.iconResId),
+                        contentDescription = null,
+                        modifier = Modifier.size(BadgeIconSize),
+                        contentScale = ContentScale.Fit,
                     )
                 } else {
                     Image(
@@ -302,23 +280,17 @@ private fun BadgeGridItem(
                     )
                 }
             }
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(TextToDateGap),
-            ) {
-                Text(
-                    text = item.badge.title,
-                    style = AppTypography.Caption1.copy(color = textColor),
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                )
-                Text(
-                    text = item.date,
-                    style = AppTypography.Caption1.copy(color = dateColor),
-                    textAlign = TextAlign.Center,
-                )
-            }
+            Text(
+                text = item.badge.title,
+                style = AppTypography.Caption1.copy(color = textColor),
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+            )
+            Text(
+                text = dateText,
+                style = AppTypography.Caption1.copy(color = dateColor),
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }

@@ -54,9 +54,10 @@ class BlockOverlayService : android.app.Service() {
         }
         val packageName = intent?.getStringExtra(EXTRA_PACKAGE_NAME) ?: ""
         val blockUntilMs = intent?.getLongExtra(EXTRA_BLOCK_UNTIL_MS, 0L) ?: 0L
+        val overlayState = intent?.getStringExtra(EXTRA_OVERLAY_STATE) ?: OVERLAY_STATE_USAGE_EXCEEDED
         isRunning = true
         if (overlayView == null) {
-            showOverlay(packageName, blockUntilMs)
+            showOverlay(packageName, blockUntilMs, overlayState)
         }
         return START_NOT_STICKY
     }
@@ -105,7 +106,7 @@ class BlockOverlayService : android.app.Service() {
         }
     }
 
-    private fun showOverlay(packageName: String, blockUntilMs: Long) {
+    private fun showOverlay(packageName: String, blockUntilMs: Long, overlayState: String) {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
 
         val layoutParams = WindowManager.LayoutParams(
@@ -129,14 +130,82 @@ class BlockOverlayService : android.app.Service() {
             packageName
         }
 
-        val root = if (blockUntilMs <= 0) {
-            buildDailyUsageOverlay(packageName, appName)
-        } else {
-            buildTimeSpecifiedOverlay(packageName, appName, blockUntilMs)
+        val root = when {
+            blockUntilMs > 0 -> buildTimeSpecifiedOverlay(packageName, appName, blockUntilMs)
+            overlayState == OVERLAY_STATE_COUNT_NOT_STARTED -> buildCountNotStartedOverlay(packageName, appName)
+            else -> buildDailyUsageOverlay(packageName, appName)
         }
         root.requestFocus()
         overlayView = root
         windowManager?.addView(root, layoutParams)
+    }
+
+    /** Figma 1159-4638: 카운트 미시작 — "앱을 사용하시려면 카운트 시작을 눌러주세요" + 카운트 시작 버튼 */
+    private fun buildCountNotStartedOverlay(packageName: String, appName: String): View {
+        val fontHeadingH2 = resources.getFont(R.font.suit_heading_h3)
+        val fontBodyMedium = resources.getFont(R.font.suit_button_large)
+        val fontButtonLarge = resources.getFont(R.font.suit_button_large)
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(ContextCompat.getColor(this@BlockOverlayService, R.color.block_overlay_daily_bg))
+            setPadding(dp(48), dp(48), dp(48), dp(48))
+            isFocusableInTouchMode = true
+            setOnKeyListener { _, keyCode, event ->
+                if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
+                    dismiss()
+                    true
+                } else false
+            }
+        }
+
+        val titleText = TextView(this).apply {
+            text = "앱을 사용하시려면\n카운트 시작을 눌러주세요"
+            setTextColor(ContextCompat.getColor(this@BlockOverlayService, R.color.block_overlay_text_primary))
+            setTypeface(fontHeadingH2)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+            setTextAlignment(android.view.View.TEXT_ALIGNMENT_CENTER)
+            setPadding(0, 0, 0, dp(12))
+        }
+        root.addView(titleText)
+
+        val subText = TextView(this).apply {
+            text = "앱을 필요한 만큼 사용하신 후에는\n반드시 카운트 종료를 눌러주셔야 해요"
+            setTextColor(ContextCompat.getColor(this@BlockOverlayService, R.color.block_overlay_text_primary))
+            setTypeface(fontBodyMedium)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            setTextAlignment(android.view.View.TEXT_ALIGNMENT_CENTER)
+            setPadding(0, 0, 0, dp(26))
+        }
+        root.addView(subText)
+
+        val startButton = TextView(this).apply {
+            text = "카운트 시작"
+            background = GradientDrawable().apply {
+                setColor(ContextCompat.getColor(this@BlockOverlayService, R.color.block_overlay_daily_btn_bg))
+                cornerRadius = dp(12).toFloat()
+            }
+            setTextColor(ContextCompat.getColor(this@BlockOverlayService, R.color.block_overlay_daily_btn_text))
+            setTypeface(fontButtonLarge)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            setTextAlignment(android.view.View.TEXT_ALIGNMENT_CENTER)
+            gravity = Gravity.CENTER
+            setOnClickListener {
+                val intent = Intent(this@BlockOverlayService, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    putExtra(AppMonitorService.EXTRA_OPEN_BOTTOM_SHEET, packageName)
+                }
+                startActivity(intent)
+                dismiss(skipHome = true)
+            }
+        }
+        val btnParams = LinearLayout.LayoutParams(dp(246), dp(60)).apply {
+            topMargin = dp(26)
+        }
+        btnParams.gravity = Gravity.CENTER_HORIZONTAL
+        root.addView(startButton, btnParams)
+        return root
     }
 
     /** Figma 1136-6361: 일일사용량 제한 — "오늘 사용가능한 시간을 전부 사용하셨어요" + 닫기 */
@@ -355,6 +424,10 @@ class BlockOverlayService : android.app.Service() {
         const val EXTRA_APP_NAME = "app_name"
         /** 시간 지정 차단 시 제한 해제 시각(ms). 0이면 일일 사용량 제한(자정 해제) */
         const val EXTRA_BLOCK_UNTIL_MS = "block_until_ms"
+        /** 일일 사용량 오버레이 상태: USAGE_EXCEEDED | COUNT_NOT_STARTED */
+        const val EXTRA_OVERLAY_STATE = "overlay_state"
+        const val OVERLAY_STATE_USAGE_EXCEEDED = "USAGE_EXCEEDED"
+        const val OVERLAY_STATE_COUNT_NOT_STARTED = "COUNT_NOT_STARTED"
         /** 일시정지 3단계 플로우 시작용 Intent action (1단계 제안 → 2단계 확인 → 3단계 완료) */
         const val ACTION_PAUSE_FLOW_FROM_OVERLAY = "com.aptox.app.PAUSE_FLOW_FROM_OVERLAY"
         /** AppMonitorService에서 중복 실행 방지용 플래그 */

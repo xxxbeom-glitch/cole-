@@ -49,9 +49,16 @@ import com.aptox.app.model.BadgeMasterData
  * 메달 애니메이션 테스트 화면
  * - 버전1: 360도 Y축 회전
  * - 버전2: 180도 앞뒤 뒤집기
+ * - 획득 바텀시트 애니메이션 프리뷰 (MedalAnimationType 5가지)
  */
 @Composable
 fun MedalAnimationTestScreen(onBack: () -> Unit) {
+    val dummyBadge = BadgeMasterData.badges.getOrNull(3)
+        ?: BadgeMasterData.badges.first()
+
+    // 바텀시트 프리뷰 상태
+    var previewAnimationType by remember { mutableStateOf<MedalAnimationType?>(null) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -66,6 +73,24 @@ fun MedalAnimationTestScreen(onBack: () -> Unit) {
             text = "메달 애니메이션 테스트",
             style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
         )
+
+        // ── 메달 획득 바텀시트 애니메이션 프리뷰 ──
+        MedalAnimationSectionTitle("메달 획득 바텀시트 애니메이션")
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            MedalAnimationType.entries.forEach { type ->
+                AptoxSecondaryButton(
+                    text = when (type) {
+                        MedalAnimationType.SHIMMER -> "SHIMMER 미리보기"
+                        MedalAnimationType.SCALE_BOUNCE -> "SCALE_BOUNCE 미리보기"
+                        MedalAnimationType.PARTICLES -> "PARTICLES 미리보기"
+                        MedalAnimationType.CONFETTI -> "CONFETTI 미리보기"
+                        MedalAnimationType.COMBINED -> "COMBINED (풀버전) 미리보기"
+                    },
+                    onClick = { previewAnimationType = type },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
 
         // 버전1: 360도 회전 (2바퀴, 속도별 5케이스)
         MedalAnimationSectionTitle("버전 1 - 2바퀴 회전 (속도별)")
@@ -110,6 +135,15 @@ fun MedalAnimationTestScreen(onBack: () -> Unit) {
         // 버전2: 앞뒤 뒤집기
         MedalAnimationSectionTitle("버전 2 - 앞뒤 뒤집기")
         MedalFlip180Demo()
+    }
+
+    // 바텀시트 프리뷰 오버레이
+    previewAnimationType?.let { type ->
+        MedalAchievementBottomSheet(
+            badge = dummyBadge,
+            animationType = type,
+            onDismiss = { previewAnimationType = null },
+        )
     }
 }
 

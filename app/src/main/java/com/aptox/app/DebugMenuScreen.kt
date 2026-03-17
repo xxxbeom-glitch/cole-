@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
@@ -61,12 +62,16 @@ fun DebugFlowHost(
     onStartNormalFlow: () -> Unit,
     modifier: Modifier = Modifier,
     pendingPauseFlowFromOverlay: PendingPauseFlowFromOverlay? = null,
+    pendingOpenBottomSheetPackage: String? = null,
+    onOpenBottomSheetConsumed: () -> Unit = {},
+    pendingNavIndex: Int? = null,
+    onNavIndexConsumed: () -> Unit = {},
 ) {
     var selectedScreen by remember { mutableStateOf<DebugScreen?>(null) }
     val menuScrollState = rememberScrollState()
 
-    LaunchedEffect(pendingPauseFlowFromOverlay) {
-        if (pendingPauseFlowFromOverlay != null) {
+    LaunchedEffect(pendingPauseFlowFromOverlay, pendingOpenBottomSheetPackage, pendingNavIndex) {
+        if (pendingPauseFlowFromOverlay != null || pendingOpenBottomSheetPackage != null || pendingNavIndex != null) {
             selectedScreen = DebugScreen.MainFlow
         }
     }
@@ -88,6 +93,10 @@ fun DebugFlowHost(
                 },
                 pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay,
                 onPauseFlowConsumed = { activity?.clearPendingPauseFlowFromOverlay() },
+                pendingOpenBottomSheetPackage = pendingOpenBottomSheetPackage,
+                onOpenBottomSheetConsumed = onOpenBottomSheetConsumed,
+                pendingNavIndex = pendingNavIndex,
+                onNavIndexConsumed = onNavIndexConsumed,
             )
         }
     } else {
@@ -169,6 +178,10 @@ private fun DebugScreenPreview(
     onAddAppComplete: () -> Unit = {},
     pendingPauseFlowFromOverlay: PendingPauseFlowFromOverlay? = null,
     onPauseFlowConsumed: () -> Unit = {},
+    pendingOpenBottomSheetPackage: String? = null,
+    onOpenBottomSheetConsumed: () -> Unit = {},
+    pendingNavIndex: Int? = null,
+    onNavIndexConsumed: () -> Unit = {},
 ) {
     when (screen) {
         DebugScreen.Splash -> DebugSplashPreview(onBack = onBack)
@@ -252,6 +265,10 @@ private fun DebugScreenPreview(
             isFreeUser = !SubscriptionManager.isSubscribed(LocalContext.current),
             initialPauseFlowFromOverlay = pendingPauseFlowFromOverlay,
             onPauseFlowConsumed = onPauseFlowConsumed,
+            initialAutoOpenPackage = pendingOpenBottomSheetPackage,
+            onAutoOpenConsumed = onOpenBottomSheetConsumed,
+            initialNavIndex = pendingNavIndex,
+            onNavIndexConsumed = onNavIndexConsumed,
         )
         DebugScreen.SpacingTest -> DebugSpacingTestScreen(onBack = onBack)
         DebugScreen.GaugeTest -> DebugGaugeTestScreen(onBack = onBack)
@@ -1334,22 +1351,33 @@ private fun DebugTestActionRow(
 
 @Composable
 private fun DebugTestSettingsSection() {
+    if (!com.aptox.app.BuildConfig.DEBUG) return
     val context = LocalContext.current
-    var subscriptionOn by remember { mutableStateOf(SubscriptionManager.debugForceSubscribed) }
+    val scope = rememberCoroutineScope()
     var notificationCount by remember { mutableIntStateOf(DebugTestSettings.debugNotificationHistoryCount ?: 0) }
     var restrictions by remember { mutableStateOf(AppRestrictionRepository(context).getAll()) }
+    val dailyApps = remember(restrictions) { restrictions.filter { it.blockUntilMs == 0L } }
 
     fun refresh() { restrictions = AppRestrictionRepository(context).getAll() }
 
-    val dailyApps = restrictions.filter { it.blockUntilMs == 0L }
-    val timeApps = restrictions.filter { it.blockUntilMs > 0L }
+    @Composable
+    fun DebugDivider() {
+        Spacer(modifier = Modifier.height(16.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(AppColors.BorderDivider),
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
             text = "테스트 설정",
@@ -1358,14 +1386,8 @@ private fun DebugTestSettingsSection() {
 
         // 1. 제한앱 모두 삭제
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = "제한앱 모두 삭제",
-                style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
-            )
-            Text(
-                text = "제한 앱 목록을 초기화하고 모니터 서비스를 중지합니다.",
-                style = AppTypography.Caption1.copy(color = AppColors.TextSecondary),
-            )
+            Text(text = "제한앱 모두 삭제", style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary))
+            Text(text = "제한 앱 목록을 초기화하고 모니터 서비스를 중지합니다.", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
             AptoxPrimaryButton(
                 text = "제한앱 모두 삭제",
                 onClick = {
@@ -1376,147 +1398,213 @@ private fun DebugTestSettingsSection() {
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+        DebugDivider()
 
-        // 2. 구독 상태 온/오프
+        // 2. 일일사용량 제한 테스트
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = "구독 상태 온/오프",
-                style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
-            )
-            Text(
-                text = "DEBUG 빌드에서 유료 구독 상태를 강제로 설정합니다.",
-                style = AppTypography.Caption1.copy(color = AppColors.TextSecondary),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = if (subscriptionOn) "구독중" else "무료",
-                    style = AppTypography.Caption1.copy(color = AppColors.TextBody),
-                )
-                AptoxToggleSwitch(
-                    checked = subscriptionOn,
-                    onCheckedChange = {
-                        subscriptionOn = it
-                        SubscriptionManager.debugForceSubscribed = it
-                    },
-                )
-            }
-        }
-
-        // 3. 일일사용량 제한 테스트
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                text = "일일사용량 제한 테스트",
-                style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
-            )
-            Text(
-                text = "일일사용량 제한 앱의 오늘 사용량을 강제 설정합니다.",
-                style = AppTypography.Caption1.copy(color = AppColors.TextSecondary),
-            )
+            Text(text = "일일사용량 제한 테스트", style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary))
+            Text(text = "등록된 제한 앱의 오늘 누적 사용량을 ManualTimerRepository에 강제 저장합니다.", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
             if (dailyApps.isEmpty()) {
-                Text(
-                    text = "등록된 일일사용량 제한 앱이 없습니다.",
-                    style = AppTypography.Caption1.copy(color = AppColors.TextCaption),
-                )
+                Text(text = "등록된 일일사용량 제한 앱이 없습니다.", style = AppTypography.Caption1.copy(color = AppColors.TextCaption))
             } else {
-                var lastDailyAction by remember { mutableStateOf<Pair<String, String>?>(null) }
-                dailyApps.forEach { app ->
-                    DebugTestActionRow(
-                        rowKey = app.packageName,
-                        leftText = "${app.appName} (${app.limitMinutes}분)",
-                        actions = listOf(
-                            "마감 3분 전" to { DebugTestSettings.debugTodayUsageMinutes = (app.limitMinutes - 3).toLong().coerceAtLeast(0) },
-                            "마감 1분 전" to { DebugTestSettings.debugTodayUsageMinutes = (app.limitMinutes - 1).toLong().coerceAtLeast(0) },
-                            "즉시 완료" to { DebugTestSettings.debugTodayUsageMinutes = app.limitMinutes.toLong() },
-                        ),
-                        lastAction = lastDailyAction,
-                        onAction = { key, label -> lastDailyAction = key to label },
+                var selectedApp by remember { mutableStateOf(dailyApps.firstOrNull()) }
+                var usageMinutes by remember { mutableStateOf("0") }
+                DebugDropdownRow(
+                    label = "제한 앱",
+                    options = dailyApps.map { "${it.appName} (${it.limitMinutes}분)" },
+                    selectedIndex = dailyApps.indexOf(selectedApp).coerceAtLeast(0),
+                    onSelect = { selectedApp = dailyApps.getOrNull(it) },
+                )
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(text = "오늘 사용량 (분)", style = AppTypography.Caption1.copy(color = AppColors.TextBody))
+                    BasicTextField(
+                        value = usageMinutes,
+                        onValueChange = { if (it.all { c -> c.isDigit() }) usageMinutes = it },
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(AppColors.Grey150)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
                     )
                 }
+                AptoxPrimaryButton(
+                    text = "사용량 강제 설정",
+                    onClick = {
+                        selectedApp?.let { app ->
+                            ManualTimerRepository(context).setTodayUsageMinutes(app.packageName, usageMinutes.toIntOrNull() ?: 0)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
+        DebugDivider()
 
-        // 4. 알림내역 갯수 테스트
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                text = "알림내역 갯수",
-                style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
-            )
-            Text(
-                text = "알림내역 화면에 표시할 테스트 아이템 수를 선택합니다.",
-                style = AppTypography.Caption1.copy(color = AppColors.TextSecondary),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+        // 3. 알림내역 갯수
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(text = "알림내역 갯수", style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary))
+            Text(text = "알림내역 화면에 표시할 테스트 아이템 수를 선택합니다.", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(0, 3, 5, 10).forEach { count ->
                     val isSelected = notificationCount == count
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                if (isSelected) AppColors.Primary300
-                                else AppColors.Grey200
-                            )
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) {
+                            .background(if (isSelected) AppColors.Primary300 else AppColors.Grey200)
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                                 notificationCount = count
                                 DebugTestSettings.debugNotificationHistoryCount = count
                             }
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                     ) {
-                        Text(
-                            text = "${count}개",
-                            style = AppTypography.Caption1.copy(
-                                color = if (isSelected) AppColors.TextInvert else AppColors.TextBody,
-                            ),
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
+                        Text(text = "${count}개", style = AppTypography.Caption1.copy(color = if (isSelected) AppColors.TextInvert else AppColors.TextBody), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                     }
                 }
             }
         }
+        DebugDivider()
 
-        // 5. 시간지정 제한 테스트
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                text = "시간지정 제한 테스트",
-                style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
+        // 4. 뱃지 강제 지급
+        val badgeIds = (1..18).map { "badge_%03d".format(it) }
+        var selectedBadgeId by remember { mutableStateOf(badgeIds.first()) }
+        var showBadgeGranted by remember { mutableStateOf<String?>(null) }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(text = "뱃지 강제 지급", style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary))
+            Text(text = "획득 팝업 정상 표시 여부 확인용. Firestore users/{userId}/badges에 저장됩니다.", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
+            DebugDropdownRow(
+                label = "뱃지",
+                options = badgeIds,
+                selectedIndex = badgeIds.indexOf(selectedBadgeId).coerceAtLeast(0),
+                onSelect = { selectedBadgeId = badgeIds.getOrNull(it) ?: badgeIds.first() },
             )
-            Text(
-                text = "시간지정 제한 앱의 차단 종료 시각을 강제 변경합니다.",
-                style = AppTypography.Caption1.copy(color = AppColors.TextSecondary),
+            AptoxPrimaryButton(
+                text = "강제 지급",
+                onClick = {
+                    val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                    if (uid == null) return@AptoxPrimaryButton
+                    scope.launch {
+                        kotlin.runCatching { BadgeRepository(context = context).grantBadge(uid, selectedBadgeId) }
+                        showBadgeGranted = selectedBadgeId
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
             )
-            if (timeApps.isEmpty()) {
-                Text(
-                    text = "등록된 시간지정 제한 앱이 없습니다.",
-                    style = AppTypography.Caption1.copy(color = AppColors.TextCaption),
-                )
-            } else {
-                val repo = AppRestrictionRepository(context)
-                var lastTimeAction by remember { mutableStateOf<Pair<String, String>?>(null) }
-                timeApps.forEach { app ->
-                    DebugTestActionRow(
-                        rowKey = app.packageName,
-                        leftText = app.appName,
-                        actions = listOf(
-                            "해제 3분 전" to { repo.save(app.copy(blockUntilMs = System.currentTimeMillis() + 3 * 60_000L)); refresh() },
-                            "해제 1분 전" to { repo.save(app.copy(blockUntilMs = System.currentTimeMillis() + 1 * 60_000L)); refresh() },
-                            "즉시 완료" to { repo.save(app.copy(blockUntilMs = System.currentTimeMillis())); refresh() },
-                        ),
-                        lastAction = lastTimeAction,
-                        onAction = { key, label -> lastTimeAction = key to label },
-                    )
-                }
+        }
+        if (showBadgeGranted != null) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showBadgeGranted = null },
+                title = { Text("뱃지 지급됨") },
+                text = { Text("${showBadgeGranted} 가 Firestore에 저장되었습니다.") },
+                confirmButton = { androidx.compose.material3.TextButton(onClick = { showBadgeGranted = null }) { Text("확인") } },
+            )
+        }
+        DebugDivider()
+
+        // 5. 달성 조건 수치 조작
+        val progressRepo = remember { BadgeProgressRepository(context) }
+        var accumInput by remember { mutableStateOf(progressRepo.accumulatedAchievementDays.toString()) }
+        var consecInput by remember { mutableStateOf(progressRepo.consecutiveAchievementDays.toString()) }
+        var showProgressResult by remember { mutableStateOf<String?>(null) }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(text = "달성 조건 수치 조작", style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary))
+            Text(text = "누적/연속 달성일을 badgeProgress에 강제 반영 후, 오늘 달성 처리로 뱃지 조건 체크를 실행합니다.", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "누적 달성일", style = AppTypography.Caption1.copy(color = AppColors.TextBody), modifier = Modifier.widthIn(min = 80.dp))
+                BasicTextField(value = accumInput, onValueChange = { if (it.all { c -> c.isDigit() }) accumInput = it }, modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(AppColors.Grey150).padding(12.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "연속 달성일", style = AppTypography.Caption1.copy(color = AppColors.TextBody), modifier = Modifier.widthIn(min = 80.dp))
+                BasicTextField(value = consecInput, onValueChange = { if (it.all { c -> c.isDigit() }) consecInput = it }, modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(AppColors.Grey150).padding(12.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AptoxPrimaryButton(text = "저장", onClick = {
+                    progressRepo.accumulatedAchievementDays = accumInput.toIntOrNull() ?: 0
+                    progressRepo.consecutiveAchievementDays = consecInput.toIntOrNull() ?: 0
+                }, modifier = Modifier.weight(1f))
+                AptoxPrimaryButton(text = "오늘 달성 처리", onClick = {
+                    val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                    if (uid == null) { showProgressResult = "로그인 필요"; return@AptoxPrimaryButton }
+                    val accum = progressRepo.accumulatedAchievementDays
+                    val consec = progressRepo.consecutiveAchievementDays
+                    scope.launch {
+                        val granted = BadgeRepository(context = context).checkAndGrantBadgesFromProgress(uid, accum, consec)
+                        showProgressResult = if (granted.isEmpty()) "새로 지급된 뱃지 없음" else "지급됨: ${granted.joinToString()}"
+                    }
+                }, modifier = Modifier.weight(1f))
             }
         }
+        if (showProgressResult != null) {
+            androidx.compose.material3.AlertDialog(onDismissRequest = { showProgressResult = null }, title = { Text("달성 처리") }, text = { Text(showProgressResult!!) }, confirmButton = { androidx.compose.material3.TextButton(onClick = { showProgressResult = null }) { Text("확인") } })
+        }
+        DebugDivider()
+
+        // 6. 뱃지 전체 초기화
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(text = "뱃지 전체 초기화", style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary))
+            Text(text = "Firestore users/{userId}/badges 전체 삭제 + badgeProgress 리셋. 처음부터 다시 테스트할 때 사용.", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
+            AptoxPrimaryButton(
+                text = "뱃지 초기화",
+                onClick = {
+                    val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: return@AptoxPrimaryButton
+                    scope.launch {
+                        BadgeRepository(context = context).deleteAllUserBadges(uid)
+                        BadgeProgressRepository(context).resetAll()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DebugDropdownRow(
+    label: String,
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+) {
+    var showDialog by remember { mutableStateOf(false) }
+    val selectedText = options.getOrNull(selectedIndex) ?: "선택"
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(AppColors.Grey150)
+            .clickable { showDialog = true }
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = "$label: $selectedText", style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary), modifier = Modifier.weight(1f))
+        Text(text = "▼", style = AppTypography.Caption1.copy(color = AppColors.TextBody))
+    }
+    if (showDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text(label) },
+            text = {
+                Column(
+                    modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    options.forEachIndexed { index, opt ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelect(index); showDialog = false }
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(opt, style = AppTypography.BodyMedium.copy(color = if (index == selectedIndex) AppColors.Primary400 else AppColors.TextPrimary))
+                        }
+                    }
+                }
+            },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { showDialog = false }) { Text("닫기") } },
+        )
     }
 }

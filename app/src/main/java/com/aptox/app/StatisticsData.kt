@@ -9,6 +9,8 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Process
 import com.aptox.app.usage.UsageStatsLocalRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.random.Random
 import java.text.DecimalFormat
 import java.util.Calendar
@@ -37,8 +39,14 @@ import java.util.Calendar
  */
 object StatisticsData {
 
+    /** 월간 탭 활성화 최소 누적 일수 */
+    const val MIN_DAYS_FOR_MONTHLY = 30
+
+    /** 연간 탭 활성화 최소 누적 일수 (6개월) */
+    const val MIN_DAYS_FOR_YEARLY = 180
+
     /** true: 2024-01-01~현재 랜덤 더미 데이터로 주간/월간/연간 전체 채움 (개발용) */
-    private const val USE_DUMMY_FULL = true
+    private const val USE_DUMMY_FULL = false
 
     private const val DUMMY_START_DATE = "20240101"
 
@@ -270,6 +278,18 @@ object StatisticsData {
             }
         }
         return total
+    }
+
+    /**
+     * 지난 N일 구간의 앱별 실시간 사용량(ms).
+     * UsageStatsManager queryEvents 기반 — DB/Worker와 독립적으로 정확한 값.
+     * 라벨(위험/주의) 판정용.
+     */
+    fun getAppUsageMsForRangeFromEvents(context: Context, startMs: Long, endMs: Long): Map<String, Long> {
+        if (!hasUsageAccess(context)) return emptyMap()
+        val pm = context.packageManager
+        val userPackages = getUserInstalledPackages(pm)
+        return aggregateAppUsageFromEvents(context, startMs, endMs, userPackages).mapValues { it.value.first }
     }
 
     /** 구간 내 앱별 (usageMs, sessionCount). userAppPackages 필터 적용 */
@@ -990,6 +1010,21 @@ object StatisticsData {
 
     /** AI 분류 카테고리: OTT, SNS, 웹툰, 쇼핑, 게임, 주식/코인 (기타 제외) */
     private val AI_CATEGORIES = setOf("OTT", "SNS", "웹툰", "쇼핑", "게임", "주식,코인")
+
+    /**
+     * 6개 허용 카테고리(SNS, OTT, 게임, 쇼핑, 웹툰, 주식·코인) 앱만 필터링하여 사용량 반환.
+     * DataStore 캐시에 없거나 기타인 앱 제외.
+     */
+    suspend fun loadAppUsageForAllowedCategories(context: Context, startMs: Long, endMs: Long): List<StatsAppItem> =
+        withContext(Dispatchers.IO) {
+            val cache = AppCategoryCacheRepository(context).getCache()
+            val allowedPkgs = cache.filterValues { it in AI_CATEGORIES }.keys.toSet()
+            if (allowedPkgs.isEmpty()) return@withContext emptyList()
+            val raw = loadAppUsage(context, startMs, endMs)
+            raw
+                .filter { it.packageName in allowedPkgs }
+                .map { it.copy(categoryTag = cache[it.packageName]) }
+        }
 
     /**
      * 지난 1주일 기준, AI 분류 카테고리(OTT/SNS/웹툰/쇼핑/게임/주식·코인) 중 가장 많이 쓴 앱 상위 3개.

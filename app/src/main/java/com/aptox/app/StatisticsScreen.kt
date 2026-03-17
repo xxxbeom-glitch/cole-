@@ -61,6 +61,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.painterResource
+import com.aptox.app.ui.components.AptoxToast
+import com.aptox.app.usage.UsageStatsLocalRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -192,6 +194,23 @@ fun StatisticsScreen(
         else -> StatisticsData.Tab.YEARLY
     }
 
+    var daysSinceFirstUse by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        try {
+            daysSinceFirstUse = withContext(Dispatchers.IO) {
+                UsageStatsLocalRepository(context).getCumulativeDaysSinceFirstUseBlocking()
+            }
+        } catch (e: Exception) {
+            daysSinceFirstUse = 0
+        }
+    }
+    val statsDisabledIndices = remember(daysSinceFirstUse) {
+        buildSet {
+            if (daysSinceFirstUse < StatisticsData.MIN_DAYS_FOR_MONTHLY) add(1)
+            if (daysSinceFirstUse < StatisticsData.MIN_DAYS_FOR_YEARLY) add(2)
+        }
+    }
+
     // 카드별 독립적인 주/연도/월 네비게이션
     var weekOffsetDateChart by remember { mutableIntStateOf(0) }
     var monthOffsetDateChart by remember { mutableIntStateOf(0) } // 월간: 0=이번 달
@@ -211,20 +230,29 @@ fun StatisticsScreen(
     val timeSpecifiedApps = restrictedApps.filter { it.blockUntilMs > 0 }
     val dailyLimitApps = restrictedApps.filter { it.blockUntilMs == 0L }
     var showHelpSheet by remember { mutableStateOf<StatsHelpType?>(null) }
+    var toastMessage by remember { mutableStateOf<String?>(null) }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp)
-            .padding(top = 24.dp, bottom = 24.dp)
-            .windowInsetsPadding(WindowInsets.navigationBars),
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(top = 24.dp, bottom = 24.dp)
+                .windowInsetsPadding(WindowInsets.navigationBars),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         AptoxSegmentedTab(
             items = tabLabels,
             selectedIndex = selectedTab,
             onTabSelected = { selectedTab = it },
+            disabledIndices = statsDisabledIndices,
+            onDisabledTabClick = { idx ->
+                when (idx) {
+                    1 -> toastMessage = "월간 통계는 30일 이상 사용 후 확인할 수 있어요"
+                    2 -> toastMessage = "연간 통계는 6개월 이상 사용 후 확인할 수 있어요"
+                }
+            },
         )
 
         StatsInsightCard(tabEnum = tabEnum)
@@ -273,6 +301,14 @@ fun StatisticsScreen(
         )
         // 맨 아래 스크롤 시 바텀바에 가려지지 않도록 여백 추가
         Spacer(modifier = Modifier.height(100.dp))
+    }
+
+        AptoxToast(
+            message = toastMessage ?: "",
+            visible = toastMessage != null,
+            onDismiss = { toastMessage = null },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 
     showHelpSheet?.let { helpType ->
@@ -1198,70 +1234,6 @@ private val CategoryColors = mapOf(
     "기타" to Color(0xFFBDBDBD),
 )
 
-/** Figma 925:7299 — 카테고리 통계 디자인용 더미 앱 목록 (usageMs로 OTT36/SNS20/게임19/쇼핑18/웹툰15/주식코인2% 비율) */
-private val CategoryStatsDummyApps = listOf(
-    StatisticsData.StatsAppItem(
-        packageName = "com.instagram.android",
-        name = "Instagram",
-        usageMinutes = "1,688분",
-        sessionCount = "0회",
-        isRestricted = true,
-        categoryTag = "SNS",
-        usageMs = 20_000_000L,
-        isWarning = false,
-    ),
-    StatisticsData.StatsAppItem(
-        packageName = "com.netflix.mediaclient",
-        name = "넷플릭스",
-        usageMinutes = "1,200분",
-        sessionCount = "0회",
-        isRestricted = false,
-        categoryTag = "OTT",
-        usageMs = 36_000_000L,
-        isWarning = true,
-    ),
-    StatisticsData.StatsAppItem(
-        packageName = "com.ncsoft.lineagew",
-        name = "리니지W",
-        usageMinutes = "1,001분",
-        sessionCount = "0회",
-        isRestricted = false,
-        categoryTag = "게임",
-        usageMs = 19_000_000L,
-        isWarning = false,
-    ),
-    StatisticsData.StatsAppItem(
-        packageName = "com.banhala.android",
-        name = "에이블리",
-        usageMinutes = "880분",
-        sessionCount = "0회",
-        isRestricted = false,
-        categoryTag = "쇼핑",
-        usageMs = 18_000_000L,
-        isWarning = false,
-    ),
-    StatisticsData.StatsAppItem(
-        packageName = "com.nhn.android.webtoon",
-        name = "네이버 웹툰",
-        usageMinutes = "726분",
-        sessionCount = "0회",
-        isRestricted = false,
-        categoryTag = "웹툰",
-        usageMs = 15_000_000L,
-        isWarning = false,
-    ),
-    StatisticsData.StatsAppItem(
-        packageName = "com.shinhan.sbanking",
-        name = "신한투자증권",
-        usageMinutes = "380분",
-        sessionCount = "0회",
-        isRestricted = false,
-        categoryTag = "주식,코인",
-        usageMs = 2_000_000L,
-        isWarning = false,
-    ),
-)
-
 /** Figma 925:7299 — 카테고리 통계. 그래프/범례 클릭 시 해당 카테고리 앱 필터. 기본 전체 */
 @Composable
 private fun StatsStackedBarAndAppList(
@@ -1285,20 +1257,29 @@ private fun StatsStackedBarAndAppList(
             else -> NavState("", false, false, {}, {})
         }
     }
-    // TODO: 실제 데이터 연동 시 LaunchedEffect로 loadAppUsage 사용
-    val appList = remember { CategoryStatsDummyApps }
-    var selectedCategory by remember { mutableStateOf<String?>(null) } // null = 전체
+    var appList by remember { mutableStateOf<List<StatisticsData.StatsAppItem>>(emptyList()) }
+    var selectedCategory by remember { mutableStateOf<String?>(null) }
 
-    // 앱 사용량 기반 카테고리 비율 (많이 쓴 순 지그재그)
+    LaunchedEffect(tabEnum, weekOffset, monthOffset, yearOffset) {
+        val (startMs, endMs) = when (tabEnum) {
+            StatisticsData.Tab.WEEKLY -> StatisticsData.getWeekRange(weekOffset).let { it.first to it.second }
+            StatisticsData.Tab.MONTHLY -> StatisticsData.getSingleMonthRange(monthOffset).let { it.first to it.second }
+            StatisticsData.Tab.YEARLY -> StatisticsData.getYearRange(yearOffset).let { it.first to it.second }
+            else -> 0L to 0L
+        }
+        appList = withContext(Dispatchers.IO) {
+            StatisticsData.loadAppUsageForAllowedCategories(context, startMs, endMs)
+        }
+    }
+
     val segments = remember(appList) {
         val usageByCategory = appList
             .filter { it.categoryTag != null }
             .groupBy { it.categoryTag!! }
             .mapValues { (_, apps) -> apps.sumOf { it.usageMs } }
         val total = usageByCategory.values.sum()
-        if (total == 0L) {
-            listOf("OTT" to 35f, "SNS" to 20f, "게임" to 19f, "쇼핑" to 18f, "웹툰" to 15f, "주식,코인" to 2f, "기타" to 1f)
-        } else {
+        if (total == 0L) emptyList()
+        else {
             usageByCategory
                 .toList()
                 .sortedByDescending { it.second }
@@ -1514,26 +1495,6 @@ private fun StatsAppRow(
     }
 }
 
-/** Figma 925:7519/925:7436 — 제한 앱 분석 디자인용 더미 데이터 */
-private val RestrictionDummyTimeSpecified = listOf(
-    com.aptox.app.model.AppRestriction("com.instagram.android", "Instagram", 60, System.currentTimeMillis()),
-    com.aptox.app.model.AppRestriction("com.netflix.mediaclient", "넷플릭스", 60, System.currentTimeMillis()),
-)
-private val RestrictionDummyDailyLimit = listOf(
-    com.aptox.app.model.AppRestriction("com.instagram.android", "Instagram", 120, 0L),
-    com.aptox.app.model.AppRestriction("com.netflix.mediaclient", "넷플릭스", 120, 0L),
-    com.aptox.app.model.AppRestriction("com.google.android.youtube", "유튜브", 120, 0L),
-)
-private val RestrictionDummyMinutesTimeSpecified = mapOf(
-    "com.instagram.android" to 630L,
-    "com.netflix.mediaclient" to 630L,
-)
-private val RestrictionDummyMinutesDailyLimit = mapOf(
-    "com.instagram.android" to 150L,
-    "com.netflix.mediaclient" to 150L,
-    "com.google.android.youtube" to 150L,
-)
-
 /** 제한 앱 분석 카드 */
 @Composable
 private fun StatsRestrictionSection(
@@ -1560,9 +1521,27 @@ private fun StatsRestrictionSection(
             else -> NavState("", false, false, {}, {})
         }
     }
-    // TODO: 실제 데이터 연동 시 LaunchedEffect로 loadRestrictedMinutesPerApp 사용
-    val displayApps = if (filterIndex == 0) RestrictionDummyTimeSpecified else RestrictionDummyDailyLimit
-    val restrictedByPkg = if (filterIndex == 0) RestrictionDummyMinutesTimeSpecified else RestrictionDummyMinutesDailyLimit
+    val context = LocalContext.current
+    val displayApps = if (filterIndex == 0) timeSpecifiedApps else dailyLimitApps
+    var restrictedByPkg by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+
+    LaunchedEffect(tabEnum, weekOffset, monthOffset, yearOffset, filterIndex, timeSpecifiedApps, dailyLimitApps) {
+        val (startMs, endMs) = when (tabEnum) {
+            StatisticsData.Tab.WEEKLY -> StatisticsData.getWeekRange(weekOffset).let { it.first to it.second }
+            StatisticsData.Tab.MONTHLY -> StatisticsData.getSingleMonthRange(monthOffset).let { it.first to it.second }
+            StatisticsData.Tab.YEARLY -> StatisticsData.getYearRange(yearOffset).let { it.first to it.second }
+            else -> 0L to 0L
+        }
+        restrictedByPkg = withContext(Dispatchers.IO) {
+            StatisticsData.loadRestrictedMinutesPerApp(
+                context = context,
+                startMs = startMs,
+                endMs = endMs,
+                restrictions = if (filterIndex == 0) timeSpecifiedApps else dailyLimitApps,
+                isTimeSpecified = filterIndex == 0,
+            )
+        }
+    }
 
     val sortedByRestricted = displayApps
         .map { it to (restrictedByPkg[it.packageName] ?: 0L) }
@@ -1574,7 +1553,7 @@ private fun StatsRestrictionSection(
 
     val infoMessage = when {
         filterIndex == 0 && topMinutes > 0 -> "지난주엔 ${topApp?.appName ?: "앱"} 을 무려 ${java.text.DecimalFormat("#,###").format(topMinutes)}분이나 사용하지 않으셨네요! 정말 대단하세요."
-        filterIndex == 1 && topMinutes > 0 -> "지난주엔 유튜브를 150분만 사용하셨어요. 굉장한 절제력이에요!"
+        filterIndex == 1 && topMinutes > 0 -> "지난주엔 ${topApp?.appName ?: "앱"}를 ${java.text.DecimalFormat("#,###").format(topMinutes)}분만 사용하셨어요. 굉장한 절제력이에요!"
         else -> "제한 앱은 설정에서 수정할 수 있어요"
     }
 

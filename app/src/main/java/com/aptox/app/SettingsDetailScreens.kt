@@ -252,17 +252,20 @@ fun SubscriptionManageScreen(
 }
 
 /**
- * 알림 설정 화면 (Figma 1068-4394, 1068-3998)
+ * 알림 설정 화면 (Figma 1022-3823, 1068-4550)
  * - 기기 알림: 시스템 알림 허용 상태 + 설정 진입
- * - 주간 리포트 / 사용시간 알림 / 목표 달성 알림: 토글
+ * - 주간 리포트 / 마감 임박 / 목표 달성 / 카운트 중지 알림: 토글
+ * - 기기 알림 미허용 시 모든 토글 비활성화 + "기기 알림을 먼저 허용해주세요" 안내
  */
 @Composable
 fun NotificationSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    var weeklyReport by remember { mutableStateOf(true) }
-    var usageTimeAlert by remember { mutableStateOf(true) }
-    var goalAchievedAlert by remember { mutableStateOf(true) }
+    val prefs = remember { NotificationPreferences }
+    var weeklyReport by remember { mutableStateOf(prefs.isWeeklyReportEnabled(context)) }
+    var deadlineImminent by remember { mutableStateOf(prefs.isDeadlineImminentEnabled(context)) }
+    var goalAchievedAlert by remember { mutableStateOf(prefs.isGoalAchievedEnabled(context)) }
+    var countReminder by remember { mutableStateOf(prefs.isCountReminderEnabled(context)) }
     var deviceNotificationsEnabled by remember { mutableStateOf(true) }
 
     fun refreshDeviceNotifications() {
@@ -272,7 +275,13 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
     LaunchedEffect(Unit) { refreshDeviceNotifications() }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) refreshDeviceNotifications()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                refreshDeviceNotifications()
+                weeklyReport = prefs.isWeeklyReportEnabled(context)
+                deadlineImminent = prefs.isDeadlineImminentEnabled(context)
+                goalAchievedAlert = prefs.isGoalAchievedEnabled(context)
+                countReminder = prefs.isCountReminderEnabled(context)
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -282,13 +291,14 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
     ) { }
 
-    var hasRequestedInThisSession by remember { mutableStateOf(false) }
-    LaunchedEffect(weeklyReport, usageTimeAlert, goalAchievedAlert, deviceNotificationsEnabled) {
-        val allOff = !weeklyReport && !usageTimeAlert && !goalAchievedAlert
-        if (allOff && !deviceNotificationsEnabled && !hasRequestedInThisSession &&
-            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            hasRequestedInThisSession = true
-            permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+    val toggleEnabled = deviceNotificationsEnabled
+    LaunchedEffect(weeklyReport, deadlineImminent, goalAchievedAlert, countReminder, toggleEnabled) {
+        prefs.setWeeklyReportEnabled(context, weeklyReport)
+        prefs.setDeadlineImminentEnabled(context, deadlineImminent)
+        prefs.setGoalAchievedEnabled(context, goalAchievedAlert)
+        prefs.setCountReminderEnabled(context, countReminder)
+        if (toggleEnabled) {
+            WeeklyReportAlarmScheduler.applySchedule(context, weeklyReport)
         }
     }
 
@@ -310,6 +320,7 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
             DeviceNotificationCard(
                 badgeText = if (deviceNotificationsEnabled) "허용됨" else "허용되지 않음",
                 badgeAllowed = deviceNotificationsEnabled,
+                subtitle = if (deviceNotificationsEnabled) "알림을 받으려면 기기 알림 허용이 필요해요" else "기기 알림을 먼저 허용해주세요",
                 onClick = {
                     if (!deviceNotificationsEnabled && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                         permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
@@ -320,20 +331,22 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
                     }
                 },
             )
-            // Figma 1068-4550: 주간 리포트 / 사용시간 알림 / 목표 달성 알림 카드 (계정관리와 동일 간격 12.dp)
+            // Figma 1068-4550: 주간 리포트 / 마감 임박 / 목표 달성 / 카운트 중지 알림 카드
             SettingsListCard {
                 SettingsRowWithToggle(
                     label = "주간 리포트",
                     subtitle = "월요일마다, 지난 한 주 사용 현황을 알려드려요",
                     checked = weeklyReport,
                     onCheckedChange = { weeklyReport = it },
+                    enabled = toggleEnabled,
                 )
                 SettingsDivider()
                 SettingsRowWithToggle(
-                    label = "사용시간 알림",
-                    subtitle = "일일 한도 초과 전에 미리 알려드려요",
-                    checked = usageTimeAlert,
-                    onCheckedChange = { usageTimeAlert = it },
+                    label = "마감 임박 알림",
+                    subtitle = "일일 한도 1분 전에 미리 알려드려요",
+                    checked = deadlineImminent,
+                    onCheckedChange = { deadlineImminent = it },
+                    enabled = toggleEnabled,
                 )
                 SettingsDivider()
                 SettingsRowWithToggle(
@@ -341,6 +354,15 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
                     subtitle = "챌린지 성공 시 바로 알려드려요",
                     checked = goalAchievedAlert,
                     onCheckedChange = { goalAchievedAlert = it },
+                    enabled = toggleEnabled,
+                )
+                SettingsDivider()
+                SettingsRowWithToggle(
+                    label = "카운트 중지 알림",
+                    subtitle = "카운트 중지를 잊으셨을 때 알려드려요",
+                    checked = countReminder,
+                    onCheckedChange = { countReminder = it },
+                    enabled = toggleEnabled,
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))

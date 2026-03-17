@@ -32,6 +32,22 @@ class PauseTimerNotificationService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // 제한 앱 삭제 시 해당 앱의 일시정지 알림 즉시 중지
+        if (intent?.action == ACTION_CANCEL_IF_PACKAGE) {
+            val targetPkg = intent.getStringExtra(EXTRA_PACKAGE_NAME) ?: ""
+            if (targetPkg == packageName_) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                (getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager)?.apply {
+                    cancel(NOTIFICATION_ID)
+                    cancel(NOTIFICATION_WARNING_ID)
+                }
+                stopSelf()
+            } else {
+                stopSelf()
+            }
+            return START_NOT_STICKY
+        }
+
         pauseUntilMs = intent?.getLongExtra(EXTRA_PAUSE_UNTIL_MS, 0L) ?: 0L
         appName = intent?.getStringExtra(EXTRA_APP_NAME) ?: ""
         packageName_ = intent?.getStringExtra(EXTRA_PACKAGE_NAME) ?: ""
@@ -157,6 +173,7 @@ class PauseTimerNotificationService : Service() {
     }
 
     companion object {
+        const val ACTION_CANCEL_IF_PACKAGE = "com.aptox.app.CANCEL_IF_PACKAGE"
         const val EXTRA_PAUSE_UNTIL_MS = "pause_until_ms"
         const val EXTRA_APP_NAME = "app_name"
         const val EXTRA_PACKAGE_NAME = "package_name"

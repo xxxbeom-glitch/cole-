@@ -45,6 +45,14 @@ class PauseRepository(private val context: Context) {
         return (maxCount - getTodayCount(packageName)).coerceAtLeast(0)
     }
 
+    /** 해당 앱의 일시정지 데이터 삭제. 제한 앱 삭제 시 사용. */
+    fun clearForPackage(packageName: String) {
+        prefs.edit()
+            .remove(keyCount(packageName))
+            .remove(keyUntil(packageName))
+            .apply()
+    }
+
     private fun resetIfNewDay() {
         val today = todayKey()
         if (prefs.getString(KEY_DATE, "") != today) {

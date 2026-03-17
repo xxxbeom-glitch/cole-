@@ -49,6 +49,30 @@ class UsageStatsLocalRepository(private val context: Context) {
 
     fun hasDataForDateBlocking(date: String): Boolean = db.hasDataForDate(date)
 
+    /** 앱 첫 사용일(DB 최소 date) 기준 오늘까지의 누적 일수. 데이터 없으면 0 */
+    fun getCumulativeDaysSinceFirstUseBlocking(): Int {
+        return try {
+            val earliest = db.getEarliestDate() ?: return 0
+            if (earliest.length < 8) return 0
+            val year = earliest.substring(0, 4).toIntOrNull() ?: return 0
+            val month = (earliest.substring(4, 6).toIntOrNull() ?: return 0) - 1
+            val day = earliest.substring(6, 8).toIntOrNull() ?: return 0
+            val cal = Calendar.getInstance()
+            cal.set(year, month, day, 0, 0, 0)
+            cal.set(Calendar.MILLISECOND, 0)
+            val firstMs = cal.timeInMillis
+            cal.timeInMillis = System.currentTimeMillis()
+            cal.set(Calendar.HOUR_OF_DAY, 0)
+            cal.set(Calendar.MINUTE, 0)
+            cal.set(Calendar.SECOND, 0)
+            cal.set(Calendar.MILLISECOND, 0)
+            val todayStartMs = cal.timeInMillis
+            ((todayStartMs - firstMs) / (24 * 60 * 60 * 1000)).toInt().coerceAtLeast(0)
+        } catch (e: Exception) {
+            0
+        }
+    }
+
     companion object {
         fun msToYyyyMmDd(ms: Long): String {
             val cal = Calendar.getInstance()

@@ -156,7 +156,7 @@ fun AppLimitSetupDayBottomSheet(
                                 .height(40.dp)
                                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
                                 .then(
-                                    if (selected) Modifier.background(AppColors.Primary300)
+                                    if (selected) Modifier.background(AppColors.Primary200)
                                     else Modifier
                                 )
                                 .clickable(
@@ -168,7 +168,7 @@ fun AppLimitSetupDayBottomSheet(
                             Text(
                                 text = label,
                                 style = AppTypography.BodyMedium.copy(
-                                    color = if (selected) AppColors.TextInvert else AppColors.TextBody,
+                                    color = if (selected) AppColors.TextHighlight else AppColors.TextTertiary,
                                     textAlign = TextAlign.Center,
                                 ),
                             )

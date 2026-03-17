@@ -27,12 +27,15 @@ class AptoxApplication : Application() {
         /** 포그라운드 상태에서 호출. 앱 실행 시 Application.onCreate는 백그라운드로 인식될 수 있어 MainActivity.onResume에서 호출 */
         fun startAppMonitorIfNeeded(context: android.content.Context) {
             try {
+                ManualTimerRepository(context).ensureMidnightResetIfNeeded()
+                DailyUsageMidnightResetScheduler.scheduleNextMidnight(context)
                 val repo = AppRestrictionRepository(context)
                 val map = repo.toRestrictionMap()
                 if (map.isNotEmpty()) {
                     AppMonitorService.start(context, map)
                 }
                 DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(context)
+                WeeklyReportAlarmScheduler.applySchedule(context, NotificationPreferences.isWeeklyReportEnabled(context))
             } catch (e: Throwable) {
                 Log.e(TAG, "AppMonitor 시작 실패", e)
             }

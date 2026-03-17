@@ -468,7 +468,7 @@ fun SimpleTextRow(
 /**
  * Figma 1022-3824: 기기 알림 단독 카드
  * - 제목: 기기 알림 (BodyBold 15sp)
- * - 부제: 알림을 받으려면 기기 알림 허용이 필요해요 (Caption1 12sp)
+ * - 부제: 알림을 받으려면 기기 알림 허용이 필요해요 / 기기 알림을 먼저 허용해주세요 (Caption1 12sp)
  * - 우측: 배지 텍스트 + chevron 아이콘
  */
 @Composable
@@ -477,6 +477,7 @@ fun DeviceNotificationCard(
     badgeAllowed: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    subtitle: String = "알림을 받으려면 기기 알림 허용이 필요해요",
 ) {
     Column(
         modifier = modifier
@@ -503,7 +504,7 @@ fun DeviceNotificationCard(
                     style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
                 )
                 Text(
-                    text = "알림을 받으려면 기기 알림 허용이 필요해요",
+                    text = subtitle,
                     style = AppTypography.Caption1.copy(color = AppColors.TextCaption),
                 )
             }
@@ -561,6 +562,7 @@ fun SettingsRowWithToggle(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -582,6 +584,7 @@ fun SettingsRowWithToggle(
         AptoxToggleSwitch(
             checked = checked,
             onCheckedChange = onCheckedChange,
+            enabled = enabled,
         )
     }
 }

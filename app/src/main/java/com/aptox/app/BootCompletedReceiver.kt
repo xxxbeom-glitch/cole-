@@ -16,6 +16,8 @@ class BootCompletedReceiver : BroadcastReceiver() {
 
         try {
             val ctx = context.applicationContext
+            ManualTimerRepository(ctx).ensureMidnightResetIfNeeded()
+            DailyUsageMidnightResetScheduler.scheduleNextMidnight(ctx)
             val repo = AppRestrictionRepository(ctx)
             val map = repo.toRestrictionMap()
             if (map.isNotEmpty()) {
@@ -23,6 +25,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
                 Log.d(TAG, "부팅 완료: AppMonitorService 재시작 (제한 앱 ${map.size}개)")
             }
             DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(ctx)
+            WeeklyReportAlarmScheduler.applySchedule(ctx, NotificationPreferences.isWeeklyReportEnabled(ctx))
         } catch (e: Throwable) {
             Log.e(TAG, "부팅 후 AppMonitor 시작 실패", e)
         }

@@ -612,10 +612,14 @@ exports.submitBugReport = functions.https.onCall(async (data, context) => {
   let docRef;
   try {
     const db = admin.firestore();
+    const hasImages = imageUrls.length > 0;
     docRef = await db.collection("bugReports").add({
       title: trimmedTitle || null,
+      body: trimmedContent,
+      description: trimmedContent,
       content: trimmedContent,
-      imageUrls: imageUrls.length > 0 ? imageUrls : null,
+      imageUrl: hasImages ? imageUrls[0] : null,
+      imageUrls: hasImages ? imageUrls : null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       userId: context.auth?.uid || null,
     });

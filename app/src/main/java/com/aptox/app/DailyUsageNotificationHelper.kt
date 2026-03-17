@@ -11,10 +11,11 @@ import androidx.core.app.NotificationManagerCompat
 import java.util.Calendar
 
 /**
- * 일일사용량 제한 진행 중 푸시 알림 3종:
+ * 일일사용량 제한 진행 중 푸시 알림 4종:
  * 1. 23:55 리셋 예고 - "5분 후 [앱이름] 일일사용량 시간이 초기화돼요"
  * 2. 5분 전 경고 - "[앱이름] 제한까지 5분 남았어요"
  * 3. 제한 도달 - "[앱이름] 오늘 사용량을 모두 소진했어요"
+ * 4. 마감 임박(1분 전) - "사용 시간이 얼마 남지 않았어요 ⚠️" (설정 토글 ON, 같은 날 동일 앱 중복 없음)
  */
 object DailyUsageNotificationHelper {
 
@@ -79,6 +80,46 @@ object DailyUsageNotificationHelper {
             .apply()
     }
 
+    /** 오늘 마감 임박(1분 전) 알림을 이미 보냈는지 */
+    fun hasFiredDeadlineImminentToday(context: Context, packageName: String): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_DEADLINE_IMMINENT_DATE, "") == todayKey()
+            && prefs.getStringSet(KEY_DEADLINE_IMMINENT_PKGS, emptySet())?.contains(packageName) == true
+    }
+
+    /** 마감 임박 알림 발송 완료 표시 */
+    fun markDeadlineImminentFired(context: Context, packageName: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val today = todayKey()
+        val existing = if (prefs.getString(KEY_DEADLINE_IMMINENT_DATE, "") == today) {
+            prefs.getStringSet(KEY_DEADLINE_IMMINENT_PKGS, null)?.orEmpty() ?: emptySet()
+        } else emptySet()
+        prefs.edit()
+            .putString(KEY_DEADLINE_IMMINENT_DATE, today)
+            .putStringSet(KEY_DEADLINE_IMMINENT_PKGS, existing + packageName)
+            .apply()
+    }
+
+    /** 4. 마감 임박(1분 전) 알림 (해당 앱 사용 중일 때만, 토글 ON, 같은 날 동일 앱 1회) */
+    fun sendDeadlineImminentNotification(context: Context, appName: String, packageName: String) {
+        if (!NotificationPreferences.isDeadlineImminentEnabled(context)) return
+        ensureChannel(context)
+        val nm = NotificationManagerCompat.from(context)
+        if (!nm.areNotificationsEnabled()) return
+
+        val pi = launchAppPendingIntent(context)
+        val notification = NotificationCompat.Builder(context, CHANNEL_DAILY_USAGE_ID)
+            .setContentTitle("사용 시간이 얼마 남지 않았어요 ⚠️")
+            .setContentText("$appName 사용 가능 시간이 1분 남았어요")
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setAutoCancel(true)
+            .setContentIntent(pi)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+        nm.notify(notificationId(packageName, NOTIF_TYPE_DEADLINE_IMMINENT), notification)
+        markDeadlineImminentFired(context, packageName)
+    }
+
     private fun todayKey(): String {
         val cal = Calendar.getInstance()
         return "${cal.get(Calendar.YEAR)}-${cal.get(Calendar.DAY_OF_YEAR)}"
@@ -127,6 +168,8 @@ object DailyUsageNotificationHelper {
     private const val KEY_FIVE_MIN_PKGS = "five_min_pkgs"
     private const val KEY_LIMIT_REACHED_DATE = "limit_reached_date"
     private const val KEY_LIMIT_REACHED_PKGS = "limit_reached_pkgs"
+    private const val KEY_DEADLINE_IMMINENT_DATE = "deadline_imminent_date"
+    private const val KEY_DEADLINE_IMMINENT_PKGS = "deadline_imminent_pkgs"
 
     private fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -154,4 +197,5 @@ object DailyUsageNotificationHelper {
     private const val NOTIF_TYPE_RESET_WARNING = 1
     private const val NOTIF_TYPE_FIVE_MIN = 2
     private const val NOTIF_TYPE_LIMIT_REACHED = 3
+    private const val NOTIF_TYPE_DEADLINE_IMMINENT = 4
 }

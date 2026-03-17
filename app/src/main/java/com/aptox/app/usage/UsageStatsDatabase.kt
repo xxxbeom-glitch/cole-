@@ -90,4 +90,15 @@ class UsageStatsDatabase(context: Context) : SQLiteOpenHelper(
             return cursor.count > 0
         }
     }
+
+    /** 앱 첫 사용일(가장 오래된 레코드의 date). YYYYMMDD 형식, 데이터 없으면 null */
+    fun getEarliestDate(): String? {
+        return try {
+            readableDatabase.rawQuery("SELECT MIN(date) FROM daily_usage", null).use { cursor ->
+                if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getString(0) else null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
 }

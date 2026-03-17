@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -18,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
@@ -42,6 +44,8 @@ fun BaseBottomSheet(
     onSecondaryClick: (() -> Unit)? = null,
     primaryButtonEnabled: Boolean = true,
     dismissOnPrimaryClick: Boolean = true,
+    tertiaryButtonText: String? = null,
+    onTertiaryClick: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -111,12 +115,27 @@ fun BaseBottomSheet(
                     AptoxGhostButton(
                         text = secondaryButtonText,
                         onClick = {
-                            // 취소/뒤로가기: 즉시 콜백 호출 (상태 변경으로 시트 제거)
-                            // invokeOnCompletion 사용 시 Primary 콜백과 충돌해 일시정지가 적용되는 버그 방지
                             (onSecondaryClick ?: onDismissRequest)()
                         },
                         modifier = Modifier.fillMaxWidth(),
                     )
+                }
+                if (tertiaryButtonText != null && onTertiaryClick != null) {
+                    TextButton(
+                        onClick = {
+                            scope.launch { sheetState.hide() }.invokeOnCompletion {
+                                if (!sheetState.isVisible) onTertiaryClick()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = tertiaryButtonText,
+                            style = AppTypography.ButtonLarge.copy(color = AppColors.Red300),
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
         }

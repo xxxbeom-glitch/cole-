@@ -51,7 +51,7 @@ import androidx.compose.ui.graphics.Color
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.Settings
-import android.widget.Toast
+import com.aptox.app.ui.components.AptoxToast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -294,6 +294,7 @@ fun AddAppSelectBottomSheet(
     var appList by remember { mutableStateOf<List<AppSelectItem>>(emptyList()) }
     var isLoadingApps by remember { mutableStateOf(true) }
     var categoryMap by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var toastMessage by remember { mutableStateOf<String?>(null) }
 
     // 이미 제한 중 + 다른 방식에서 선택된 패키지
     val restrictedPackages = remember(additionalRestrictedPackages) {
@@ -375,7 +376,7 @@ fun AddAppSelectBottomSheet(
         when {
             appName in selected -> selected = selected - appName
             selected.size >= MAX_APP_SELECTION -> {
-                Toast.makeText(context, "앱은 1개까지만 선택하실 수 있어요", Toast.LENGTH_SHORT).show()
+                toastMessage = "앱은 1개까지만 선택하실 수 있어요"
             }
             else -> selected = selected + appName
         }
@@ -402,11 +403,10 @@ fun AddAppSelectBottomSheet(
         primaryButtonEnabled = selected.isNotEmpty(),
         modifier = modifier,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 400.dp),
-        ) {
+        Box(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+            ) {
             AptoxTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -498,6 +498,13 @@ fun AddAppSelectBottomSheet(
                     }
                 }
             }
+        }
+            AptoxToast(
+                message = toastMessage ?: "",
+                visible = toastMessage != null,
+                onDismiss = { toastMessage = null },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
     }
 }

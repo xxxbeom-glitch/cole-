@@ -30,16 +30,25 @@ import androidx.core.view.WindowInsetsControllerCompat
 import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.functions.FirebaseFunctionsException
-import com.navercorp.nid.NidOAuth
 import com.navercorp.nid.oauth.util.NidOAuthCallback
 import kotlinx.coroutines.launch
 
 @Composable
 fun AptoxRootContent(
     pendingPauseFlowFromOverlay: PendingPauseFlowFromOverlay? = null,
+    pendingOpenBottomSheetPackage: String? = null,
+    onOpenBottomSheetConsumed: () -> Unit = {},
+    pendingNavIndex: Int? = null,
+    onNavIndexConsumed: () -> Unit = {},
 ) {
     if (!BuildConfig.DEBUG) {
-        SignUpFlowHost(pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay)
+        SignUpFlowHost(
+            pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay,
+            pendingOpenBottomSheetPackage = pendingOpenBottomSheetPackage,
+            onOpenBottomSheetConsumed = onOpenBottomSheetConsumed,
+            pendingNavIndex = pendingNavIndex,
+            onNavIndexConsumed = onNavIndexConsumed,
+        )
         return
     }
     var showDebugMenu by remember { mutableStateOf(true) }
@@ -48,9 +57,19 @@ fun AptoxRootContent(
             onStartNormalFlow = { showDebugMenu = false },
             modifier = Modifier.fillMaxSize(),
             pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay,
+            pendingOpenBottomSheetPackage = pendingOpenBottomSheetPackage,
+            onOpenBottomSheetConsumed = onOpenBottomSheetConsumed,
+            pendingNavIndex = pendingNavIndex,
+            onNavIndexConsumed = onNavIndexConsumed,
         )
     } else {
-        SignUpFlowHost(pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay)
+        SignUpFlowHost(
+            pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay,
+            pendingOpenBottomSheetPackage = pendingOpenBottomSheetPackage,
+            onOpenBottomSheetConsumed = onOpenBottomSheetConsumed,
+            pendingNavIndex = pendingNavIndex,
+            onNavIndexConsumed = onNavIndexConsumed,
+        )
     }
 }
 
@@ -76,6 +95,7 @@ enum class SignUpStep {
     SELFTEST_LOADING,
     USAGE_PATTERN_ANALYSIS,
     SELFTEST_RESULT,
+    APP_EXPLANATION_ONBOARDING,
     ADD_APP,
     MAIN,
     // 비밀번호 재설정 RS-01 ~ RS-03
@@ -95,14 +115,38 @@ class MainActivity : ComponentActivity() {
         get() = pendingPauseFlowState.value
         set(value) { pendingPauseFlowState.value = value }
 
+    /** 시스템 알림/오버레이에서 카운트 중지·시작 버튼 탭 시 열 바텀시트의 packageName */
+    private val pendingOpenBottomSheetState = mutableStateOf<String?>(null)
+    var pendingOpenBottomSheetPackage: String?
+        get() = pendingOpenBottomSheetState.value
+        set(value) { pendingOpenBottomSheetState.value = value }
+
+    /** 주간 리포트/목표 달성 알림 탭 시 열 탭 인덱스 (1=챌린지, 2=통계) */
+    private val pendingNavIndexState = mutableStateOf<Int?>(null)
+    var pendingNavIndex: Int?
+        get() = pendingNavIndexState.value
+        set(value) { pendingNavIndexState.value = value }
+
     fun clearPendingPauseFlowFromOverlay() {
         pendingPauseFlowState.value = null
+    }
+
+    fun clearPendingOpenBottomSheet() {
+        pendingOpenBottomSheetState.value = null
+    }
+
+    fun clearPendingNavIndex() {
+        pendingNavIndexState.value = null
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         pendingPauseFlowState.value = extractPauseFlowFromIntent(intent)
+        pendingOpenBottomSheetState.value = intent.getStringExtra(AppMonitorService.EXTRA_OPEN_BOTTOM_SHEET)
+        if (intent.hasExtra(EXTRA_NAV_INDEX)) {
+            pendingNavIndexState.value = intent.getIntExtra(EXTRA_NAV_INDEX, 0).takeIf { it in 1..3 }
+        }
     }
 
     override fun onResume() {
@@ -110,16 +154,21 @@ class MainActivity : ComponentActivity() {
         AptoxApplication.startAppMonitorIfNeeded(applicationContext)
     }
 
+    override fun onPause() {
+        super.onPause()
+        Log.d("AptoxMain", "onPause")
+    }
+
+    override fun onStop() {
+        super.onStop()
+        Log.d("AptoxMain", "onStop")
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // 네이버 로그인 SDK 초기화 (KeyStoreException 등 설치 직후 간헐적 크래시 방지)
-        try {
-            NidOAuth.initialize(this, "BQa59cheqz4qQQ2H9Xen", "Ujdrf2_Czv", "aptox.")
-        } catch (e: Throwable) {
-            Log.e("Aptox", "NidOAuth init 실패 (네이버 로그인 비활성화됨)", e)
-        }
+        // NidOAuth 초기화는 네이버 로그인 시도 시점에만 수행 (KeyStoreException 크래시 방지)
 
         // Android 13+ 알림 권한 런타임 요청
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -136,6 +185,10 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightStatusBars = true
         }
         pendingPauseFlowState.value = extractPauseFlowFromIntent(intent)
+        pendingOpenBottomSheetState.value = intent.getStringExtra(AppMonitorService.EXTRA_OPEN_BOTTOM_SHEET)
+        if (intent.hasExtra(EXTRA_NAV_INDEX)) {
+            pendingNavIndexState.value = intent.getIntExtra(EXTRA_NAV_INDEX, 0).takeIf { it in 1..3 }
+        }
         setContent {
             AptoxTheme {
                 Surface(
@@ -143,13 +196,30 @@ class MainActivity : ComponentActivity() {
                     color = AppColors.SurfaceBackgroundBackground,
                 ) {
                     if (BuildConfig.DEBUG) {
-                        AptoxRootContent(pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay)
+                        AptoxRootContent(
+                            pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay,
+                            pendingOpenBottomSheetPackage = pendingOpenBottomSheetPackage,
+                            onOpenBottomSheetConsumed = ::clearPendingOpenBottomSheet,
+                            pendingNavIndex = pendingNavIndex,
+                            onNavIndexConsumed = ::clearPendingNavIndex,
+                        )
                     } else {
-                        SignUpFlowHost(pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay)
+                        SignUpFlowHost(
+                            pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay,
+                            pendingOpenBottomSheetPackage = pendingOpenBottomSheetPackage,
+                            onOpenBottomSheetConsumed = ::clearPendingOpenBottomSheet,
+                            pendingNavIndex = pendingNavIndex,
+                            onNavIndexConsumed = ::clearPendingNavIndex,
+                        )
                     }
                 }
             }
         }
+    }
+
+    companion object {
+        /** 주간 리포트/목표 달성 알림 탭 시 열 탭 (1=챌린지, 2=통계) */
+        const val EXTRA_NAV_INDEX = "com.aptox.app.EXTRA_NAV_INDEX"
     }
 
     private fun extractPauseFlowFromIntent(i: Intent?): PendingPauseFlowFromOverlay? {
@@ -164,19 +234,23 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun SignUpFlowHost(
     pendingPauseFlowFromOverlay: PendingPauseFlowFromOverlay? = null,
+    pendingOpenBottomSheetPackage: String? = null,
+    onOpenBottomSheetConsumed: () -> Unit = {},
+    pendingNavIndex: Int? = null,
+    onNavIndexConsumed: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val activity = context as? MainActivity
+    val goToMain = pendingPauseFlowFromOverlay != null || pendingOpenBottomSheetPackage != null || pendingNavIndex != null
     var step by remember {
-        mutableStateOf(
-            if (pendingPauseFlowFromOverlay != null) SignUpStep.MAIN else SignUpStep.SPLASH
-        )
+        mutableStateOf(if (goToMain) SignUpStep.MAIN else SignUpStep.SPLASH)
     }
-    LaunchedEffect(pendingPauseFlowFromOverlay) {
-        if (pendingPauseFlowFromOverlay != null) step = SignUpStep.MAIN
+    LaunchedEffect(pendingPauseFlowFromOverlay, pendingOpenBottomSheetPackage, pendingNavIndex) {
+        if (goToMain) step = SignUpStep.MAIN
     }
     var selfTestAnswers by remember { mutableStateOf<Map<Int, Int>>(emptyMap()) }
     var selfTestUserName by remember { mutableStateOf("") }
+    var selfTestCameFromPermission by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf<String?>(null) }
     var loginLoading by remember { mutableStateOf(false) }
     var autoOpenPackage by remember { mutableStateOf<String?>(null) }
@@ -191,8 +265,14 @@ fun SignUpFlowHost(
             },
         )
         SignUpStep.PERMISSION -> PermissionScreen(
-            onPrimaryClick = { step = SignUpStep.MAIN },
-            onGhostClick = { step = SignUpStep.MAIN },
+            onPrimaryClick = {
+                selfTestCameFromPermission = true
+                step = SignUpStep.SELFTEST_VER2
+            },
+            onGhostClick = {
+                selfTestCameFromPermission = true
+                step = SignUpStep.SELFTEST_VER2
+            },
         )
         SignUpStep.LOGIN -> SplashLoginScreen(
             initialButtonsVisible = true,
@@ -263,8 +343,14 @@ fun SignUpFlowHost(
             }
         }
         SignUpStep.ONBOARDING -> OnboardingScreen(
-            onSkipClick = { step = SignUpStep.SELFTEST_VER2 },
-            onStartClick = { step = SignUpStep.SELFTEST_VER2 },
+            onSkipClick = {
+                selfTestCameFromPermission = false
+                step = SignUpStep.SELFTEST_VER2
+            },
+            onStartClick = {
+                selfTestCameFromPermission = false
+                step = SignUpStep.SELFTEST_VER2
+            },
         )
         SignUpStep.SELFTEST -> SelfTestScreen(
             onBackClick = { step = SignUpStep.ONBOARDING },
@@ -274,9 +360,10 @@ fun SignUpFlowHost(
             },
         )
         SignUpStep.SELFTEST_VER2 -> SelfTestScreenVer2(
-            onBack = { step = SignUpStep.ONBOARDING },
+            onBack = { step = if (selfTestCameFromPermission) SignUpStep.PERMISSION else SignUpStep.ONBOARDING },
             onComplete = { name, answers ->
                 selfTestUserName = name
+                UserPreferencesRepository(context).userName = name
                 selfTestAnswers = answers
                 step = SignUpStep.SELFTEST_LOADING
             },
@@ -286,7 +373,10 @@ fun SignUpFlowHost(
         )
         SignUpStep.USAGE_PATTERN_ANALYSIS -> UsagePatternAnalysisScreen(
             userName = selfTestUserName.ifBlank { "아영" },
-            onFinish = { step = SignUpStep.SELFTEST_RESULT },
+            onFinish = { step = SignUpStep.MAIN },
+        )
+        SignUpStep.APP_EXPLANATION_ONBOARDING -> AppExplanationOnboardingScreen(
+            onFinish = { step = SignUpStep.MAIN },
         )
         SignUpStep.SELFTEST_RESULT -> SelfTestResultScreenST10(
             resultType = computeSelfTestResultType(selfTestAnswers),
@@ -307,7 +397,13 @@ fun SignUpFlowHost(
             onLogout = { step = SignUpStep.LOGIN },
             initialPauseFlowFromOverlay = pendingPauseFlowFromOverlay,
             onPauseFlowConsumed = { activity?.clearPendingPauseFlowFromOverlay() },
-            initialAutoOpenPackage = autoOpenPackage,
+            initialAutoOpenPackage = autoOpenPackage ?: pendingOpenBottomSheetPackage,
+            onAutoOpenConsumed = {
+                autoOpenPackage = null
+                onOpenBottomSheetConsumed()
+            },
+            initialNavIndex = pendingNavIndex,
+            onNavIndexConsumed = onNavIndexConsumed,
         )
         // 비활성화: 비밀번호 찾기 플로우
         SignUpStep.PASSWORD_RESET_EMAIL,

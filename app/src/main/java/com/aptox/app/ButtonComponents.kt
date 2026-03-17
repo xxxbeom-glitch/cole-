@@ -25,11 +25,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun AptoxPrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun AptoxPrimaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: RoundedCornerShape = RoundedCornerShape(12.dp),
+) {
     Button(
         onClick = onClick, enabled = enabled,
         modifier = modifier.fillMaxWidth().height(60.dp),
-        shape = RoundedCornerShape(12.dp),
+        shape = shape,
         colors = ButtonDefaults.buttonColors(
             containerColor = AppColors.ButtonPrimaryBgDefault,
             contentColor = AppColors.ButtonPrimaryTextDefault,
@@ -43,11 +49,17 @@ fun AptoxPrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = M
 }
 
 @Composable
-fun AptoxGhostButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun AptoxGhostButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: RoundedCornerShape = RoundedCornerShape(12.dp),
+) {
     Button(
         onClick = onClick, enabled = enabled,
         modifier = modifier.fillMaxWidth().height(60.dp),
-        shape = RoundedCornerShape(12.dp),
+        shape = shape,
         colors = ButtonDefaults.buttonColors(
             containerColor = AppColors.ButtonGhostBgDefault,
             contentColor = AppColors.ButtonGhostTextDefault,
@@ -70,10 +82,11 @@ fun AptoxTwoLineButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     ghostEnabled: Boolean = enabled,
+    shape: RoundedCornerShape = RoundedCornerShape(12.dp),
 ) {
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        AptoxPrimaryButton(text = primaryText, onClick = onPrimaryClick, enabled = enabled)
-        AptoxGhostButton(text = ghostText, onClick = onGhostClick, enabled = ghostEnabled)
+        AptoxPrimaryButton(text = primaryText, onClick = onPrimaryClick, enabled = enabled, shape = shape)
+        AptoxGhostButton(text = ghostText, onClick = onGhostClick, enabled = ghostEnabled, shape = shape)
     }
 }
 

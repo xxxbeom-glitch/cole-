@@ -88,6 +88,15 @@
         <receiver
             android:name=".DailyUsageResetAlarmReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".DailyUsageMidnightResetReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".WeeklyReportAlarmReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".CountReminderAlarmReceiver"
+            android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

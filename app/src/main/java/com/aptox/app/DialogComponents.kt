@@ -22,10 +22,75 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
+/** Figma 1214-4443: 팝업 라운드 12dp, 타이틀-본문 간격 16dp, 버튼 라운드 6dp */
+private val DialogPopupCorner = RoundedCornerShape(12.dp)
+private val DialogButtonCorner = RoundedCornerShape(6.dp)
+
 /**
- * 다이얼로그 팝업 가이드 (Figma 310:2725)
+ * 단일 버튼 확인 팝업 (Figma 1214-4443)
+ * - 제목 + 부제 + 확인 버튼 1개
+ * - 팝업 12dp 라운드, 타이틀-본문 16dp, 버튼 6dp 라운드
+ */
+@Composable
+fun AptoxConfirmDialog(
+    onDismissRequest: () -> Unit,
+    title: String,
+    subtitle: String,
+    confirmButtonText: String = "확인",
+    onConfirmClick: () -> Unit = { onDismissRequest() },
+    modifier: Modifier = Modifier,
+) {
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
+        ),
+    ) {
+        Box(
+            modifier = modifier
+                .widthIn(max = 328.dp)
+                .shadow(6.dp, DialogPopupCorner, false, Color.Black.copy(alpha = 0.06f))
+                .clip(DialogPopupCorner)
+                .background(AppColors.SurfaceBackgroundBackground)
+                .padding(top = 32.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        text = title,
+                        style = AppTypography.HeadingH2.copy(color = AppColors.TextPrimary),
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = subtitle,
+                        style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                AptoxPrimaryButton(
+                    text = confirmButtonText,
+                    onClick = onConfirmClick,
+                    shape = DialogButtonCorner,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 다이얼로그 팝업 가이드 (Figma 310:2725, 1214-4443 스타일 통일)
  * - 아이콘/이미지 + 제목 + 부제 + 날짜 + 2줄 버튼
- * - 328dp 폭, 24dp 모서리, Shadow/Card
+ * - 팝업 12dp 라운드, 버튼 6dp 라운드, 타이틀-부제 16dp
  */
 @Composable
 fun AptoxGuideDialog(
@@ -51,8 +116,8 @@ fun AptoxGuideDialog(
         Box(
             modifier = modifier
                 .widthIn(max = 328.dp)
-                .shadow(6.dp, RoundedCornerShape(24.dp), false, Color.Black.copy(alpha = 0.06f))
-                .clip(RoundedCornerShape(24.dp))
+                .shadow(6.dp, DialogPopupCorner, false, Color.Black.copy(alpha = 0.06f))
+                .clip(DialogPopupCorner)
                 .background(AppColors.SurfaceBackgroundBackground)
                 .padding(top = 32.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
         ) {
@@ -78,10 +143,10 @@ fun AptoxGuideDialog(
                                 .background(AppColors.Primary100),
                         )
                     }
-                    // 제목 + 부제
+                    // 제목 + 부제 (타이틀-본문 간격 16dp)
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
                         Text(
                             text = title,
@@ -109,6 +174,7 @@ fun AptoxGuideDialog(
                     ghostText = secondaryButtonText,
                     onPrimaryClick = onPrimaryClick,
                     onGhostClick = onSecondaryClick,
+                    shape = DialogButtonCorner,
                 )
             }
         }

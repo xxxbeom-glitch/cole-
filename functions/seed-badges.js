@@ -39,20 +39,33 @@ async function main() {
     process.exit(1);
   }
 
-  const batch = db.batch();
   const badgesRef = db.collection('badges');
+
+  // 1. 기존 badges 컬렉션 문서 전부 삭제
+  const existingSnapshot = await badgesRef.get();
+  if (!existingSnapshot.empty) {
+    const deleteBatch = db.batch();
+    existingSnapshot.docs.forEach((doc) => deleteBatch.delete(doc.ref));
+    await deleteBatch.commit();
+    console.log(`기존 ${existingSnapshot.size}개 문서 삭제 완료.\n`);
+  }
+
+  // 2. 새 데이터로 시드
+  const batch = db.batch();
   let count = 0;
 
   for (const [docId, badge] of Object.entries(data.badges)) {
     const docRef = badgesRef.doc(docId);
-    batch.set(docRef, {
+    const docData = {
       id: badge.id,
       order: badge.order,
       title: badge.title,
       description: badge.description,
       condition: badge.condition,
       icon: badge.icon,
-    }, { merge: true });
+    };
+    if (badge.message) docData.message = badge.message;
+    batch.set(docRef, docData, { merge: true });
     count++;
     console.log(`  ${docId}: ${badge.title}`);
   }

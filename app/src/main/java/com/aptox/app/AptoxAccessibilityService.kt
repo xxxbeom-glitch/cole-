@@ -47,18 +47,28 @@ class AptoxAccessibilityService : AccessibilityService() {
         val pauseRepo = PauseRepository(this)
         if (pauseRepo.isPaused(pkg)) return
 
-        val shouldBlock = if (restriction.blockUntilMs > 0) {
-            System.currentTimeMillis() < restriction.blockUntilMs
+        val (shouldBlock, overlayState) = if (restriction.blockUntilMs > 0) {
+            Pair(System.currentTimeMillis() < restriction.blockUntilMs, BlockOverlayService.OVERLAY_STATE_USAGE_EXCEEDED)
         } else {
-            val usm = getSystemService(Context.USAGE_STATS_SERVICE) as? android.app.usage.UsageStatsManager ?: return
-            val limitMs = restriction.limitMinutes * 60L * 1000L
-            val visiblePkgs = AppVisibilityRepository(this).getPackagesWithVisibleWindows()
-            val usageMs = UsageStatsUtils.getDailyUsageLimitMs(usm, pkg, restriction.baselineTimeMs, visiblePkgs)
-            usageMs >= limitMs
+            val timerRepo = ManualTimerRepository(this)
+            val sessionActive = timerRepo.isSessionActive(pkg)
+            if (!sessionActive) {
+                // 카운트 정지 상태: 차단 ("카운트 시작" 안내 오버레이)
+                Pair(true, BlockOverlayService.OVERLAY_STATE_COUNT_NOT_STARTED)
+            } else {
+                val usm = getSystemService(Context.USAGE_STATS_SERVICE) as? android.app.usage.UsageStatsManager
+                    ?: return
+                val limitMs = restriction.limitMinutes * 60L * 1000L
+                val visiblePkgs = AppVisibilityRepository(this).getPackagesWithVisibleWindows()
+                val usageMs = UsageStatsUtils.getDailyUsageLimitMs(usm, pkg, restriction.baselineTimeMs, visiblePkgs)
+                val block = usageMs >= limitMs
+                val state = BlockOverlayService.OVERLAY_STATE_USAGE_EXCEEDED
+                Pair(block, state)
+            }
         }
 
         if (shouldBlock && !BlockOverlayService.isRunning) {
-            if (restriction.blockUntilMs <= 0 &&
+            if (restriction.blockUntilMs <= 0 && overlayState == BlockOverlayService.OVERLAY_STATE_USAGE_EXCEEDED &&
                 !DailyUsageNotificationHelper.hasFiredLimitReachedToday(this, pkg)
             ) {
                 DailyUsageNotificationHelper.sendLimitReachedNotification(this, restriction.appName, pkg)
@@ -66,6 +76,10 @@ class AptoxAccessibilityService : AccessibilityService() {
             val intent = Intent(this, BlockOverlayService::class.java).apply {
                 putExtra(BlockOverlayService.EXTRA_PACKAGE_NAME, pkg)
                 putExtra(BlockOverlayService.EXTRA_BLOCK_UNTIL_MS, restriction.blockUntilMs)
+                if (restriction.blockUntilMs <= 0) {
+                    putExtra(BlockOverlayService.EXTRA_OVERLAY_STATE, overlayState)
+                    putExtra(BlockOverlayService.EXTRA_APP_NAME, restriction.appName)
+                }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent)

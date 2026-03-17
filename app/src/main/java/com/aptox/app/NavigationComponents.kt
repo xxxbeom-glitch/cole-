@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
@@ -361,6 +362,10 @@ fun AptoxSegmentedTab(
     selectedIndex: Int,
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    /** 비활성화할 탭 인덱스. alpha 0.4f 적용. 클릭 시 onDisabledTabClick 호출 */
+    disabledIndices: Set<Int> = emptySet(),
+    /** 비활성 탭 클릭 시 호출 (토스트 등) */
+    onDisabledTabClick: ((Int) -> Unit)? = null,
 ) {
     Box(
         modifier = modifier
@@ -375,16 +380,24 @@ fun AptoxSegmentedTab(
         ) {
             items.forEachIndexed { index, label ->
                 val isSelected = index == selectedIndex
+                val isDisabled = index in disabledIndices
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .height(40.dp)
+                        .alpha(if (isDisabled) 0.4f else 1f)
                         .clip(RoundedCornerShape(10.dp))
                         .background(
                             if (isSelected) AppColors.InteractiveTabSelected
                             else AppColors.InteractiveTabUnselected
                         )
-                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) },
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) {
+                            if (isDisabled) onDisabledTabClick?.invoke(index)
+                            else onTabSelected(index)
+                        },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(

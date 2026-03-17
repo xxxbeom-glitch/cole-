@@ -27,7 +27,15 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -37,6 +45,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import android.Manifest
+import android.os.Build
 
 /**
  * 앱 접근 권한 안내 화면 (풀스크린).
@@ -49,6 +60,29 @@ fun PermissionScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    var refresh by remember { mutableIntStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) refresh++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val usageGranted = remember(refresh) { StatisticsData.hasUsageAccess(context) }
+    val overlayGranted = remember(refresh) { Settings.canDrawOverlays(context) }
+    val accessibilityGranted = remember(refresh) {
+        val enabled = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: ""
+        enabled.contains(context.packageName)
+    }
+    val notificationGranted = remember(refresh) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        } else true
+    }
+    val allRequiredGranted = usageGranted && overlayGranted && accessibilityGranted
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -87,6 +121,7 @@ fun PermissionScreen(
                         title = "앱 사용정보 접근 (필수)",
                         description = "앱별 사용 시간 측정과 사용 제한 기능 작동에 필요한 권한입니다",
                         onSettingsClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) },
+                        isGranted = usageGranted,
                     ),
                     PermissionItem(
                         iconResId = R.drawable.ic_perm_overlay,
@@ -98,12 +133,14 @@ fun PermissionScreen(
                                     .setData(Uri.parse("package:${context.packageName}"))
                             )
                         },
+                        isGranted = overlayGranted,
                     ),
                     PermissionItem(
                         iconResId = R.drawable.ic_perm_accessibility,
                         title = "접근성 서비스 (필수)",
                         description = "제한 중인 앱으로 이동할 때 사용 제한 화면을 표시하기 위해 필요합니다",
                         onSettingsClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
+                        isGranted = accessibilityGranted,
                     ),
                 ),
             )
@@ -117,13 +154,9 @@ fun PermissionScreen(
                         iconResId = R.drawable.ic_perm_notification,
                         title = "알림 (선택)",
                         description = "사용 시간 초과 알림과 목표 달성 소식을 알림으로 알리기 위해 필요합니다",
-                        onSettingsClick = {
-                            context.startActivity(
-                                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                                }
-                            )
-                        },
+                        onSettingsClick = { },
+                        showSettingsButton = false,
+                        isGranted = notificationGranted,
                     ),
                 ),
             )
@@ -149,18 +182,26 @@ fun PermissionScreen(
             }
         }
 
-        // 하단 버튼: 1라인, 배경 없는 스타일 (Figma 1125-5261)
+        // 하단 버튼: 필수 권한 3개 전부 충족 시 보라색 가이드 버튼 + "다음", 그 외 "다음에 하기"
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 24.dp)
                 .windowInsetsPadding(WindowInsets.navigationBars),
         ) {
-            AptoxTextOnlyButton(
-                text = "다음에 하기",
-                onClick = onPrimaryClick,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (allRequiredGranted) {
+                AptoxPrimaryButton(
+                    text = "다음",
+                    onClick = onPrimaryClick,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                AptoxTextOnlyButton(
+                    text = "다음에 하기",
+                    onClick = onPrimaryClick,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
@@ -170,6 +211,8 @@ private data class PermissionItem(
     val title: String,
     val description: String,
     val onSettingsClick: () -> Unit,
+    val showSettingsButton: Boolean = true,
+    val isGranted: Boolean = false,
 )
 
 private val PermissionCardShape = RoundedCornerShape(12.dp)
@@ -200,6 +243,8 @@ private fun PermissionCard(
                 title = item.title,
                 description = item.description,
                 onSettingsClick = item.onSettingsClick,
+                showSettingsButton = item.showSettingsButton,
+                isGranted = item.isGranted,
             )
         }
     }
@@ -211,6 +256,8 @@ private fun PermissionItemRow(
     title: String,
     description: String,
     onSettingsClick: () -> Unit,
+    showSettingsButton: Boolean = true,
+    isGranted: Boolean = false,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -237,23 +284,33 @@ private fun PermissionItemRow(
                 text = description,
                 style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
             )
-            Row(
-                modifier = Modifier
-                    .clickable(onClick = onSettingsClick)
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Text(
-                    text = "설정 바로가기",
-                    style = AppTypography.Caption2.copy(color = AppColors.Red300),
-                )
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = AppColors.Red300,
-                )
+            if (showSettingsButton) {
+                if (isGranted) {
+                    Text(
+                        text = "허용됨",
+                        style = AppTypography.Caption2.copy(color = AppColors.TextSecondary),
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .clickable(onClick = onSettingsClick)
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = "설정 바로가기",
+                            style = AppTypography.Caption2.copy(color = AppColors.Red300),
+                        )
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = AppColors.Red300,
+                        )
+                    }
+                }
             }
         }
     }

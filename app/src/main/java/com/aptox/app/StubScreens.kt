@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -30,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -51,16 +54,22 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
+import com.aptox.app.model.BadgeDefinition
+import com.aptox.app.ui.components.AptoxToast
+import com.google.firebase.auth.FirebaseAuth
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
@@ -171,36 +180,67 @@ private fun SplashWithLoadingBar(
         animationSpec = androidx.compose.animation.core.tween(durationMillis = 200),
         label = "splash_progress",
     )
+    val progressPercent = (animatedProgress * 100).toInt().coerceIn(0, 100)
 
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
-        Image(
-            painter = painterResource(R.drawable.ic_splash_logo),
-            contentDescription = "aptox.",
-            modifier = Modifier
-                .width(280.dp)
-                .height(150.dp),
-            contentScale = ContentScale.Fit,
-        )
-        Spacer(modifier = Modifier.height(52.dp))
-        // 로딩 바: Figma 1175-5109 — height 6dp, 트랙 Primary600, 진행 Primary200
-        Box(
-            modifier = Modifier
-                .widthIn(max = 328.dp)
-                .fillMaxWidth(0.9f)
-                .height(6.dp)
-                .clip(RoundedCornerShape(3.dp))
-                .background(AppColors.Primary600),
+        Spacer(modifier = Modifier.weight(1f))
+        // Figma 409-6664: 로고 + 로딩 블록 (gap 26dp), 로딩 블록 내 퍼센티지 위·바 아래
+        Column(
+            modifier = Modifier.widthIn(max = 206.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(26.dp),
         ) {
-            Box(
+            Image(
+                painter = painterResource(R.drawable.ic_splash_logo),
+                contentDescription = "aptox.",
                 modifier = Modifier
-                    .fillMaxWidth(animatedProgress)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(AppColors.Primary200),
+                    .fillMaxWidth()
+                    .heightIn(max = 73.dp),
+                contentScale = ContentScale.Fit,
+            )
+            Column(
+                modifier = Modifier.width(121.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = "${progressPercent}%",
+                    style = AppTypography.Caption1.copy(color = Color.White),
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(AppColors.Primary600),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(animatedProgress)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(AppColors.Primary200),
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        // 하단: 앱 버전 + 필명 (Figma 1127-5375)
+        Column(
+            modifier = Modifier.padding(bottom = 48.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = "V ${BuildConfig.VERSION_NAME}",
+                style = AppTypography.Caption2.copy(color = Color.White.copy(alpha = 0.9f)),
+            )
+            Text(
+                text = "Break the break",
+                style = AppTypography.Caption2.copy(color = Color.White.copy(alpha = 0.9f)),
             )
         }
     }
@@ -209,6 +249,42 @@ private fun SplashWithLoadingBar(
 @Composable
 fun OnboardingScreen(onSkipClick: () -> Unit, onStartClick: () -> Unit) {
     OnboardingHost(onSkipClick = onSkipClick, onStartClick = onStartClick)
+}
+
+/** 앱 설명 온보딩 (플로우: 사용패턴 분석 → 홈) */
+@Composable
+fun AppExplanationOnboardingScreen(
+    onFinish: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AppColors.SurfaceBackgroundBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = "앱 설명",
+            style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
+            textAlign = TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = "aptox로 건강한 스마트폰 사용을 시작해보세요",
+            style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
+            textAlign = TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.height(36.dp))
+        AptoxPrimaryButton(
+            text = "시작하기",
+            onClick = onFinish,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 }
 
 // MA-01 메인 화면 (Figma 336-2910)
@@ -236,6 +312,10 @@ internal data class MainAppRestrictionItem(
     val usageTextColor: Color? = null,
     val usageLabelColor: Color? = null,
     val restrictionType: RestrictionType = RestrictionType.TIME_SPECIFIED,
+    /** 카테고리별 일평균 사용시간 기준 위험 라벨 */
+    val showDangerLabel: Boolean = false,
+    /** 카테고리별 일평균 사용시간 기준 주의 라벨 */
+    val showWarningLabel: Boolean = false,
     /** 시간 지정 제한 앱이 일시 정지 중일 때 true (Figma 782-2858 바텀시트) */
     val isPaused: Boolean = false,
     /** 일시 정지 시점의 오늘 사용 시간 (예: "14분/30분") */
@@ -358,7 +438,8 @@ private fun MainCommentSection(
 /** 홈 데이터 없을 때: 지난 일주일 top3 앱 카드 (Figma 662:2907) */
 @Composable
 private fun MainHomeDataEmptyCard(
-    userName: String = "아영",
+    greetingTitle: String,
+    greetingSubtext: String,
     top3Apps: List<StatisticsData.StatsAppItem>,
     onAddAppClick: () -> Unit,
     onStatisticsClick: () -> Unit,
@@ -370,8 +451,8 @@ private fun MainHomeDataEmptyCard(
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         MainCommentSection(
-            comment = "${userName}님 안녕하세요.\n디지털 디톡스 할 준비되셨나요?",
-            subtext = "일주일간 사용 데이터를 확인해보세요",
+            comment = greetingTitle,
+            subtext = greetingSubtext,
             onClick = onStatisticsClick,
         )
         contentBetweenGreetingAndTop3()
@@ -460,7 +541,6 @@ private fun MainHomeTopAppRow(
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (app.categoryTag != null) CategoryTag(tag = if (app.categoryTag == "주식,코인") "주식/코인" else app.categoryTag)
-                    LabelDanger(text = "위험")
                 }
                 Text(
                     text = app.name,
@@ -505,12 +585,17 @@ private fun MainAppRestrictionRow(
             appIcon = rememberAppIconPainter(item.packageName),
         )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = item.appName,
-                style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = item.appName,
+                    style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = item.usageText,
@@ -667,7 +752,6 @@ private fun MainAppRestrictionCardEmpty(
                             size = 56.dp,
                         )
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            LabelDanger(text = "위험")
                             Text(
                                 text = recommendedApp.name,
                                 style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
@@ -753,25 +837,36 @@ internal fun MainScreenMA01(
     onPermissionClick: () -> Unit = {},
     onDetailClick: (MainAppRestrictionItem) -> Unit = {},
     onStatisticsClick: () -> Unit = {},
+    restrictionRefreshKey: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory(context))
+    val greeting by homeViewModel.greeting.collectAsState()
 
     // 제한 앱 목록 + 빈 상태일 때 top3Apps 함께 로드 (플래시 방지)
     val state by produceState<HomeRestrictionState?>(
         initialValue = null,
         context,
+        restrictionRefreshKey,
     ) {
         while (true) {
-            val items = withContext(Dispatchers.Default) {
-                loadRestrictionItems(context)
-            }
-            val top3 = if (items.isEmpty()) {
-                withContext(Dispatchers.IO) {
-                    StatisticsData.loadTop3AppsFromAiCategories(context)
+            kotlin.runCatching {
+                val categoryCache = withContext(Dispatchers.IO) {
+                    AppCategoryCacheRepository(context).getCache()
                 }
-            } else emptyList()
-            value = HomeRestrictionState(items, top3)
+                val items = withContext(Dispatchers.Default) {
+                    loadRestrictionItems(context, categoryCache)
+                }
+                val top3 = if (items.isEmpty()) {
+                    withContext(Dispatchers.IO) {
+                        StatisticsData.loadTop3AppsFromAiCategories(context)
+                    }
+                } else emptyList()
+                value = HomeRestrictionState(items, top3)
+            }.onFailure { e ->
+                Log.w("MainScreenMA01", "loadRestrictionItems 실패", e)
+            }
             delay(1000)
         }
     }
@@ -782,9 +877,11 @@ internal fun MainScreenMA01(
     // 오늘 스마트폰 사용시간 (실시간, 매일 자정 리셋)
     val todayUsageMs by produceState(initialValue = 0L, context) {
         while (true) {
-            value = withContext(Dispatchers.IO) {
-                StatisticsData.getTodayTotalUsageMs(context)
-            }
+            kotlin.runCatching {
+                value = withContext(Dispatchers.IO) {
+                    StatisticsData.getTodayTotalUsageMs(context)
+                }
+            }.onFailure { e -> Log.w("MainScreenMA01", "getTodayTotalUsageMs 실패", e) }
             delay(5000) // 5초마다 갱신
         }
     }
@@ -799,6 +896,8 @@ internal fun MainScreenMA01(
     ) {
         if (isRestrictionStateReady && restrictionItems.isEmpty()) {
             MainHomeDataEmptyCard(
+                greetingTitle = greeting.title,
+                greetingSubtext = greeting.subtext,
                 top3Apps = top3Apps,
                 onAddAppClick = onAddAppClick,
                 onStatisticsClick = onStatisticsClick,
@@ -819,7 +918,7 @@ internal fun MainScreenMA01(
             )
         } else {
             MainCommentSection(
-                comment = "안녕하세요.",
+                comment = greeting.title,
                 subtext = "데이터를 불러오는 중이에요",
                 onClick = onStatisticsClick,
             )
@@ -876,16 +975,21 @@ private fun isTodayOnlyExpired(baselineTimeMs: Long): Boolean {
     return baselineTimeMs < cal.timeInMillis
 }
 
-private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem> {
+private fun loadRestrictionItems(context: Context, categoryCache: Map<String, String>): List<MainAppRestrictionItem> {
     val repo = AppRestrictionRepository(context)
     val restrictions = repo.getAll()
     if (restrictions.isEmpty()) return emptyList()
+
+    // 지난 7일 일평균 사용시간(분) — 라벨 판정용 (실시간 UsageStats 이벤트 기반, DB와 독립)
+    val (startMs, endMs) = StatisticsData.getLastNDaysRange(7, 0).let { it.first to it.second }
+    val usageMsByPackage = StatisticsData.getAppUsageMsForRangeFromEvents(context, startMs, endMs)
+    val dayCount = 7
+    val dailyAvgMinutesByPackage = usageMsByPackage.mapValues { it.value / dayCount.toDouble() / 60_000 }
 
     val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
     val pauseRepo = PauseRepository(context)
     val visiblePkgs = AppVisibilityRepository(context).getPackagesWithVisibleWindows()
     val todayIdx = todayDayIndex()
-    var needsServiceRefresh = false
 
     val result = restrictions.mapNotNull { restriction ->
         val isTimeSpecified = restriction.blockUntilMs > 0
@@ -894,8 +998,7 @@ private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem>
             val now = System.currentTimeMillis()
             val remainingMs = restriction.blockUntilMs - now
             if (remainingMs <= 0) {
-                repo.delete(restriction.packageName)
-                needsServiceRefresh = true
+                RestrictionDeleteHelper.deleteRestrictedApp(context, restriction.packageName)
                 return@mapNotNull null
             }
             val todayMinutes = (usm?.let {
@@ -912,6 +1015,10 @@ private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem>
                 isPaused -> formatDurationHhMmSs(pauseElapsedMs) to "일시정지 중"
                 else -> "${formatDurationHhMmSs(remainingMs.coerceAtLeast(0))} 후" to "해제"
             }
+            val dailyAvg = dailyAvgMinutesByPackage[restriction.packageName] ?: 0.0
+            val (showDanger, showWarning) = AppRiskLabelThresholds.computeLabels(
+                categoryCache[restriction.packageName], dailyAvg
+            )
             MainAppRestrictionItem(
                 appName = restriction.appName,
                 packageName = restriction.packageName,
@@ -931,6 +1038,8 @@ private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem>
                     else -> AppColors.TextHighlight
                 },
                 usageLabelColor = AppColors.TextSecondary,
+                showDangerLabel = showDanger,
+                showWarningLabel = showWarning,
             )
         } else {
             // 일일 사용량: repeatDays 분기
@@ -939,27 +1048,27 @@ private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem>
             // 2. 오늘 하루만: 00시 기준 목록에서 제거
             if (repeatDaySet.isEmpty()) {
                 if (isTodayOnlyExpired(restriction.baselineTimeMs)) {
-                    repo.delete(restriction.packageName)
-                    needsServiceRefresh = true
+                    RestrictionDeleteHelper.deleteRestrictedApp(context, restriction.packageName)
                     return@mapNotNull null
                 }
             } else {
                 // 3. 매일 반복 / 4. 격일·특정요일: 기간 만료 시 제거
                 if (isDurationExpired(restriction.baselineTimeMs, restriction.durationWeeks)) {
-                    repo.delete(restriction.packageName)
-                    needsServiceRefresh = true
+                    RestrictionDeleteHelper.deleteRestrictedApp(context, restriction.packageName)
                     return@mapNotNull null
                 }
             }
 
-            val usageMs = usm?.let {
-                UsageStatsUtils.getDailyUsageLimitMs(it, restriction.packageName, restriction.baselineTimeMs, visiblePkgs)
-            } ?: (DebugTestSettings.debugTodayUsageMinutes?.let { it * 60 * 1000 } ?: 0L)
+            // 일일 사용량은 수동 타이머(카운트 시작/정지) 기반. ManualTimerRepository 사용.
+            // UsageStatsUtils 대신 ManualTimerRepository 사용 시 카운트 중지 후 카드 시간이 정지함.
+            val timerRepo = ManualTimerRepository(context)
+            val usageMs = timerRepo.getTodayUsageMs(restriction.packageName)
             val limitMs = restriction.limitMinutes * 60L * 1000L
             val remainingMs = (limitMs - usageMs).coerceAtLeast(0)
             val todayMinutes = (usageMs / 60_000).toInt().coerceAtLeast(0)
             val todaySessionCount = (usm?.let { getTodaySessionCount(it, restriction.packageName) } ?: 0).toInt().coerceAtLeast(0)
             val limitMinutes = restriction.limitMinutes
+            val isCountActive = timerRepo.isSessionActive(restriction.packageName)
 
             // 4. 격일·특정요일: 제한 없는 날 "N일 후 제한 예정" 표시
             val isEveryDay = repeatDaySet.size == 7
@@ -967,10 +1076,14 @@ private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem>
             val (usageText, usageLabel) = when {
                 daysUntil > 0 -> "${daysUntil}일 후 제한 예정" to "예정"
                 remainingMs <= 0 -> "사용 가능한 시간 없음" to "남음"
+                isCountActive -> formatDurationHhMmSs(remainingMs) to "사용 중"
                 isEveryDay -> formatDurationHhMmSs(remainingMs) to "남음"
                 else -> formatDurationHhMmSs(remainingMs) to "남음"
             }
-
+            val dailyAvg = dailyAvgMinutesByPackage[restriction.packageName] ?: 0.0
+            val (showDanger, showWarning) = AppRiskLabelThresholds.computeLabels(
+                categoryCache[restriction.packageName], dailyAvg
+            )
             MainAppRestrictionItem(
                 appName = restriction.appName,
                 packageName = restriction.packageName,
@@ -985,16 +1098,12 @@ private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem>
                 dailyLimitMinutes = "${limitMinutes}분",
                 usageTextColor = if (remainingMs <= 0) AppColors.Red300 else AppColors.TextHighlight,
                 usageLabelColor = AppColors.TextSecondary,
+                showDangerLabel = showDanger,
+                showWarningLabel = showWarning,
             )
         }
     }
 
-    if (needsServiceRefresh) {
-        val map = repo.toRestrictionMap()
-        AppMonitorService.stop(context)
-        if (map.isNotEmpty()) AppMonitorService.start(context, map)
-        DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(context)
-    }
     return result
 }
 
@@ -1052,6 +1161,10 @@ fun MainFlowHost(
     onPauseFlowConsumed: () -> Unit = {},
     /** 일일 사용량 제한 완료 후 "카운트 시작하기" 탭 시 자동으로 바텀시트를 열 packageName */
     initialAutoOpenPackage: String? = null,
+    onAutoOpenConsumed: () -> Unit = {},
+    /** 주간 리포트/목표 달성 알림 탭 시 열 탭 인덱스 (1=챌린지, 2=통계) */
+    initialNavIndex: Int? = null,
+    onNavIndexConsumed: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val authRepository = remember { AuthRepository() }
@@ -1062,12 +1175,14 @@ fun MainFlowHost(
     }
     var navIndex by remember { mutableIntStateOf(0) }
     var settingsDetail by remember { mutableStateOf<SettingsDetail?>(null) }
+    var toastMessage by remember { mutableStateOf<String?>(null) }
     var showTermsSheet by remember { mutableStateOf(false) }
     var showPrivacySheet by remember { mutableStateOf(false) }
     var showNotificationOverlay by remember { mutableStateOf(false) }
     var showSubscriptionGuide by remember { mutableStateOf(false) }
     var showAppLimitInfoSheet by remember { mutableStateOf(false) }
     var selectedAppForDetail by remember { mutableStateOf<MainAppRestrictionItem?>(null) }
+    var restrictionRefreshKey by remember { mutableIntStateOf(0) }
 
     // 일시정지 플로우 state
     var showPauseProposalSheet by remember { mutableStateOf(false) }
@@ -1075,9 +1190,28 @@ fun MainFlowHost(
     var showPauseCompleteSheet by remember { mutableStateOf(false) }
     var selectedAppForPause by remember { mutableStateOf<MainAppRestrictionItem?>(null) }
 
+    // 메달 획득 오버레이 state (큐 방식 — 한 번에 하나씩 표시)
+    val badgeRepo = remember { BadgeRepository(context = context) }
+    var medalQueue by remember { mutableStateOf<List<BadgeDefinition>>(emptyList()) }
+    val currentMedal = medalQueue.firstOrNull()
+
+    // 앱 실행 시 미알림(isNotified == false) 뱃지 조회
+    LaunchedEffect(Unit) {
+        val userId = withContext(Dispatchers.IO) {
+            FirebaseAuth.getInstance().currentUser?.uid
+        } ?: return@LaunchedEffect
+        val unnotified = withContext(Dispatchers.IO) {
+            badgeRepo.getUnnotifiedBadges(userId)
+        }
+        if (unnotified.isNotEmpty()) {
+            medalQueue = unnotified
+        }
+    }
+
     // 일일 사용량 제한 완료 후 "카운트 시작하기" 탭 시 해당 앱 바텀시트 자동 오픈
     LaunchedEffect(initialAutoOpenPackage) {
         val pkg = initialAutoOpenPackage ?: return@LaunchedEffect
+        onAutoOpenConsumed()
         val restrictions = AppRestrictionRepository(context).getAll()
         val restriction = restrictions.firstOrNull { it.packageName == pkg } ?: return@LaunchedEffect
         selectedAppForDetail = MainAppRestrictionItem(
@@ -1090,6 +1224,15 @@ fun MainFlowHost(
             restrictionType = RestrictionType.DAILY_USAGE,
         )
         showAppLimitInfoSheet = true
+    }
+
+    // 주간 리포트/목표 달성 알림 탭 시 해당 탭으로 이동
+    LaunchedEffect(initialNavIndex) {
+        val idx = initialNavIndex ?: return@LaunchedEffect
+        if (idx in 1..3) {
+            navIndex = idx
+            onNavIndexConsumed()
+        }
     }
 
     // 앱 제한 오버레이에서 일시정지 클릭 후 aptox 앱으로 진입 시 1단계(제안)부터 표시
@@ -1216,6 +1359,7 @@ fun MainFlowHost(
                                     showAppLimitInfoSheet = true
                                 },
                                 onStatisticsClick = { navIndex = 2 },
+                                restrictionRefreshKey = restrictionRefreshKey,
                             )
                         }
                     }
@@ -1240,46 +1384,42 @@ fun MainFlowHost(
                                     onLogout = {
                                         scope.launch {
                                             authRepository.signOut()
-                                                .onSuccess { accountRefreshKey++ }
+                                                .onSuccess { withContext(Dispatchers.Main.immediate) { accountRefreshKey++ } }
                                                 .onFailure { e ->
-                                                    android.widget.Toast.makeText(context, "로그아웃 실패: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                                                    toastMessage = "로그아웃 실패: ${e.message}"
                                                 }
                                         }
                                     },
                                     onGoogleClick = {
                                         scope.launch {
                                             authRepository.signInWithGoogle(context)
-                                                .onSuccess { accountRefreshKey++ }
+                                                .onSuccess { withContext(Dispatchers.Main.immediate) { accountRefreshKey++ } }
                                                 .onFailure { e ->
-                                                    android.widget.Toast.makeText(context, "구글 로그인 실패: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                                                    toastMessage = "구글 로그인 실패: ${e.message}"
                                                 }
                                         }
                                     },
                                     onNaverClick = {
-                                        val activity = context as? MainActivity
+                                        val activity = context.findActivity() as? MainActivity
                                         if (activity == null) {
-                                            android.widget.Toast.makeText(context, "네이버 로그인을 사용할 수 없어요", android.widget.Toast.LENGTH_SHORT).show()
+                                            toastMessage = "네이버 로그인을 사용할 수 없어요"
                                             return@AccountManageScreen
                                         }
                                         scope.launch {
                                             authRepository.signInWithNaver(activity)
-                                                .onSuccess { accountRefreshKey++ }
+                                                .onSuccess { withContext(Dispatchers.Main.immediate) { accountRefreshKey++ } }
                                                 .onFailure { e ->
-                                                    android.widget.Toast.makeText(context, "네이버 로그인 실패: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                                                    toastMessage = "네이버 로그인 실패: ${e.message}"
                                                 }
                                         }
                                     },
                                     onKakaoClick = {
-                                        val activity = context as? MainActivity
-                                        if (activity == null) {
-                                            android.widget.Toast.makeText(context, "카카오 로그인을 사용할 수 없어요", android.widget.Toast.LENGTH_SHORT).show()
-                                            return@AccountManageScreen
-                                        }
                                         scope.launch {
-                                            authRepository.signInWithKakao(activity)
-                                                .onSuccess { accountRefreshKey++ }
+                                            authRepository.signInWithKakao(context)
+                                                .onSuccess { withContext(Dispatchers.Main.immediate) { accountRefreshKey++ } }
                                                 .onFailure { e ->
-                                                    android.widget.Toast.makeText(context, "카카오 로그인 실패: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                                                    Log.e("StubScreens", "카카오 로그인 실패", e)
+                                                    toastMessage = "카카오 로그인 실패: ${e.message}"
                                                 }
                                         }
                                     },
@@ -1323,7 +1463,14 @@ fun MainFlowHost(
                                                 try {
                                                     BugReportRepository.uploadImages(context, imageUris)
                                                 } catch (up: Exception) {
-                                                    throw RuntimeException("이미지 업로드에 실패했어요. 다시 시도해주세요")
+                                                    val msg = up.message?.takeIf { it.isNotBlank() } ?: "알 수 없는 오류"
+                                                    val userMsg = when {
+                                                        msg.contains("Object does not exist", ignoreCase = true) ->
+                                                            "이미지 업로드에 잠시 문제가 있었어요. 잠시 후 다시 시도해주세요."
+                                                        msg.contains("이미지를 읽을 수 없", ignoreCase = true) -> msg
+                                                        else -> "이미지 업로드 실패: $msg"
+                                                    }
+                                                    throw RuntimeException(userMsg, up)
                                                 }
                                             }
                                             FirebaseFunctions.getInstance()
@@ -1335,11 +1482,7 @@ fun MainFlowHost(
                                                     "imageUrls" to urls,
                                                 ))
                                                 .await()
-                                            android.widget.Toast.makeText(
-                                                context,
-                                                "버그 신고가 등록되었어요. 감사해요!",
-                                                android.widget.Toast.LENGTH_SHORT,
-                                            ).show()
+                                            toastMessage = "버그 신고가 등록되었어요. 감사해요!"
                                         } catch (e: Exception) {
                                             val fe = (e as? FirebaseFunctionsException) ?: (e.cause as? FirebaseFunctionsException)
                                             val msg = when {
@@ -1435,6 +1578,13 @@ fun MainFlowHost(
                     )
                 }
         }
+
+        AptoxToast(
+            message = toastMessage ?: "",
+            visible = toastMessage != null,
+            onDismiss = { toastMessage = null },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
 
         // 진행중인 앱 상세 바텀시트
         if (showAppLimitInfoSheet && selectedAppForDetail != null) {
@@ -1630,6 +1780,25 @@ fun MainFlowHost(
                 showSubscriptionGuide = false
             },
             modifier = Modifier.fillMaxSize(),
+        )
+    }
+
+    // 메달 획득 오버레이 (큐의 첫 번째 메달 표시)
+    if (currentMedal != null) {
+        MedalAchievementBottomSheet(
+            badge = currentMedal,
+            animationType = MedalAnimationType.COMBINED,
+            onDismiss = {
+                scope.launch {
+                    val userId = FirebaseAuth.getInstance().currentUser?.uid
+                    if (userId != null) {
+                        withContext(Dispatchers.IO) {
+                            badgeRepo.markBadgeNotified(userId, currentMedal.id)
+                        }
+                    }
+                    medalQueue = medalQueue.drop(1)
+                }
+            },
         )
     }
     }

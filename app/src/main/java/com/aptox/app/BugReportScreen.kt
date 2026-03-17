@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.aptox.app.ui.components.AptoxToast
 import kotlinx.coroutines.launch
 
 private const val BUG_REPORT_MAX_LENGTH = 1000
@@ -63,19 +64,22 @@ fun BugReportScreen(
     var content by remember { mutableStateOf("") }
     val attachments = remember { mutableStateListOf<Uri>() }
     var isSubmitting by remember { mutableStateOf(false) }
+    var uploadError by remember { mutableStateOf<String?>(null) }
+    var toastMessage by remember { mutableStateOf<String?>(null) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris ->
+        uploadError = null
         val remaining = MAX_ATTACHMENTS - attachments.size
         if (remaining <= 0) return@rememberLauncherForActivityResult
         uris.take(remaining).forEach { uri ->
             when (val result = BugReportRepository.validateImageUri(context, uri)) {
                 BugReportRepository.ValidationResult.Ok -> attachments.add(uri)
                 BugReportRepository.ValidationResult.InvalidFormat ->
-                    android.widget.Toast.makeText(context, "JPG, PNG 파일만 첨부 가능해요", android.widget.Toast.LENGTH_SHORT).show()
+                    toastMessage = "JPG, PNG 파일만 첨부 가능해요"
                 BugReportRepository.ValidationResult.TooLarge ->
-                    android.widget.Toast.makeText(context, "파일 크기는 2MB 이하여야 해요", android.widget.Toast.LENGTH_SHORT).show()
+                    toastMessage = "파일 크기는 2MB 이하여야 해요"
             }
         }
     }
@@ -164,6 +168,19 @@ fun BugReportScreen(
                     }
                 }
 
+                // 업로드 실패 시 에러 메시지 전체 표시
+                uploadError?.let { err ->
+                    Text(
+                        text = err,
+                        style = AppTypography.Caption2.copy(color = AppColors.FormTextError),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(AppColors.FormTextError.copy(alpha = 0.1f))
+                            .padding(12.dp),
+                    )
+                }
+
                 // 첨부된 파일명 텍스트 목록 (썸네일 대신 파일명으로 표시)
                 attachments.forEachIndexed { index, uri ->
                     val fileName = uri.lastPathSegment?.substringAfterLast("/")
@@ -224,16 +241,13 @@ fun BugReportScreen(
                     text = "등록하기",
                     onClick = {
                         scope.launch {
+                            uploadError = null
                             isSubmitting = true
                             try {
                                 onSubmit(title.trim(), content.trim(), attachments.toList())
                                 onBack()
                             } catch (e: Exception) {
-                                android.widget.Toast.makeText(
-                                    context,
-                                    e.message ?: "등록에 실패했어요",
-                                    android.widget.Toast.LENGTH_SHORT,
-                                ).show()
+                                uploadError = e.stackTraceToString()
                             } finally {
                                 isSubmitting = false
                             }
@@ -244,5 +258,11 @@ fun BugReportScreen(
                 )
             }
         }
+        AptoxToast(
+            message = toastMessage ?: "",
+            visible = toastMessage != null,
+            onDismiss = { toastMessage = null },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 }

@@ -271,7 +271,7 @@ private fun SelfTestVer2OptionButton(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(80.dp)
+            .height(70.dp)
             .clip(shape)
             .background(
                 if (selected) AppColors.Primary400
