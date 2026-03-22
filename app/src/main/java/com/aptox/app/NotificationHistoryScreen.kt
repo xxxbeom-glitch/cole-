@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
 /**
@@ -46,6 +47,7 @@ import androidx.compose.ui.unit.dp
  * - title: 첫 줄 메시지
  * - body: 둘째 줄 메시지 (선택)
  * - badgeId: 뱃지 알림 시 badgeId (탭 시 뱃지 화면 이동용)
+ * - timestampMs: 읽음 여부 판별용 (Firestore timestamp)
  */
 data class NotificationHistoryItem(
     val type: String,
@@ -56,6 +58,7 @@ data class NotificationHistoryItem(
     val badgeId: String? = null,
     /** 알림 탭 시 이동 대상 (예: statistics_weekly) */
     val navTarget: String? = null,
+    val timestampMs: Long = 0L,
 )
 
 // [레거시] 샘플 데이터 — Firestore 실시간 연동으로 대체됨
@@ -80,7 +83,8 @@ fun NotificationHistoryScreen(
     onNotificationSettingsClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    val repo = remember { NotificationRepository() }
+    val context = LocalContext.current
+    val repo = remember(context) { NotificationRepository(context) }
     var items by remember { mutableStateOf<List<NotificationHistoryItem>?>(null) }
 
     LaunchedEffect(userId) {
@@ -88,6 +92,14 @@ fun NotificationHistoryScreen(
             repo.getNotificationsFlow(userId).collect { items = it }
         } else {
             items = emptyList()
+        }
+    }
+
+    // 알림 리스트 로드 시 읽음 처리
+    LaunchedEffect(items) {
+        if (userId != null && items != null && items!!.isNotEmpty()) {
+            val maxTs = items!!.maxOfOrNull { it.timestampMs } ?: 0L
+            repo.markAsChecked(userId, maxOf(System.currentTimeMillis(), maxTs))
         }
     }
     Column(

@@ -115,6 +115,10 @@ object StatisticsData {
         val dayOfWeek = cal.get(Calendar.DAY_OF_WEEK) // 일=1, 월=2, ..., 토=7
         val daysFromMonday = (dayOfWeek + 5) % 7
         cal.add(Calendar.DAY_OF_YEAR, -daysFromMonday + (weekOffset * 7))
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
         val startMs = cal.timeInMillis
         cal.add(Calendar.DAY_OF_YEAR, 6)
         cal.set(Calendar.HOUR_OF_DAY, 23)
@@ -1095,6 +1099,7 @@ object StatisticsData {
             raw
                 .filter { it.packageName in allowedPkgs }
                 .map { it.copy(categoryTag = cache[it.packageName]) }
+                .filter { it.usageMs >= 10 * 60_000L }
         }
 
     /**

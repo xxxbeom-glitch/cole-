@@ -80,6 +80,10 @@ private enum class StatsHelpType(val title: String, val body: String) {
         "카테고리 통계",
         "앱을 카테고리별로 묶어 사용 비율을 보여줘요. 상단 막대와 범례를 탭하면 해당 카테고리 앱만 필터할 수 있어요.",
     ),
+    TIME_SLOT(
+        "시간대별 사용량",
+        "하루 중 어느 시간대에 스마트폰을 많이 사용하는지 보여줘요. 자신도 모르게 습관적으로 폰을 집어드는 시간대를 파악하고, 그 시간만 집중적으로 줄여보세요.",
+    ),
 }
 
 /** 통계 카드 공통 패딩(모든 카드 동일) */
@@ -198,8 +202,17 @@ fun StatisticsScreen(
         }
     }
 
-    // 월간·연간 탭: 임시로 진입 제한 해제 (복구 시 MIN_DAYS_FOR_MONTHLY/YEARLY + getCumulativeDaysSinceFirstUseBlocking 사용)
-    val statsDisabledIndices = remember { emptySet<Int>() }
+    // 월간·연간 탭: 조건 미충족 시 접근 금지 (30일/180일 이상 사용 후 활성화)
+    var statsDisabledIndices by remember { mutableStateOf(setOf(1, 2)) }
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            val days = UsageStatsLocalRepository(context).getCumulativeDaysSinceFirstUseBlocking()
+            val disabled = mutableSetOf<Int>()
+            if (days < StatisticsData.MIN_DAYS_FOR_MONTHLY) disabled.add(1)
+            if (days < StatisticsData.MIN_DAYS_FOR_YEARLY) disabled.add(2)
+            statsDisabledIndices = disabled.toSet()
+        }
+    }
 
     // 카드별 독립적인 주/연도/월 네비게이션
     var weekOffsetDateChart by remember { mutableIntStateOf(0) }
@@ -208,7 +221,7 @@ fun StatisticsScreen(
     var weekOffsetCategory by remember { mutableIntStateOf(0) }
     var monthOffsetCategory by remember { mutableIntStateOf(0) } // 월간: 0=이번 달
     var yearOffsetCategory by remember { mutableIntStateOf(0) }
-    var weekOffsetComparison by remember { mutableIntStateOf(-1) } // 기본: 지난주
+    var weekOffsetComparison by remember { mutableIntStateOf(0) } // 기본: 이번 주
     var monthOffsetComparison by remember { mutableIntStateOf(0) }  // 0=이번 달
     var yearOffsetComparison by remember { mutableIntStateOf(0) }
 
@@ -272,6 +285,7 @@ fun StatisticsScreen(
             onMonthChange = { monthOffsetComparison = it },
             yearOffset = yearOffsetComparison,
             onYearChange = { yearOffsetComparison = it },
+            onInfoClick = { showHelpSheet = StatsHelpType.TIME_SLOT },
         )
         // 맨 아래 스크롤 시 바텀바로부터 32dp 여백 (padding bottom으로 적용)
     }
@@ -1625,7 +1639,7 @@ private fun StatsAppRow(
             }
         }
         Text(
-            text = usageMinutes,
+            text = "$usageMinutes 사용",
             style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
         )
     }
@@ -1641,6 +1655,7 @@ private fun StatsTimeSlotSection(
     onMonthChange: (Int) -> Unit,
     yearOffset: Int,
     onYearChange: (Int) -> Unit,
+    onInfoClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -1717,6 +1732,7 @@ private fun StatsTimeSlotSection(
             canGoNext = nav.canNext,
             onPrevClick = nav.onPrev,
             onNextClick = nav.onNext,
+            onInfoClick = onInfoClick,
             showPeriodSelector = true,
         )
 

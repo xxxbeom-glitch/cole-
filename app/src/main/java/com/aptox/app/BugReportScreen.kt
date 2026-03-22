@@ -1,5 +1,6 @@
 package com.aptox.app
 
+import android.provider.OpenableColumns
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -181,37 +182,48 @@ fun BugReportScreen(
                     )
                 }
 
-                // 첨부된 파일명 텍스트 목록 (썸네일 대신 파일명으로 표시)
-                attachments.forEachIndexed { index, uri ->
-                    val fileName = uri.lastPathSegment?.substringAfterLast("/")
-                        ?: uri.toString().substringAfterLast("/").take(40)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(AppColors.FormInputBgDefault)
-                            .border(1.dp, AppColors.BorderDefault, RoundedCornerShape(6.dp))
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            text = fileName,
-                            style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        )
-                        Icon(
-                            painter = painterResource(R.drawable.ic_bug_report_delete),
-                            contentDescription = "삭제",
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                ) { attachments.removeAt(index) },
-                        )
+                // 첨부된 파일명 텍스트 목록 (확장자는 항상 끝에 표시)
+                if (attachments.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        attachments.forEachIndexed { index, uri ->
+                            val (namePart, extPart) = resolveFileNameWithExtension(context, uri)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Start,
+                                ) {
+                                    Text(
+                                        text = namePart,
+                                        style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+                                        modifier = Modifier.weight(1f, fill = false),
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    )
+                                    if (extPart.isNotEmpty()) {
+                                        Text(
+                                            text = extPart,
+                                            style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+                                            maxLines = 1,
+                                        )
+                                    }
+                                }
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_bug_report_delete),
+                                    contentDescription = "삭제",
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                        ) { attachments.removeAt(index) },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -248,6 +260,7 @@ fun BugReportScreen(
                                 onBack()
                             } catch (e: Exception) {
                                 uploadError = e.stackTraceToString()
+                                toastMessage = e.message?.takeIf { it.isNotBlank() } ?: "등록에 실패했어요"
                             } finally {
                                 isSubmitting = false
                             }
@@ -264,5 +277,30 @@ fun BugReportScreen(
             onDismiss = { toastMessage = null },
             modifier = Modifier.align(Alignment.BottomCenter),
         )
+    }
+}
+
+private fun resolveFileNameWithExtension(context: android.content.Context, uri: Uri): Pair<String, String> {
+    var raw = ""
+    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) {
+            val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (idx >= 0) raw = cursor.getString(idx) ?: ""
+        }
+    }
+    if (raw.isEmpty()) {
+        raw = uri.lastPathSegment?.substringAfterLast("/") ?: uri.toString().substringAfterLast("/")
+    }
+    val extFromMime = when (context.contentResolver.getType(uri)?.lowercase()) {
+        "image/jpeg", "image/jpg" -> ".jpg"
+        "image/png" -> ".png"
+        else -> ""
+    }
+    return if (raw.contains(".")) {
+        val lastDot = raw.lastIndexOf('.')
+        raw.substring(0, lastDot) to ".${raw.substring(lastDot + 1).lowercase()}"
+    } else {
+        val name = raw.ifEmpty { "이미지" }
+        name to extFromMime
     }
 }

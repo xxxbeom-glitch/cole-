@@ -613,7 +613,19 @@ exports.submitBugReport = functions.https.onCall(async (data, context) => {
   try {
     const db = admin.firestore();
     const hasImages = imageUrls.length > 0;
+    const messageParts = [
+      trimmedTitle ? `제목: ${trimmedTitle}` : null,
+      `내용: ${trimmedContent}`,
+      hasImages ? `이미지 URLs:\n${imageUrls.join("\n")}` : null,
+    ].filter(Boolean);
+    const messageText = messageParts.join("\n\n");
+    const messageSubject = trimmedTitle ? `[버그신고] ${trimmedTitle}` : "[버그신고] 제목 없음";
     docRef = await db.collection("bugReports").add({
+      to: "sky0805sky@naver.com",
+      message: {
+        subject: messageSubject,
+        text: messageText,
+      },
       title: trimmedTitle || null,
       body: trimmedContent,
       description: trimmedContent,

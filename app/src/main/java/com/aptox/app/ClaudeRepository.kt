@@ -116,6 +116,10 @@ class ClaudeRepository(
 
     /**
      * Brief 카드용 타이틀+본문 생성 (주간/월간/연간)
+     * @param totalUsageMinutes 기간 총 사용 시간 (분). null이면 dateMinutes 합산 사용
+     * @param userGoalMinutes 사용자가 설정한 앱별 일일 목표 시간 합산 (분). null이면 미포함
+     * @param goalAchievementRate 목표 달성률 0.0~1.0. null이면 미포함
+     * @param dailyLimitExceededCount 제한 초과 횟수. null이면 미포함
      * @return Result<Pair<title, body>>
      */
     suspend fun generateBriefSummaryWithTitle(
@@ -124,15 +128,32 @@ class ClaudeRepository(
         dateLabels: List<String>,
         segments: List<Pair<String, Float>>,
         timeSlotMinutes: List<Long>,
+        totalUsageMinutes: Long? = null,
+        userGoalMinutes: Long? = null,
+        goalAchievementRate: Float? = null,
+        dailyLimitExceededCount: Int? = null,
     ): Result<Pair<String, String>> = runCatching {
         val (periodDesc, titlePrefix) = when (periodLabel) {
             "월간" -> "한 달" to "지난달은"
             "연간" -> "한 해" to "지난해는"
             else -> "한 주" to "지난주는"
         }
+        val totalMinutes = totalUsageMinutes ?: dateMinutes.sum()
         val prompt = buildString {
+            append("당신은 디지털 디톡스 코치입니다. 이 앱의 목표는 스마트폰 사용 시간을 줄이는 것입니다.\n\n")
+            append("평가 기준:\n")
+            append("- 총 사용 시간이 적을수록 좋음\n")
+            append("- 일일 제한 목표 달성률이 높을수록 좋음\n")
+            append("- 제한 초과 횟수가 적을수록 좋음\n")
+            append("- 야간(밤 9시 이후) 사용이 없을수록 좋음\n")
+            append("좋은 결과는 칭찬하되, 나쁜 결과는 솔직하게 지적하고 개선을 권유하세요.\n\n")
             append("다음은 디지털 디톡스 앱 사용자의 $periodDesc 통계 데이터입니다.\n\n")
-            append("## 기간별 사용량 (분)\n")
+            append("## 목표 대비 현황\n")
+            append("총 사용 시간: ${totalMinutes}분\n")
+            if (userGoalMinutes != null) append("목표 시간: ${userGoalMinutes}분\n")
+            if (goalAchievementRate != null) append("목표 달성률: ${"%.0f".format(goalAchievementRate * 100)}%\n")
+            if (dailyLimitExceededCount != null) append("제한 초과 횟수: ${dailyLimitExceededCount}회\n")
+            append("\n## 기간별 사용량 (분)\n")
             dateLabels.forEachIndexed { i, label ->
                 append("$label: ${dateMinutes.getOrElse(i) { 0L }}분\n")
             }
@@ -143,7 +164,7 @@ class ClaudeRepository(
             slotLabels.forEachIndexed { i, l -> append("$l: ${timeSlotMinutes.getOrElse(i) { 0L }}분\n") }
             append("\n위 데이터를 바탕으로 응답을 두 부분으로 작성해주세요.\n")
             append("1) 첫 줄: \"$titlePrefix\"으로 시작하는 한 문장 타이틀\n")
-            append("2) 빈 줄 뒤: 2~3문장의 친근하고 격려하는 말투 본문\n")
+            append("2) 빈 줄 뒤: 2~3문장의 친근한 말투 본문 (결과가 좋으면 칭찬, 나쁘면 솔직하게 지적 후 개선 권유)\n")
             append("타이틀과 본문만 출력하세요. 다른 설명 없이.")
         }
         val resp = chat(prompt).getOrThrow()

@@ -166,7 +166,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        AptoxApplication.startAppMonitorIfNeeded(applicationContext)
+        AptoxApplication.startAppMonitorIfNeeded(applicationContext, clearForegroundPkg = pendingOpenBottomSheetPackage != null)
     }
 
     override fun onPause() {
@@ -307,7 +307,7 @@ fun SignUpFlowHost(
                         }
                         .onFailure { e ->
                             loginLoading = false
-                            if (e.cause !is GetCredentialCancellationException) {
+                            if (e !is GetCredentialCancellationException && e.cause !is GetCredentialCancellationException) {
                                 loginError = e.message ?: "구글 로그인에 실패했어요"
                             }
                         }

@@ -39,6 +39,14 @@ class AptoxAccessibilityService : AccessibilityService() {
         val pkg = event.packageName?.toString() ?: return
         if (pkg == packageName) return
 
+        // Aptox가 포그라운드(활성 윈도우)일 때는 오버레이 트리거 스킵
+        // (바텀시트 닫기 등 윈도우 재구성 시 제한 앱 이벤트가 잘못 수신되는 경우 방지)
+        try {
+            rootInActiveWindow?.packageName?.toString()?.let { topPkg ->
+                if (topPkg == packageName) return
+            }
+        } catch (_: Exception) { /* ignore */ }
+
         // 제한 앱 목록에 있고 차단 대상이면 BlockOverlayService 트리거 (UsageStats 보완)
         val repo = AppRestrictionRepository(this)
         val restriction = repo.getAll().find { it.packageName == pkg } ?: return

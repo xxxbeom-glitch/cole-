@@ -13,7 +13,7 @@
       "id": "badge_002",
       "order": 2,
       "title": "절제의 길",
-      "description": "제한 설정을 일주일 연속 지켰어요",
+      "description": "카운트 시작 버튼을 처음 눌렀어요",
       "condition": "카운트 시작 버튼 처음 눌렀을 때",
       "icon": "ico_level2",
       "message": "첫 카운트를 눌렀군요. 이제 진짜 시작이에요!"
@@ -22,10 +22,10 @@
       "id": "badge_003",
       "order": 3,
       "title": "절제 완성",
-      "description": "제한 설정을 한 달 연속 지켰어요",
-      "condition": "제한 앱 2개 이상 등록됐을 때",
+      "description": "제한 앱 2개 이상 등록했을 때",
+      "condition": "제한 앱 2개 이상 등록했을 때",
       "icon": "ico_level3",
-      "message": "한 달을 해냈어요. 당신은 이미 달라졌어요!"
+      "message": "제한 앱을 하나 더 추가했어요. 절제의 폭이 넓어지고 있어요!"
     },
     "badge_004": {
       "id": "badge_004",
@@ -94,10 +94,10 @@
       "id": "badge_011",
       "order": 11,
       "title": "야간 수호",
-      "description": "밤 시간 절제를 일주일 연속 지켰어요",
+      "description": "밤 10시 이후 미사용 누적 7일",
       "condition": "밤 10시 이후 제한 앱 미사용 누적 7일",
       "icon": "ico_level11",
-      "message": "일주일 밤을 지켰어요. 기적은 매일 만들어지고 있어요!"
+      "message": "밤 10시 이후 7번을 지켜냈어요. 꾸준함이 쌓이고 있어요!"
     },
     "badge_012": {
       "id": "badge_012",
@@ -121,19 +121,19 @@
       "id": "badge_014",
       "order": 14,
       "title": "고요의 결실",
-      "description": "밤 9시 이후 절제를 일주일 지켰어요",
+      "description": "밤 9시 이후 미사용 누적 7일",
       "condition": "밤 9시 이후 제한 앱 미사용 누적 7일",
       "icon": "ico_level14",
-      "message": "일주일 밤 9시를 지켰어요!"
+      "message": "밤 9시 이후 7번을 지켜냈어요. 고요함이 쌓이고 있어요!"
     },
     "badge_015": {
       "id": "badge_015",
       "order": 15,
       "title": "고요의 전설",
-      "description": "밤 9시 이후 절제가 습관이 됐어요",
+      "description": "밤 9시 이후 미사용 누적 30일",
       "condition": "밤 9시 이후 제한 앱 미사용 누적 30일",
       "icon": "ico_level15",
-      "message": "30일 밤 9시를 지켰어요. 진정한 달인!"
+      "message": "밤 9시 이후 30번을 지켜냈어요. 진정한 달인이에요!"
     },
     "badge_016": {
       "id": "badge_016",
@@ -149,7 +149,7 @@
       "order": 17,
       "title": "연승",
       "description": "뱃지 수집이 계속되고 있어요",
-      "condition": "다른 뱃지 (badge_001~015) 중 10개 이상 달성 시",
+      "condition": "다른 뱃지 10개 이상 달성 시",
       "icon": "ico_level17",
       "message": "10개! 멈추지 않는 당신이 가장 멋져요!"
     },
@@ -157,10 +157,10 @@
       "id": "badge_018",
       "order": 18,
       "title": "왕좌의 자리",
-      "description": "모든 뱃지를 손에 넣었어요",
-      "condition": "다른 뱃지 (badge_001~015) 중 17개 이상 달성 시",
+      "description": "다른 뱃지 17개 달성",
+      "condition": "다른 뱃지 17개 이상 달성 시",
       "icon": "ico_level18",
-      "message": "모든 뱃지! 진심으로 대단해요. 왕좌가 당신 것이에요!"
+      "message": "뱃지 17개를 달성했어요. 왕좌는 당신 것이에요!"
     }
   }
 }

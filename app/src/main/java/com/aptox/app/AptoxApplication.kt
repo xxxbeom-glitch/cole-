@@ -65,8 +65,9 @@ class AptoxApplication : Application() {
     companion object {
         private const val TAG = "AptoxApplication"
 
-        /** 포그라운드 상태에서 호출. 앱 실행 시 Application.onCreate는 백그라운드로 인식될 수 있어 MainActivity.onResume에서 호출 */
-        fun startAppMonitorIfNeeded(context: android.content.Context) {
+        /** 포그라운드 상태에서 호출. 앱 실행 시 Application.onCreate는 백그라운드로 인식될 수 있어 MainActivity.onResume에서 호출
+         * @param clearForegroundPkg true면 lastKnownForegroundPkg 초기화 (알림 탭으로 바텀시트 열 때 카운트 정지 시 오버레이 즉시 노출 방지) */
+        fun startAppMonitorIfNeeded(context: android.content.Context, clearForegroundPkg: Boolean = false) {
             try {
                 (context.applicationContext as? AptoxApplication)?.applicationScope?.launch {
                     BriefSummaryPreloader.tryPreloadScheduled(context.applicationContext)
@@ -76,7 +77,7 @@ class AptoxApplication : Application() {
                 val repo = AppRestrictionRepository(context)
                 val map = repo.toRestrictionMap()
                 if (map.isNotEmpty()) {
-                    AppMonitorService.start(context, map)
+                    AppMonitorService.start(context, map, clearForegroundPkg)
                 }
                 DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(context)
                 WeeklyReportAlarmScheduler.applySchedule(context, NotificationPreferences.isWeeklyReportEnabled(context))

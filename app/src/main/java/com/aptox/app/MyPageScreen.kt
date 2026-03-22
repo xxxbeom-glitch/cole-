@@ -67,7 +67,7 @@ fun MyPageScreen(
                 )
                 MyPageDivider()
                 MyPageRowItem(
-                    iconResId = R.drawable.ic_lock,
+                    iconResId = R.drawable.ic_app_restriction_history,
                     label = "앱 사용제한 기록",
                     onClick = onAppRestrictionHistoryClick,
                 )

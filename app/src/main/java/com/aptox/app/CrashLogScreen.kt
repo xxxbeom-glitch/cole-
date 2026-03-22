@@ -1,6 +1,5 @@
 package com.aptox.app
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -40,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.aptox.app.ui.components.AptoxToast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -58,6 +58,7 @@ fun CrashLogScreen(
     var selectedFile by remember { mutableStateOf<File?>(null) }
     var detailText by remember { mutableStateOf<String?>(null) }
     var showClearConfirm by remember { mutableStateOf(false) }
+    var toastMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(refreshKey) {
         val list = withContext(Dispatchers.IO) { CrashLogRepository.listLogFiles(context) }
@@ -78,8 +79,67 @@ fun CrashLogScreen(
 
     val detail = selectedFile
     if (detail != null && detailText != null) {
+        Box(modifier = modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(AppColors.SurfaceBackgroundBackground)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .windowInsetsPadding(WindowInsets.navigationBars),
+            ) {
+                AptoxHeaderSub(
+                    title = "크래시 로그",
+                    backIcon = painterResource(R.drawable.ic_back),
+                    onBackClick = { selectedFile = null },
+                    showNotification = false,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = detail.name,
+                        style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
+                        modifier = Modifier.weight(1f),
+                    )
+                    AptoxGhostButton(
+                        text = "보내기",
+                        onClick = {
+                            if (!CrashLogExport.shareSingleLog(context, detail)) {
+                                toastMessage = "보내기에 실패했어요."
+                            }
+                        },
+                        modifier = Modifier.height(40.dp),
+                    )
+                }
+                Text(
+                    text = detailText!!,
+                    style = AppTypography.Caption1.copy(color = AppColors.TextBody),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 16.dp),
+                )
+            }
+            AptoxToast(
+                message = toastMessage ?: "",
+                visible = toastMessage != null,
+                onDismiss = { toastMessage = null },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        }
+        return
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
         Column(
-            modifier = modifier
+            modifier = Modifier
                 .fillMaxSize()
                 .background(AppColors.SurfaceBackgroundBackground)
                 .windowInsetsPadding(WindowInsets.statusBars)
@@ -88,159 +148,116 @@ fun CrashLogScreen(
             AptoxHeaderSub(
                 title = "크래시 로그",
                 backIcon = painterResource(R.drawable.ic_back),
-                onBackClick = { selectedFile = null },
+                onBackClick = onBack,
                 showNotification = false,
                 modifier = Modifier.fillMaxWidth(),
             )
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = detail.name,
-                    style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
+                    text = "저장된 로그 ${files.size}건",
+                    style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
                     modifier = Modifier.weight(1f),
                 )
                 AptoxGhostButton(
-                    text = "보내기",
+                    text = "ZIP보내기",
                     onClick = {
-                        if (!CrashLogExport.shareSingleLog(context, detail)) {
-                            Toast.makeText(context, "보내기에 실패했어요.", Toast.LENGTH_SHORT).show()
+                        scope.launch {
+                            val ok = CrashLogExport.shareAllLogsAsZip(context)
+                            if (!ok) {
+                                toastMessage = if (files.isEmpty()) {
+                                    "보낼 로그가 없어요."
+                                } else {
+                                    "ZIP을 만들거나 보내기에 실패했어요."
+                                }
+                            }
                         }
                     },
                     modifier = Modifier.height(40.dp),
                 )
-            }
-            Text(
-                text = detailText!!,
-                style = AppTypography.Caption1.copy(color = AppColors.TextBody),
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 16.dp),
-            )
-        }
-        return
-    }
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(AppColors.SurfaceBackgroundBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .windowInsetsPadding(WindowInsets.navigationBars),
-    ) {
-        AptoxHeaderSub(
-            title = "크래시 로그",
-            backIcon = painterResource(R.drawable.ic_back),
-            onBackClick = onBack,
-            showNotification = false,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "저장된 로그 ${files.size}건",
-                style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
-                modifier = Modifier.weight(1f),
-            )
-            AptoxGhostButton(
-                text = "ZIP보내기",
-                onClick = {
-                    scope.launch {
-                        val ok = CrashLogExport.shareAllLogsAsZip(context)
-                        if (!ok) {
-                            val msg = if (files.isEmpty()) {
-                                "보낼 로그가 없어요."
-                            } else {
-                                "ZIP을 만들거나 보내기에 실패했어요."
-                            }
-                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                },
-                modifier = Modifier.height(40.dp),
-            )
-            AptoxGhostButton(
-                text = "전체 삭제",
-                onClick = { showClearConfirm = true },
-                modifier = Modifier.height(40.dp),
-            )
-        }
-
-        if (files.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "저장된 크래시 로그가 없어요.",
-                    style = AppTypography.BodyMedium.copy(color = AppColors.TextCaption),
+                AptoxGhostButton(
+                    text = "전체 삭제",
+                    onClick = { showClearConfirm = true },
+                    modifier = Modifier.height(40.dp),
                 )
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(files, key = { it.absolutePath }) { file ->
-                    val (title, sub) = summaries[file.absolutePath] ?: (file.name to "")
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(AppColors.SurfaceBackgroundCard)
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(
+
+            if (files.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "저장된 크래시 로그가 없어요.",
+                        style = AppTypography.BodyMedium.copy(color = AppColors.TextCaption),
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(files, key = { it.absolutePath }) { file ->
+                        val (title, sub) = summaries[file.absolutePath] ?: (file.name to "")
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                ) { selectedFile = file }
-                                .padding(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(AppColors.SurfaceBackgroundCard)
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(
-                                text = title,
-                                style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
-                            )
-                            Text(
-                                text = sub,
-                                maxLines = 2,
-                                style = AppTypography.Caption1.copy(color = AppColors.TextCaption),
-                            )
-                        }
-                        TextButton(
-                            onClick = {
-                                if (!CrashLogExport.shareSingleLog(context, file)) {
-                                    Toast.makeText(context, "보내기에 실패했어요.", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                        ) {
-                            Text("보내기", style = AppTypography.BodyMedium)
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                    ) { selectedFile = file }
+                                    .padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text(
+                                    text = title,
+                                    style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
+                                )
+                                Text(
+                                    text = sub,
+                                    maxLines = 2,
+                                    style = AppTypography.Caption1.copy(color = AppColors.TextCaption),
+                                )
+                            }
+                            TextButton(
+                                onClick = {
+                                    if (!CrashLogExport.shareSingleLog(context, file)) {
+                                        toastMessage = "보내기에 실패했어요."
+                                    }
+                                },
+                            ) {
+                                Text("보내기", style = AppTypography.BodyMedium)
+                            }
                         }
                     }
+                    item { Spacer(modifier = Modifier.height(24.dp)) }
                 }
-                item { Spacer(modifier = Modifier.height(24.dp)) }
             }
         }
+
+        AptoxToast(
+            message = toastMessage ?: "",
+            visible = toastMessage != null,
+            onDismiss = { toastMessage = null },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 
     if (showClearConfirm) {

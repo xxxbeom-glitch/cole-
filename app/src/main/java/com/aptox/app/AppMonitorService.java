@@ -372,6 +372,7 @@ public class AppMonitorService extends Service {
                 if (restriction != null) {
                     AppLimitLogRepository.saveTimeoutEventIfNeeded(this, pkg, restriction.getAppName());
                 }
+                timerRepo.endSession(pkg); // 세션 종료 → 노티바 카운트 정지
             } else {
                 // 카운트 진행 중 + 사용량 여유: 사용 허용
                 shouldBlock = false;

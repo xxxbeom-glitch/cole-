@@ -32,7 +32,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
@@ -788,8 +790,12 @@ fun AddAppSummaryRow(
 // 스크린샷: 헤더 "일일 사용량 제한", 4개 SelectionRow, "다음" 버튼
 // ─────────────────────────────────────────────
 
-// 3분 맨 앞, 나머지는 시간 큰 순서 (180→30)
-private val DAILY_TIME_STEPS = listOf("3분", "180분", "150분", "120분", "90분", "60분", "30분")
+// 3분 맨 앞, 나머지는 시간 큰 순서 (180→30). DebugTestSettings.debugShow3MinDailyOption으로 3분 포함 여부 제어
+private fun getDailyTimeSteps(): List<String> = if (DebugTestSettings.debugShow3MinDailyOption) {
+    listOf("3분", "180분", "150분", "120분", "90분", "60분", "30분")
+} else {
+    listOf("180분", "150분", "120분", "90분", "60분", "30분")
+}
 private val DAILY_DURATION_OPTIONS = listOf("오늘 하루만", "1주", "2주", "3주", "4주")
 
 /** Figma 997-3736 / 1044: 앱의 종류 선택 옵션 — 통계(StatisticsData) 카테고리 라벨과 일치 */
@@ -1294,11 +1300,9 @@ fun AddAppFlowHost(
                 )
             }
             if (showDailyTimeSheet) {
-                AppLimitSetupTimeBottomSheet(
-                    title = "하루 사용량을 지정해주세요",
-                    subtitle = "사용 시간을 너무 짧게 시작하면 역효과가 생겨요",
-                    steps = DAILY_TIME_STEPS,
-                    feedbackMessages = listOf(
+                val dailySteps = getDailyTimeSteps()
+                val dailyFeedback = if (DebugTestSettings.debugShow3MinDailyOption) {
+                    listOf(
                         "미리 써보기·테스트용으로 3분도 괜찮아요",
                         "3시간 제한도 훌륭한 출발이에요. 조금씩 줄여봐요!",
                         "넉넉하지만 그래도 제한하는 당신, 대단해요",
@@ -1306,8 +1310,23 @@ fun AddAppFlowHost(
                         "딱 필요한 만큼만, 현명한 선택이에요",
                         "하루 1시간 제한, 자기관리가 시작됐어요",
                         "하루 30분, 스마트폰과 거리두기의 첫걸음이에요",
-                    ),
-                    initialIndex = dailyLimitMinutes?.let { DAILY_TIME_STEPS.indexOf(it) }?.takeIf { it >= 0 } ?: 0,
+                    )
+                } else {
+                    listOf(
+                        "3시간 제한도 훌륭한 출발이에요. 조금씩 줄여봐요!",
+                        "넉넉하지만 그래도 제한하는 당신, 대단해요",
+                        "하루 2시간, 일상과 디지털의 균형점이에요",
+                        "딱 필요한 만큼만, 현명한 선택이에요",
+                        "하루 1시간 제한, 자기관리가 시작됐어요",
+                        "하루 30분, 스마트폰과 거리두기의 첫걸음이에요",
+                    )
+                }
+                AppLimitSetupTimeBottomSheet(
+                    title = "하루 사용량을 지정해주세요",
+                    subtitle = "사용 시간을 너무 짧게 시작하면 역효과가 생겨요",
+                    steps = dailySteps,
+                    feedbackMessages = dailyFeedback,
+                    initialIndex = dailyLimitMinutes?.let { dailySteps.indexOf(it) }?.takeIf { it >= 0 } ?: 0,
                     onDismissRequest = { showDailyTimeSheet = false },
                     onPrimaryClick = { _, mins ->
                         dailyLimitMinutes = mins
@@ -1334,7 +1353,9 @@ fun AddAppFlowHost(
         }
         AddAppStep.AA_DAILY_05 -> {
             val repo = remember { AppRestrictionRepository(context) }
-            LaunchedEffect(Unit) {
+            val coroutineScope = rememberCoroutineScope()
+            // 저장 로직: 버튼 탭 시에만 실행 (뒤로가기/종료 시 저장하지 않음)
+            val saveAndFinish: suspend (afterSave: () -> Unit) -> Unit = { afterSave ->
                 val mins = parseLimitMinutes(dailyLimitMinutes ?: "30분")
                 val baselineTime = System.currentTimeMillis()
                 selectedAppsForDaily.filter { it.packageName.isNotBlank() }.forEach { app ->
@@ -1354,21 +1375,36 @@ fun AddAppFlowHost(
                     AppMonitorService.start(context, map)
                 }
                 DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(context)
+                afterSave()
             }
             AddAppDailyLimitScreen05(
                 appName = selectedAppNames.joinToString(", ").ifEmpty { "앱" },
                 limitMinutes = dailyLimitMinutes ?: "30분",
                 onCompleteClick = {
-                    val firstPkg = selectedAppsForDaily.firstOrNull()?.packageName ?: ""
-                    if (firstPkg.isNotBlank()) onCompleteWithFirstPackage(firstPkg) else onComplete()
+                    coroutineScope.launch {
+                        val firstPkg = selectedAppsForDaily.firstOrNull()?.packageName ?: ""
+                        saveAndFinish {
+                            if (firstPkg.isNotBlank()) onCompleteWithFirstPackage(firstPkg) else onComplete()
+                        }
+                    }
                 },
                 onAddAnotherClick = {
+                    coroutineScope.launch {
+                        saveAndFinish {
+                            selectedAppNames = emptySet()
+                            selectedAppsForDaily = emptyList()
+                            dailyLimitMinutes = null
+                            step = AddAppStep.AA_DAILY_01
+                        }
+                    }
+                },
+                onBackClick = {
+                    // 뒤로가기 시 임시 데이터 초기화 후 플로우 종료 (저장하지 않음)
                     selectedAppNames = emptySet()
                     selectedAppsForDaily = emptyList()
                     dailyLimitMinutes = null
-                    step = AddAppStep.AA_DAILY_01
+                    onBackFromFirst()
                 },
-                onBackClick = { step = AddAppStep.AA_DAILY_01 },
             )
         }
         // 시간지정제한 플로우
@@ -1486,6 +1522,8 @@ fun AddAppFlowHost(
                 onSecondaryClick = {
                     selectedAppNames = emptySet()
                     selectedAppsForDaily = emptyList()
+                    selectedAppsForTime = emptyList()
+                    selectedTimeLimit = null
                     dailyLimitMinutes = null
                     step = AddAppStep.AA_DAILY_01
                 },

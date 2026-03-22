@@ -24,7 +24,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -211,7 +210,6 @@ fun AppLimitInfoBottomSheetDaily(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val repo = remember { ManualTimerRepository(context) }
-    val scope = rememberCoroutineScope()
     val logRepo = remember { AppLimitLogRepository() }
 
     fun launchApp() {
@@ -281,7 +279,7 @@ fun AppLimitInfoBottomSheetDaily(
                 // 카운트 정지: 세션 종료 후 바텀시트 자동 닫기
                 val totalUsageMs = repo.getTodayUsageMs(packageName)
                 repo.endSession(packageName)
-                scope.launch {
+                (context.applicationContext as? AptoxApplication)?.applicationScope?.launch {
                     logRepo.saveEvent(
                         FirebaseAuth.getInstance().currentUser?.uid,
                         packageName,
@@ -296,7 +294,7 @@ fun AppLimitInfoBottomSheetDaily(
             } else {
                 // 카운트 시작: 세션 시작 → 안내 팝업 → 확인 시 앱 실행
                 repo.startSession(packageName)
-                scope.launch {
+                (context.applicationContext as? AptoxApplication)?.applicationScope?.launch {
                     logRepo.saveEvent(
                         FirebaseAuth.getInstance().currentUser?.uid,
                         packageName,

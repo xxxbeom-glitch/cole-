@@ -32,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -69,6 +70,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
 import com.aptox.app.ui.components.AptoxToast
+import com.aptox.app.ui.components.LocalBottomBarHeight
 import com.google.firebase.auth.FirebaseAuth
 import android.app.usage.UsageStatsManager
 import android.content.Context
@@ -265,14 +267,8 @@ fun AppExplanationOnboardingScreen(
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = "앱 설명",
-            style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
-            textAlign = TextAlign.Center,
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-        Text(
-            text = "aptox로 건강한 스마트폰 사용을 시작해보세요",
-            style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
+            text = "디자인/개발 진행중",
+            style = AppTypography.HeadingH1.copy(color = AppColors.TextSecondary),
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(36.dp))
@@ -906,7 +902,7 @@ internal fun MainScreenMA01(
                 apps = restrictionItems,
                 onAddAppClick = onAddAppClick,
                 onDetailClick = onDetailClick,
-                addButtonText = "잠시만 멀어질 앱 추가하기",
+                addButtonText = "사용제한 앱 추가",
             )
         } else {
             MainCommentSection(
@@ -1166,6 +1162,17 @@ fun MainFlowHost(
     var showTermsSheet by remember { mutableStateOf(false) }
     var showPrivacySheet by remember { mutableStateOf(false) }
     var showNotificationOverlay by remember { mutableStateOf(false) }
+    var hasUnreadNotifications by remember { mutableStateOf(false) }
+
+    LaunchedEffect(firebaseAuthUid) {
+        if (firebaseAuthUid != null) {
+            NotificationRepository(context).hasUnreadNotificationsFlow(firebaseAuthUid).collect {
+                hasUnreadNotifications = it
+            }
+        } else {
+            hasUnreadNotifications = false
+        }
+    }
     var showSubscriptionGuide by remember { mutableStateOf(false) }
     var showAppLimitInfoSheet by remember { mutableStateOf(false) }
     var selectedAppForDetail by remember { mutableStateOf<MainAppRestrictionItem?>(null) }
@@ -1272,6 +1279,7 @@ fun MainFlowHost(
         else -> 122.dp
     }
 
+    CompositionLocalProvider(LocalBottomBarHeight provides bottomBarHeightDp) {
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -1291,18 +1299,18 @@ fun MainFlowHost(
                 when {
                     navIndex == 0 -> AptoxHeaderHome(
                         logo = painterResource(R.drawable.ic_logo),
-                        hasNotification = true,
+                        hasNotification = hasUnreadNotifications,
                         onNotificationClick = onNotificationClick,
                     )
                     navIndex == 1 -> AptoxHeaderTitleWithNotification(
                         title = "챌린지",
-                        hasNotification = true,
+                        hasNotification = hasUnreadNotifications,
                         modifier = Modifier.fillMaxWidth(),
                         onNotificationClick = onNotificationClick,
                     )
                     navIndex == 2 -> AptoxHeaderTitleWithNotification(
                         title = "통계",
-                        hasNotification = true,
+                        hasNotification = hasUnreadNotifications,
                         modifier = Modifier.fillMaxWidth(),
                         onNotificationClick = onNotificationClick,
                     )
@@ -1317,17 +1325,18 @@ fun MainFlowHost(
                             }
                         },
                         showNotification = true,
+                        hasNotification = hasUnreadNotifications,
                         modifier = Modifier.fillMaxWidth(),
                         onNotificationClick = onNotificationClick,
                     )
                     navIndex == 3 -> AptoxHeaderTitleWithNotification(
                         title = "설정",
-                        hasNotification = true,
+                        hasNotification = hasUnreadNotifications,
                         onNotificationClick = onNotificationClick,
                     )
                     else -> AptoxHeaderHome(
                         logo = painterResource(R.drawable.ic_logo),
-                        hasNotification = true,
+                        hasNotification = hasUnreadNotifications,
                         onNotificationClick = onNotificationClick,
                     )
                 }
@@ -1388,6 +1397,7 @@ fun MainFlowHost(
                                             authRepository.signInWithGoogle(context)
                                                 .onSuccess { withContext(Dispatchers.Main.immediate) { accountRefreshKey++ } }
                                                 .onFailure { e ->
+                                                    if (e is GetCredentialCancellationException) return@onFailure
                                                     if (e.cause is GetCredentialCancellationException) return@onFailure
                                                     toastMessage = "구글 로그인 실패: ${e.message}"
                                                 }
@@ -1439,6 +1449,7 @@ fun MainFlowHost(
                                 SettingsDetail.BugReport -> BugReportScreen(
                                     onBack = { settingsDetail = null },
                                     onSubmit = { title, content, imageUris ->
+                                        Log.d("Aptox", "버그신고 onSubmit: imageUris.size=${imageUris.size}")
                                         try {
                                             val urls = if (imageUris.isEmpty()) {
                                                 emptyList()
@@ -1456,6 +1467,7 @@ fun MainFlowHost(
                                                     throw RuntimeException(userMsg, up)
                                                 }
                                             }
+                                            Log.d("Aptox", "버그신고: uploadImages 완료 urls.size=${urls.size}")
                                             FirebaseFunctions.getInstance()
                                                 .getHttpsCallable("submitBugReport")
                                                 .withTimeout(60, TimeUnit.SECONDS)
@@ -1567,14 +1579,12 @@ fun MainFlowHost(
                     )
                 }
 
-            // Figma 가이드 AptoxToast — 바텀바·본문 위에 확실히 겹치도록 메인 Box 최상단
             AptoxToast(
                 message = toastMessage ?: "",
                 visible = toastMessage != null,
                 onDismiss = { toastMessage = null },
                 replayKey = toastReplayKey,
                 modifier = Modifier.align(Alignment.BottomCenter),
-                bottomOffsetDp = bottomBarHeightDp.coerceAtLeast(1.dp) + 26.dp,
             )
         }
 
@@ -1758,10 +1768,19 @@ fun MainFlowHost(
                 .fillMaxSize()
                 .background(AppColors.SurfaceBackgroundBackground),
         ) {
+            val markNotificationsRead: () -> Unit = {
+                if (firebaseAuthUid != null) {
+                    NotificationRepository(context).markAsChecked(firebaseAuthUid, System.currentTimeMillis())
+                }
+            }
             NotificationHistoryScreen(
                 userId = firebaseAuthUid,
-                onBack = { showNotificationOverlay = false },
+                onBack = {
+                    markNotificationsRead()
+                    showNotificationOverlay = false
+                },
                 onItemClick = { item ->
+                    markNotificationsRead()
                     showNotificationOverlay = false
                     navIndex = when {
                         item.navTarget == "statistics_weekly" || item.type == "weekly_report" -> 2
@@ -1793,5 +1812,6 @@ fun MainFlowHost(
         )
     }
 
-    }
+    } // Box
+    } // CompositionLocalProvider
 }

@@ -1,11 +1,15 @@
 package com.aptox.app
 
+import android.content.Context
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -13,8 +17,12 @@ import kotlinx.coroutines.tasks.await
  * 알림 내역 저장 및 실시간 스트림.
  */
 class NotificationRepository(
+    private val context: Context? = null,
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
 ) {
+    private val prefs by lazy {
+        context?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
 
     /**
      * 뱃지 획득 알림을 users/{userId}/notifications에 추가.
@@ -93,7 +101,40 @@ class NotificationRepository(
             body = body,
             badgeId = badgeId,
             navTarget = navTarget,
+            timestampMs = timestamp,
         )
+    }
+
+    /**
+     * 알림 내역 화면에서 "전부 확인" 시 호출.
+     * 마지막 확인 시각을 저장하여 이후 hasUnreadNotificationsFlow에서 미확인 알림 판별.
+     */
+    fun markAsChecked(userId: String?, maxTimestampMs: Long) {
+        if (userId.isNullOrBlank() || prefs == null) return
+        val key = "$KEY_LAST_CHECKED_PREFIX$userId"
+        prefs!!.edit().putLong(key, maxTimestampMs).commit()
+        Companion.markCheckedTrigger.tryEmit(Unit)
+    }
+
+    /**
+     * 미확인 알림 존재 여부. 알림 내역 화면에서 새 알림까지 전부 확인하면 false.
+     */
+    fun hasUnreadNotificationsFlow(userId: String?): Flow<Boolean> {
+        if (userId.isNullOrBlank() || prefs == null) return kotlinx.coroutines.flow.flowOf(false)
+        val key = "$KEY_LAST_CHECKED_PREFIX$userId"
+        return combine(
+            getNotificationsFlow(userId),
+            Companion.markCheckedTrigger.onStart { emit(Unit) },
+        ) { items, _ ->
+            val lastCheckedMs = prefs!!.getLong(key, 0L)
+            items.any { it.timestampMs > lastCheckedMs }
+        }
+    }
+
+    companion object {
+        private const val PREFS_NAME = "aptox_notification_check"
+        private const val KEY_LAST_CHECKED_PREFIX = "last_checked_"
+        private val markCheckedTrigger = MutableSharedFlow<Unit>(replay = 0)
     }
 
     private fun formatTimeAgo(timestampMs: Long): String {

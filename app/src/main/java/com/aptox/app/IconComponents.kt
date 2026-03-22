@@ -352,7 +352,7 @@ fun AppIconBox(
         modifier = modifier
             .size(size)
             .clip(maskShape)
-            .then(if (!force6dpClip) Modifier.border(AppIconBorderWidth, AppIconBorderColor, maskShape) else Modifier),
+            .border(AppIconBorderWidth, AppIconBorderColor, maskShape),
     ) {
         Icon(
             painter = appIcon,

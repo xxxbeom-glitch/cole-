@@ -75,25 +75,13 @@ fun AppRestrictionHistoryScreen(
     ) {
         Spacer(modifier = Modifier.height(24.dp))
         when {
-            userId == null -> {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = "로그인 후 확인할 수 있어요",
-                        style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
             packages.isEmpty() -> {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "앱 사용제한 기록이 없어요",
+                        text = "기록이 없어요",
                         style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
                         textAlign = TextAlign.Center,
                     )
@@ -143,18 +131,20 @@ private fun AppRestrictionHistoryRow(
         AppIconBox(
             appIcon = appIcon,
             size = 56.dp,
-            force6dpClip = true,
+            force6dpClip = false,
         )
         Text(
             text = appName,
             style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
             modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )
         Icon(
             painter = painterResource(R.drawable.ic_chevron_right),
             contentDescription = null,
             modifier = Modifier.size(24.dp),
-            tint = AppColors.TextPrimary,
+            tint = AppColors.TextSecondary,
         )
     }
 }
