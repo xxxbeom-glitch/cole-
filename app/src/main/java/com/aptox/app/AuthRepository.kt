@@ -130,7 +130,7 @@ class AuthRepository(
         val credentialResponse = try {
             credentialManager.getCredential(context = context, request = request)
         } catch (e: GetCredentialCancellationException) {
-            throw IllegalStateException("구글 로그인이 취소되었습니다.")
+            throw IllegalStateException("구글 로그인이 취소되었습니다.", e)
         }
 
         val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credentialResponse.credential.data)

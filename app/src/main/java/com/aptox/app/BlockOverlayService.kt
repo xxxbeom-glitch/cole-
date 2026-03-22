@@ -36,10 +36,23 @@ class BlockOverlayService : android.app.Service() {
     private var overlayView: View? = null
     private var windowManager: WindowManager? = null
     private var isDismissing = false
+    /** 현재 표시 중인 오버레이의 packageName (제한 해제 시 dismiss 판단용) */
+    private var currentOverlayPackageName: String? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // 제한 해제 시 해당 앱 오버레이 즉시 닫기
+        if (intent?.action == ACTION_DISMISS_IF_PACKAGE) {
+            val pkg = intent.getStringExtra(EXTRA_PACKAGE_NAME)
+            if (pkg != null && pkg == currentOverlayPackageName) {
+                dismiss()
+            } else {
+                stopSelf()
+            }
+            return START_NOT_STICKY
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             createNotificationChannel()
             val notification = createNotification()
@@ -141,13 +154,14 @@ class BlockOverlayService : android.app.Service() {
         }
         root.requestFocus()
         overlayView = root
+        currentOverlayPackageName = packageName
         windowManager?.addView(root, layoutParams)
     }
 
-    /** Figma 1159-4638: 카운트 미시작 — "앱을 사용하시려면 카운트 시작을 눌러주세요" + 카운트 시작 버튼 */
+    /** Figma 1159-4638: 카운트 미시작 — "앱을 사용하시려면 카운트 시작을 눌러주세요" H2 + body/medium */
     private fun buildCountNotStartedOverlay(packageName: String, appName: String): View {
-        val fontHeadingH2 = resources.getFont(R.font.suit_heading_h3)
-        val fontBodyMedium = resources.getFont(R.font.suit_button_large)
+        val fontHeadingH2 = resources.getFont(R.font.suit_heading_h2)
+        val fontBodyMedium = resources.getFont(R.font.suit_body_medium)
         val fontButtonLarge = resources.getFont(R.font.suit_button_large)
 
         val root = LinearLayout(this).apply {
@@ -212,9 +226,9 @@ class BlockOverlayService : android.app.Service() {
         return root
     }
 
-    /** Figma 1136-6361: 일일사용량 제한 — "오늘 사용가능한 시간을 전부 사용하셨어요" + 닫기 */
+    /** Figma 1136-6361: 일일사용량 제한 — "오늘 사용가능한 시간을 전부 사용하셨어요" H2 + 닫기 */
     private fun buildDailyUsageOverlay(packageName: String, appName: String): View {
-        val fontHeadingH2 = resources.getFont(R.font.suit_heading_h3)
+        val fontHeadingH2 = resources.getFont(R.font.suit_heading_h2)
         val fontButtonLarge = resources.getFont(R.font.suit_button_large)
 
         val root = LinearLayout(this).apply {
@@ -390,6 +404,7 @@ class BlockOverlayService : android.app.Service() {
         if (isDismissing) return
         isDismissing = true
         isRunning = false
+        currentOverlayPackageName = null
 
         overlayView?.let { view ->
             windowManager?.removeView(view)
@@ -417,6 +432,7 @@ class BlockOverlayService : android.app.Service() {
     override fun onDestroy() {
         isDismissing = false
         isRunning = false
+        currentOverlayPackageName = null
         overlayView?.let { view ->
             try { windowManager?.removeView(view) } catch (_: Exception) {}
         }
@@ -434,6 +450,8 @@ class BlockOverlayService : android.app.Service() {
         const val OVERLAY_STATE_COUNT_NOT_STARTED = "COUNT_NOT_STARTED"
         /** 일시정지 3단계 플로우 시작용 Intent action (1단계 제안 → 2단계 확인 → 3단계 완료) */
         const val ACTION_PAUSE_FLOW_FROM_OVERLAY = "com.aptox.app.PAUSE_FLOW_FROM_OVERLAY"
+        /** 제한 해제 시 해당 앱 오버레이 닫기 요청 */
+        const val ACTION_DISMISS_IF_PACKAGE = "com.aptox.app.DISMISS_IF_PACKAGE"
         /** AppMonitorService에서 중복 실행 방지용 플래그 */
         @JvmField
         var isRunning: Boolean = false

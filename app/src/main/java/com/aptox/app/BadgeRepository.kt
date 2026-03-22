@@ -77,6 +77,14 @@ class BadgeRepository(
         context?.let { ctx ->
             GoalAchievementNotificationHelper.send(ctx, badge.title)
         }
+        runCatching {
+            NotificationRepository().saveBadgeNotification(
+                userId = userId,
+                badgeId = badgeId,
+                title = badge.title,
+                body = "지금 바로 메달을 확인하세요",
+            )
+        }
         Unit
     }.onFailure { e ->
         if (badgeId == "badge_001") Log.e(TAG, "grantBadge Firestore 실패 badge_001", e)

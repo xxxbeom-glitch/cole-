@@ -3,6 +3,8 @@ package com.aptox.app
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,7 +26,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,60 +40,56 @@ import androidx.compose.ui.unit.dp
 
 /**
  * 알림 내역 데이터 모델 (Figma 1068-3998)
- * - typeLabel: 챌린지 성공, WARNING 등
+ * - type: Firestore 저장 타입 ("badge" 등)
+ * - typeLabel: 화면 표시용 ("챌린지 성공", WARNING 등)
  * - timeText: 방금, 10분 전 등
  * - title: 첫 줄 메시지
  * - body: 둘째 줄 메시지 (선택)
+ * - badgeId: 뱃지 알림 시 badgeId (탭 시 뱃지 화면 이동용)
  */
 data class NotificationHistoryItem(
+    val type: String,
     val typeLabel: String,
     val timeText: String,
     val title: String,
     val body: String? = null,
+    val badgeId: String? = null,
+    /** 알림 탭 시 이동 대상 (예: statistics_weekly) */
+    val navTarget: String? = null,
 )
 
-private val SampleNotificationTemplates = listOf(
-    NotificationHistoryItem(
-        typeLabel = "챌린지 성공",
-        timeText = "방금",
-        title = "절제의 길 챌린지 성공",
-        body = "지금 바로 메달을 확인하세요",
-    ),
-    NotificationHistoryItem(
-        typeLabel = "WARNING",
-        timeText = "방금",
-        title = "인스타그램 일시정지 기능이 3분 남았어요.",
-        body = null,
-    ),
-    NotificationHistoryItem(
-        typeLabel = "챌린지 성공",
-        timeText = "방금",
-        title = "절제의 길 챌린지 성공",
-        body = "지금 바로 메달을 확인하세요",
-    ),
-)
-
-/** 리스트 UI 테스트용 샘플 데이터 (Figma 1068-3998 참조). count만큼 반복하여 반환 */
-fun sampleNotificationHistoryItems(count: Int): List<NotificationHistoryItem> =
-    if (count <= 0) emptyList()
-    else List(count) { SampleNotificationTemplates[it % SampleNotificationTemplates.size] }
+// [레거시] 샘플 데이터 — Firestore 실시간 연동으로 대체됨
+// fun sampleNotificationHistoryItems(count: Int): List<NotificationHistoryItem> = ...
 
 private val NotificationCardShape = RoundedCornerShape(12.dp)
 private val NotificationCardShadowColor = Color.Black.copy(alpha = 0.06f)
 
 /**
  * 알림 내역 화면 (Figma 1068-3998, 1068-4394)
+ * - Firestore users/{userId}/notifications 실시간 구독
  * - 헤더: 뒤로가기 + "알림" + 알림 아이콘
- * - 리스트: 카드 형태, 18dp 간격
+ * - 리스트: 카드 형태, 18dp 간격, 탭 시 onItemClick 호출
  * - 빈 상태: "받은 알림 내역이 없어요" 중앙 표시
+ * - 로딩: 중앙 CircularProgressIndicator
  */
 @Composable
 fun NotificationHistoryScreen(
-    items: List<NotificationHistoryItem>,
+    userId: String?,
     onBack: () -> Unit,
+    onItemClick: (NotificationHistoryItem) -> Unit = {},
     onNotificationSettingsClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    val repo = remember { NotificationRepository() }
+    var items by remember { mutableStateOf<List<NotificationHistoryItem>?>(null) }
+
+    LaunchedEffect(userId) {
+        if (userId != null) {
+            repo.getNotificationsFlow(userId).collect { items = it }
+        } else {
+            items = emptyList()
+        }
+    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -128,35 +128,55 @@ fun NotificationHistoryScreen(
             Spacer(modifier = Modifier.size(36.dp))
         }
 
-        if (items.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "받은 알림 내역이 없어요",
-                    style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 40.dp),
-                )
+        when {
+            items == null && userId != null -> {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        color = AppColors.Primary300,
+                        modifier = Modifier.size(48.dp),
+                    )
+                }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = 24.dp,
-                    bottom = 80.dp,
-                ),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
-            ) {
-                items(items) { item ->
-                    NotificationHistoryCard(item = item)
+            items.isNullOrEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "받은 알림 내역이 없어요",
+                        style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 40.dp),
+                    )
+                }
+            }
+            else -> {
+                val list = items!!
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 24.dp,
+                        bottom = 80.dp,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                ) {
+                    items(list) { item ->
+                        NotificationHistoryCard(
+                            item = item,
+                            onClick = { onItemClick(item) },
+                        )
+                    }
                 }
             }
         }
@@ -166,6 +186,7 @@ fun NotificationHistoryScreen(
 @Composable
 private fun NotificationHistoryCard(
     item: NotificationHistoryItem,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -174,6 +195,11 @@ private fun NotificationHistoryCard(
             .shadow(6.dp, NotificationCardShape, false, NotificationCardShadowColor, NotificationCardShadowColor)
             .clip(NotificationCardShape)
             .background(AppColors.SurfaceBackgroundCard)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
             .padding(horizontal = 16.dp, vertical = 26.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {

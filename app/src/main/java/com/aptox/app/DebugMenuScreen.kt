@@ -219,12 +219,8 @@ private fun DebugScreenPreview(
         DebugScreen.AddAppDaily01 -> AddAppDailyLimitScreen01(
             selectedAppNames = emptySet(),
             selectedDailyMinutes = null,
-            selectedDays = emptySet(),
-            selectedDuration = null,
             onAppRowClick = { },
             onTimeRowClick = { },
-            onDaysRowClick = { },
-            onDurationRowClick = { },
             onNextClick = { onBack() },
             onBackClick = onBack,
         )
@@ -238,16 +234,12 @@ private fun DebugScreenPreview(
         )
         DebugScreen.AddAppDaily04 -> AddAppDailyLimitScreen04(
             limitMinutes = "1시간",
-            selectedDaysText = "월, 화, 수, 목",
-            duration = "4주",
             onConfirmClick = onBack,
             onBackClick = onBack,
         )
         DebugScreen.AddAppDaily05 -> AddAppDailyLimitScreen05(
             appName = "인스타그램",
             limitMinutes = "1시간 30분",
-            selectedDaysText = "월, 화, 수, 목",
-            duration = "4주",
             onCompleteClick = onBack,
             onAddAnotherClick = onBack,
             onBackClick = onBack,
@@ -1535,7 +1527,7 @@ private fun DebugTestSettingsSection() {
         var showProgressResult by remember { mutableStateOf<String?>(null) }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(text = "달성 조건 수치 조작", style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary))
-            Text(text = "누적/연속 달성일을 반영 후 badge_002~006 지급 조건만 시도합니다. (실제 로직은 BadgeAutoGrant + 자정 리셋)", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
+            Text(text = "누적 달성일을 반영 후 badge_004~009 지급 조건만 시도합니다. (실제 로직은 BadgeAutoGrant + 자정 리셋)", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(text = "누적 달성일", style = AppTypography.Caption1.copy(color = AppColors.TextBody), modifier = Modifier.widthIn(min = 80.dp))
                 BasicTextField(value = accumInput, onValueChange = { if (it.all { c -> c.isDigit() }) accumInput = it }, modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(AppColors.Grey150).padding(12.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
@@ -1566,7 +1558,25 @@ private fun DebugTestSettingsSection() {
         }
         DebugDivider()
 
-        // 6. 뱃지 전체 초기화
+        // 6. 앱 사용제한 기록 초기화
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(text = "앱 사용제한 기록 초기화", style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary))
+            Text(text = "Firestore users/{userId}/appLimitLogs 전체 삭제. 설정 > 앱 사용제한 기록 화면에서 보이는 타임라인 데이터를 초기화합니다.", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
+            AptoxPrimaryButton(
+                text = "앱 사용제한 기록 초기화",
+                onClick = {
+                    val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: return@AptoxPrimaryButton
+                    scope.launch {
+                        runCatching { AppLimitLogRepository().clearAll(uid) }
+                        AppLimitLogRepository.clearTimeoutPrefs(context)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        DebugDivider()
+
+        // 7. 뱃지 전체 초기화
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(text = "뱃지 전체 초기화", style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary))
             Text(text = "Firestore users/{userId}/badges 전체 삭제 + badgeProgress 리셋. 처음부터 다시 테스트할 때 사용.", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))

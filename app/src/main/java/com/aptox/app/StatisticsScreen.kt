@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,6 +54,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -62,6 +64,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.painterResource
 import com.aptox.app.ui.components.AptoxToast
+import com.aptox.app.usage.UsageStatsLocalRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -218,7 +221,7 @@ fun StatisticsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
-                .padding(top = 24.dp, bottom = 24.dp)
+                .padding(top = 24.dp, bottom = 32.dp)
                 .windowInsetsPadding(WindowInsets.navigationBars),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
@@ -235,7 +238,12 @@ fun StatisticsScreen(
             },
         )
 
-        StatsInsightCard(tabEnum = tabEnum)
+        StatsInsightCard(
+            tabEnum = tabEnum,
+            weekOffset = weekOffsetDateChart,
+            monthOffset = monthOffsetDateChart,
+            yearOffset = yearOffsetDateChart,
+        )
         StatsDateChartSection(
             tabEnum = tabEnum,
             weekOffset = weekOffsetDateChart,
@@ -265,8 +273,7 @@ fun StatisticsScreen(
             yearOffset = yearOffsetComparison,
             onYearChange = { yearOffsetComparison = it },
         )
-        // 맨 아래 스크롤 시 바텀바에 가려지지 않도록 여백 추가
-        Spacer(modifier = Modifier.height(100.dp))
+        // 맨 아래 스크롤 시 바텀바로부터 32dp 여백 (padding bottom으로 적용)
     }
 
         AptoxToast(
@@ -334,21 +341,30 @@ private fun StatsCardHelpBottomSheet(
     }
 }
 
-/** Brief 카드 탭별 제목/본문/통계 라벨 */
+/** Brief API 호출용 기간 파라미터 */
+private data class BriefPeriodParams(
+    val cacheKey: String,
+    val startMs: Long,
+    val endMs: Long,
+    val periodLabel: String,
+    val divideByDays: Int,
+)
+
+/** Brief 카드 탭별 기본 제목 (API 실패 시 폴백, 본문은 Claude API로 생성) */
 private val BriefContentByTab = mapOf(
     StatisticsData.Tab.WEEKLY to Triple(
         "지난주와 비슷한 한 주예요",
-        "지난주와 비슷한 패턴이에요. 꾸준히 유지하고 있다는 것 자체가 대단해요. 한 가지만 더 개선한다면 저녁 시간대 사용을 줄여보세요.",
+        "",
         "연속 달성일" to "56일",
     ),
     StatisticsData.Tab.MONTHLY to Triple(
         "지난달과 비슷한 한 달이에요",
-        "지난달과 비슷한 패턴이에요. 꾸준히 유지하고 있다는 것 자체가 대단해요. 한 가지만 더 개선한다면 월 중순 사용을 줄여보세요.",
+        "",
         "연속 달성주" to "8주",
     ),
     StatisticsData.Tab.YEARLY to Triple(
         "지난해와 비슷한 한 해예요",
-        "지난해와 비슷한 패턴이에요. 꾸준히 유지하고 있다는 것 자체가 대단해요. 한 가지만 더 개선한다면 분기별 사용을 줄여보세요.",
+        "",
         "연속 달성달" to "6달",
     ),
 )
@@ -357,21 +373,123 @@ private val BriefContentByTab = mapOf(
  * Figma 926:8043 Brief 카드
  * - 카드: 흰 배경, primary-300 테두리
  * - 상단: Brief + 제목 (gap 2dp), 본문 (gap 12dp)
- * - 하단 통계 박스: Grey100 배경, 연속 달성일/주/달·달성율·유지율
+ * - Claude API로 총평 생성 (주간/월간/연간), 캐시 키: 주간=yyyyMMdd, 월간=yyyyMM, 연간=yyyy
  */
 @Composable
 private fun StatsInsightCard(
     tabEnum: StatisticsData.Tab = StatisticsData.Tab.WEEKLY,
+    weekOffset: Int = 0,
+    monthOffset: Int = 0,
+    yearOffset: Int = 0,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     val content = BriefContentByTab[tabEnum] ?: BriefContentByTab[StatisticsData.Tab.WEEKLY]!!
-    val (title, body, statPair) = content
+    val (defaultTitle, _, statPair) = content
     val (stat1Label, stat1Value) = statPair
     val effectiveStat1Value = when {
         tabEnum == StatisticsData.Tab.WEEKLY && DebugTestSettings.debugWeeklyChallengeDays != null ->
             "${DebugTestSettings.debugWeeklyChallengeDays}일"
         else -> stat1Value
     }
+
+    var briefTitle by remember { mutableStateOf<String?>(null) }
+    var briefBody by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(tabEnum, weekOffset, monthOffset, yearOffset) {
+        val (cacheKey, startMs, endMs, periodLabel, divideByDays) = when (tabEnum) {
+            StatisticsData.Tab.WEEKLY -> {
+                val usedOffset = -1 // 지난주 고정
+                val (s, e, _) = StatisticsData.getWeekRange(usedOffset)
+                BriefPeriodParams(UsageStatsLocalRepository.msToYyyyMmDd(s), s, e, "주간", 0)
+            }
+            StatisticsData.Tab.MONTHLY -> {
+                val (s, e, _) = StatisticsData.getSingleMonthRange(monthOffset)
+                val cal = java.util.Calendar.getInstance().apply { timeInMillis = s }
+                val yyyyMM = "%04d%02d".format(cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1)
+                BriefPeriodParams(yyyyMM, s, e, "월간", 30)
+            }
+            StatisticsData.Tab.YEARLY -> {
+                val (s, e, _) = StatisticsData.getYearRange(yearOffset)
+                val cal = java.util.Calendar.getInstance().apply { timeInMillis = s }
+                val yyyy = cal.get(java.util.Calendar.YEAR).toString()
+                BriefPeriodParams(yyyy, s, e, "연간", 365)
+            }
+            else -> {
+                briefTitle = null
+                briefBody = null
+                return@LaunchedEffect
+            }
+        }
+        val fullCacheKey = "${tabEnum.name}_$cacheKey"
+        BriefSummaryCache.get(context, fullCacheKey)?.let { entry ->
+            briefTitle = entry.title
+            briefBody = entry.body
+            return@LaunchedEffect
+        }
+        briefBody = "분석 중..."
+        val cacheHitAfterWait = BriefSummaryPreloader.waitForPreloadIfNeeded(context, fullCacheKey, 30_000L)
+        if (cacheHitAfterWait) {
+            BriefSummaryCache.get(context, fullCacheKey)?.let { entry ->
+                briefTitle = entry.title
+                briefBody = entry.body
+                return@LaunchedEffect
+            }
+        }
+        val result = withContext(Dispatchers.IO) {
+            val (dateMinutes, dateLabels) = when (tabEnum) {
+                StatisticsData.Tab.WEEKLY -> {
+                    val dm = StatisticsData.loadDayOfWeekMinutes(context, startMs, endMs)
+                    dm to listOf("월", "화", "수", "목", "금", "토", "일")
+                }
+                StatisticsData.Tab.MONTHLY -> {
+                    val dm = StatisticsData.loadDayOfMonthMinutes(context, startMs, endMs)
+                    dm to dm.indices.map { "${it + 1}일" }
+                }
+                StatisticsData.Tab.YEARLY -> {
+                    val (ranges, labels) = StatisticsData.getYearRanges(yearOffset)
+                    val dm = StatisticsData.loadYearsMinutes(context, ranges)
+                    dm to labels
+                }
+                else -> emptyList<Long>() to emptyList()
+            }
+            val appList = StatisticsData.loadAppUsageForAllowedCategories(context, startMs, endMs)
+            val usageByCategory = appList
+                .filter { it.categoryTag != null }
+                .groupBy { it.categoryTag!! }
+                .mapValues { (_, apps) -> apps.sumOf { it.usageMs } }
+            val total = usageByCategory.values.sum()
+            val segments = if (total > 0L) {
+                usageByCategory
+                    .toList()
+                    .sortedByDescending { it.second }
+                    .map { (cat, ms) -> cat to (ms.toFloat() / total * 100) }
+            } else emptyList()
+            val timeSlotMinutes = StatisticsData.loadTimeSlot12Minutes(context, startMs, endMs, divideByDays)
+            ClaudeRepository().generateBriefSummaryWithTitle(
+                periodLabel = periodLabel,
+                dateMinutes = dateMinutes,
+                dateLabels = dateLabels,
+                segments = segments,
+                timeSlotMinutes = timeSlotMinutes,
+            )
+        }
+        result.fold(
+            onSuccess = { (title, body) ->
+                BriefSummaryCache.put(context, fullCacheKey, BriefSummaryCache.Entry(title, body))
+                briefTitle = title
+                briefBody = body
+            },
+            onFailure = {
+                briefTitle = null
+                briefBody = null
+            },
+        )
+    }
+
+    val displayTitle = briefTitle ?: defaultTitle
+    val showBody = briefBody != null
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -392,16 +510,21 @@ private fun StatsInsightCard(
                     style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
                 )
                 Text(
-                    text = title,
+                    text = displayTitle,
                     style = AppTypography.HeadingH2.copy(color = AppColors.TextPrimary),
                 )
             }
-            Text(
-                text = body,
-                style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
-            )
+            if (showBody) {
+                AptoxInfoBoxCompactNewDesign(
+                    text = briefBody!!,
+                    maxLines = Int.MAX_VALUE,
+                    contentPaddingHorizontal = 16.dp,
+                    contentPaddingVertical = 18.dp,
+                )
+            }
         }
-        StatsInsightStatBox(stat1Label = stat1Label, stat1Value = effectiveStat1Value)
+        // StatsInsightStatBox(연속 달성일~달성율~유지율) 일단 숨김
+        // StatsInsightStatBox(stat1Label = stat1Label, stat1Value = effectiveStat1Value)
     }
 }
 
@@ -559,15 +682,8 @@ private fun StatsDateChartSection(
             }
             else -> {}
         }
-        val dateChartInsight = remember(tabEnum, dayMinutes, dayOfMonthMinutes, yearMinutes, yearLabels, weekOffset, monthOffset, yearOffset) {
-            formatDateChartInsight(tabEnum, dayMinutes, dayOfMonthMinutes, yearMinutes, yearLabels, weekOffset, monthOffset, yearOffset)
-        }
-        AptoxInfoBoxCompactNewDesign(
-            text = dateChartInsight,
-            maxLines = 2,
-            contentPaddingHorizontal = 16.dp,
-            contentPaddingVertical = 18.dp,
-        )
+        // 보라색 텍스트 박스 숨김
+        // AptoxInfoBoxCompactNewDesign(text = dateChartInsight, ...)
     }
 }
 
@@ -1341,12 +1457,25 @@ private fun StatsStackedBarAndAppList(
                     .clip(RoundedCornerShape(6.dp)),
             ) {
                 segments.forEach { (label, pct) ->
+                    val interactionSource = remember(label) { MutableInteractionSource() }
+                    var isPressed by remember { mutableStateOf(false) }
+                    LaunchedEffect(interactionSource) {
+                        interactionSource.interactions.collect { interaction ->
+                            when (interaction) {
+                                is PressInteraction.Press -> isPressed = true
+                                is PressInteraction.Release, is PressInteraction.Cancel -> isPressed = false
+                                else -> {}
+                            }
+                        }
+                    }
+                    val baseColor = CategoryColors[label] ?: Color.Gray
+                    val displayColor = if (isPressed) lerp(baseColor, Color.Black, 0.08f) else baseColor
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
                             .weight((pct / 100f).coerceAtLeast(0.02f))
-                            .background(CategoryColors[label] ?: Color.Gray)
-                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { selectedCategory = if (selectedCategory == label) null else label },
+                            .background(displayColor)
+                            .clickable(interactionSource = interactionSource, indication = null) { selectedCategory = if (selectedCategory == label) null else label },
                     )
                 }
             }
@@ -1356,18 +1485,31 @@ private fun StatsStackedBarAndAppList(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(0.dp),
         ) {
-            segments.chunked(3).forEachIndexed { columnIndex, chunk ->
+                segments.chunked(3).forEachIndexed { columnIndex, chunk ->
                 val isLeft = columnIndex == 0
                 Column(
                     modifier = Modifier.width(148.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     chunk.forEach { (label, pct) ->
+                        val interactionSource = remember(label) { MutableInteractionSource() }
+                        var isPressed by remember { mutableStateOf(false) }
+                        LaunchedEffect(interactionSource) {
+                            interactionSource.interactions.collect { interaction ->
+                                when (interaction) {
+                                    is PressInteraction.Press -> isPressed = true
+                                    is PressInteraction.Release, is PressInteraction.Cancel -> isPressed = false
+                                    else -> {}
+                                }
+                            }
+                        }
+                        val baseColor = CategoryColors[label] ?: Color.Gray
+                        val displayColor = if (isPressed) lerp(baseColor, Color.Black, 0.08f) else baseColor
                         Row(
                             modifier = Modifier
                                 .width(148.dp)
                                 .padding(start = if (isLeft) 8.dp else 22.dp, end = if (isLeft) 22.dp else 8.dp)
-                                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { selectedCategory = if (selectedCategory == label) null else label },
+                                .clickable(interactionSource = interactionSource, indication = null) { selectedCategory = if (selectedCategory == label) null else label },
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
@@ -1379,7 +1521,7 @@ private fun StatsStackedBarAndAppList(
                                     modifier = Modifier
                                         .size(6.dp)
                                         .clip(RoundedCornerShape(3.dp))
-                                        .background(CategoryColors[label] ?: Color.Gray),
+                                        .background(displayColor),
                                 )
                                 Text(
                                     text = label,
@@ -1413,13 +1555,6 @@ private fun StatsStackedBarAndAppList(
             }
         }
 
-        if (selectedCategory != null) {
-            Text(
-                text = "$selectedCategory 카테고리 앱",
-                style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
-                modifier = Modifier.padding(bottom = 4.dp),
-            )
-        }
         Column(verticalArrangement = Arrangement.spacedBy(StatsCardListItemSpacing)) {
             filteredApps.take(6).forEach { app ->
                 StatsAppRow(
@@ -1430,13 +1565,8 @@ private fun StatsStackedBarAndAppList(
                 )
             }
         }
-        val categoryInsight = remember(segments) { formatCategoryStatsInsight(segments) }
-        AptoxInfoBoxCompactNewDesign(
-            text = categoryInsight,
-            maxLines = 2,
-            contentPaddingHorizontal = 16.dp,
-            contentPaddingVertical = 18.dp,
-        )
+        // 보라색 텍스트 박스 숨김
+        // AptoxInfoBoxCompactNewDesign(text = categoryInsight, ...)
     }
 }
 
@@ -1598,16 +1728,8 @@ private fun StatsTimeSlotSection(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        AptoxInfoBoxCompactNewDesign(
-            text = when (tabEnum) {
-                StatisticsData.Tab.WEEKLY -> "지난주와 비슷한 패턴이에요. 꾸준히 유지하고 있다는 것 자체가 대단해요. 한 가지만 더 개선한다면 저녁 시간대 사용을 줄여보세요."
-                StatisticsData.Tab.MONTHLY -> "이번 달 시간대별 사용 패턴이에요. 어떤 시간에 가장 많이 쓰는지 확인해보세요."
-                StatisticsData.Tab.YEARLY -> "올해 시간대별 사용 패턴이에요. 습관적인 사용 시간대를 확인해보세요."
-                else -> "시간대별 사용 패턴을 확인해보세요."
-            },
-            contentPaddingHorizontal = 16.dp,
-            contentPaddingVertical = 18.dp,
-        )
+        // 보라색 텍스트 박스 숨김
+        // AptoxInfoBoxCompactNewDesign(text = ..., ...)
     }
 }
 

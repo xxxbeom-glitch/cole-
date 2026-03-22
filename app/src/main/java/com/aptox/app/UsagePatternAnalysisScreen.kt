@@ -133,8 +133,8 @@ fun UsagePatternAnalysisScreen(
         card1Show = true
         card2Show = true
         card3Show = true
-        // 2.8초 대기 후 카드 하나씩 사라지며 다음 페이지로
-        delay(2800)
+        // 4초 대기 후 카드 하나씩 사라지며 다음 페이지로
+        delay(4000)
         card1Show = false
         delay(350)
         card2Show = false
@@ -177,7 +177,7 @@ fun UsagePatternAnalysisScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             Text(
-                                text = "${userName}님의",
+                                text = "${userName}의 일주일간",
                                 style = AppTypography.Display3.copy(color = AppColors.TextPrimary),
                                 textAlign = TextAlign.Center,
                             )
@@ -291,7 +291,8 @@ fun UsagePatternAnalysisScreen(
                     CenterPhase.START_BUTTON -> Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .windowInsetsPadding(WindowInsets.navigationBars),
+                            .windowInsetsPadding(WindowInsets.navigationBars)
+                            .padding(bottom = 24.dp),
                         verticalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Spacer(modifier = Modifier.height(0.dp))

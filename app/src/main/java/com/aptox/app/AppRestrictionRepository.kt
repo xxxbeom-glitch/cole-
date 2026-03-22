@@ -21,6 +21,10 @@ class AppRestrictionRepository(private val context: Context) {
             Log.d(TAG, "badge_001 트리거: 최초 앱 제한 저장 (package=${restriction.packageName}) → onFirstRestrictionSaved 호출")
             BadgeAutoGrant.onFirstRestrictionSaved(context.applicationContext)
         }
+        if (list.size >= 2) {
+            Log.d(TAG, "badge_003 트리거: 제한 앱 2개 이상 등록 (package=${restriction.packageName}, count=${list.size})")
+            BadgeAutoGrant.onSecondRestrictionSaved(context.applicationContext)
+        }
     }
 
     fun getAll(): List<AppRestriction> = deserialize(prefs.getString(KEY_RESTRICTIONS, null))

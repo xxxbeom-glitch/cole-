@@ -43,12 +43,18 @@ public class AppMonitorService extends Service {
         startForeground(NOTIFICATION_ID, buildInitialNotification());
 
         boolean clearForegroundPkg = intent != null && intent.getBooleanExtra(EXTRA_CLEAR_FOREGROUND_PKG, false);
-        Map<String, Integer> restrictionMap = intent != null
+        String releasedPackage = intent != null ? intent.getStringExtra(EXTRA_RELEASED_PACKAGE) : null;
+        Map<String, Integer> restrictionMap = intent != null && intent.hasExtra(EXTRA_RESTRICTION_MAP)
             ? parseRestrictionMap(intent.getStringExtra(EXTRA_RESTRICTION_MAP))
-            : Collections.emptyMap();
+            : null;
 
-        if (!restrictionMap.isEmpty()) {
+        if (restrictionMap != null) {
             currentRestrictionMap = restrictionMap;
+        }
+        // 제한 해제 시 해당 앱 타이머 세션 즉시 종료 (SharedPreferences apply 비동기 race 방지)
+        if (releasedPackage != null && !releasedPackage.isEmpty()) {
+            new ManualTimerRepository(this).endSession(releasedPackage);
+            Log.d(TAG, "제한 해제 수신: " + releasedPackage + " 타이머 세션 종료 후 노티 갱신");
         }
         lastCheckedTime = System.currentTimeMillis();
         Log.d(TAG, "서비스 시작/갱신 | restrictionMap=" + currentRestrictionMap + " clearFg=" + clearForegroundPkg);
@@ -68,6 +74,8 @@ public class AppMonitorService extends Service {
             }
             scheduleEventCheck();
             scheduleNotificationUpdate();
+            // 제한 해제 등 restriction map 변경 시 1초 대기 없이 즉시 알림 상태 반영
+            updateNotificationIfCounting();
         }
         return START_STICKY;
     }
@@ -323,6 +331,12 @@ public class AppMonitorService extends Service {
             if (r.getPackageName().equals(pkg)) { restriction = r; break; }
         }
 
+        // 제한 해제된 앱(restriction 삭제됨)은 차단하지 않음
+        if (restriction == null) {
+            Log.d(TAG, "제한 해제된 앱 - 차단 건너뜀: " + pkg);
+            return;
+        }
+
         boolean shouldBlock = false;
         String overlayState = BlockOverlayService.OVERLAY_STATE_USAGE_EXCEEDED;
         if (restriction != null && restriction.getBlockUntilMs() > 0) {
@@ -352,9 +366,12 @@ public class AppMonitorService extends Service {
                 shouldBlock = true;
                 overlayState = BlockOverlayService.OVERLAY_STATE_COUNT_NOT_STARTED;
             } else if (todayUsageMs >= limitMs) {
-                // 카운트 진행 중 + 사용량 초과: 차단
+                // 카운트 진행 중 + 사용량 초과: 차단 (timeout 이벤트 기록)
                 shouldBlock = true;
                 overlayState = BlockOverlayService.OVERLAY_STATE_USAGE_EXCEEDED;
+                if (restriction != null) {
+                    AppLimitLogRepository.saveTimeoutEventIfNeeded(this, pkg, restriction.getAppName());
+                }
             } else {
                 // 카운트 진행 중 + 사용량 여유: 사용 허용
                 shouldBlock = false;
@@ -436,6 +453,8 @@ public class AppMonitorService extends Service {
     private static final String SEP_KV = ":";
     public static final String EXTRA_RESTRICTION_MAP = "restriction_map";
     public static final String EXTRA_CLEAR_FOREGROUND_PKG = "clear_foreground_pkg";
+    /** 제한 해제된 패키지. 해당 앱 타이머 세션 즉시 종료 후 노티 갱신 */
+    public static final String EXTRA_RELEASED_PACKAGE = "released_package";
     /** MainActivity로 바텀시트 오픈 요청용 extra (카운트 중지/시작 버튼에서 앱 실행 후 바텀시트 열기) */
     public static final String EXTRA_OPEN_BOTTOM_SHEET = "open_bottom_sheet";
 
@@ -452,8 +471,15 @@ public class AppMonitorService extends Service {
     }
 
     public static void start(Context context, Map<String, Integer> restrictionMap, boolean clearForegroundPkg) {
+        start(context, restrictionMap, clearForegroundPkg, null);
+    }
+
+    /**
+     * 제한 해제 후 호출. releasedPackage 전달 시 해당 앱 타이머 세션 즉시 종료 후 노티 갱신.
+     */
+    public static void start(Context context, Map<String, Integer> restrictionMap, boolean clearForegroundPkg, String releasedPackage) {
         Intent intent = new Intent(context, AppMonitorService.class);
-        if (restrictionMap != null && !restrictionMap.isEmpty()) {
+        if (restrictionMap != null) {
             StringBuilder sb = new StringBuilder();
             for (Map.Entry<String, Integer> e : restrictionMap.entrySet()) {
                 if (sb.length() > 0) sb.append(SEP_ITEM);
@@ -463,6 +489,9 @@ public class AppMonitorService extends Service {
         }
         if (clearForegroundPkg) {
             intent.putExtra(EXTRA_CLEAR_FOREGROUND_PKG, true);
+        }
+        if (releasedPackage != null && !releasedPackage.isEmpty()) {
+            intent.putExtra(EXTRA_RELEASED_PACKAGE, releasedPackage);
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(intent);

@@ -3,17 +3,17 @@
     "badge_001": {
       "id": "badge_001",
       "order": 1,
-      "title": "첫 걸음",
+      "title": "첫 시작",
       "description": "디지털 디톡스의 시작",
-      "condition": "제한 앱 처음 등록했을 때 자동 지급",
+      "condition": "제한 앱 처음 등록했을 때",
       "icon": "ico_level1",
       "message": "시작이 반이에요. 잘 하고 있어요!"
     },
     "badge_002": {
       "id": "badge_002",
       "order": 2,
-      "title": "첫 시작",
-      "description": "첫 번째 카운트를 시작했어요",
+      "title": "절제의 길",
+      "description": "제한 설정을 일주일 연속 지켰어요",
       "condition": "카운트 시작 버튼 처음 눌렀을 때",
       "icon": "ico_level2",
       "message": "첫 카운트를 눌렀군요. 이제 진짜 시작이에요!"
@@ -22,8 +22,8 @@
       "id": "badge_003",
       "order": 3,
       "title": "절제 완성",
-      "description": "절제가 습관이 된 사람",
-      "condition": "30일 연속 목표 달성",
+      "description": "제한 설정을 한 달 연속 지켰어요",
+      "condition": "제한 앱 2개 이상 등록됐을 때",
       "icon": "ico_level3",
       "message": "한 달을 해냈어요. 당신은 이미 달라졌어요!"
     },
@@ -57,110 +57,110 @@
     "badge_007": {
       "id": "badge_007",
       "order": 7,
-      "title": "첫 절약",
-      "description": "오늘의 첫 절약 성공",
-      "condition": "오늘 제한 시간 안에 처음 끝냈을 때",
+      "title": "의지의 증명",
+      "description": "목표 달성을 꾸준히 이어가고 있어요",
+      "condition": "목표 달성한 날 누적 60일",
       "icon": "ico_level7",
-      "message": "시간을 아꼈어요. 그 시간이 당신 것이에요!"
+      "message": "60일이 쌓였어요. 절제가 생활이 되었어요!"
     },
     "badge_008": {
       "id": "badge_008",
       "order": 8,
-      "title": "여유로운 절제",
-      "description": "여유있게 절제하고 있어요",
-      "condition": "제한 시간의 10% 이상 남기고 끝냈을 때",
+      "title": "의지의 결실",
+      "description": "100일의 기록을 만들어냈어요",
+      "condition": "목표 달성한 날 누적 100일",
       "icon": "ico_level8",
-      "message": "여유가 생겼어요. 절제가 몸에 배고 있어요!"
+      "message": "100일을 해냈어요. 당신은 이제 달라졌어요!"
     },
     "badge_009": {
       "id": "badge_009",
       "order": 9,
-      "title": "절제의 달인",
-      "description": "절제의 달인이 됐어요",
-      "condition": "제한 시간의 20% 이상 남기고 끝냈을 때",
+      "title": "의지의 전설",
+      "description": "200일의 기록, 전설이 되었어요",
+      "condition": "목표 달성한 날 누적 200일",
       "icon": "ico_level9",
-      "message": "20%를 남겼어요. 이제 절제가 습관이 됐어요!"
+      "message": "200일! 우린 이걸 전설이라고 불러요!"
     },
     "badge_010": {
       "id": "badge_010",
       "order": 10,
-      "title": "첫 연속",
-      "description": "3일을 연속으로 지켜냈어요",
-      "condition": "3일 연속 목표 달성",
+      "title": "야간 절제",
+      "description": "밤 10시 이후 차단을 처음 완료했어요",
+      "condition": "밤 10시 이후 제한 앱 첫 미사용",
       "icon": "ico_level10",
-      "message": "3일 연속 성공! 이 흐름 계속 이어가요!"
+      "message": "밤 10시 이후를 지켜냈어요. 훌륭해요!"
     },
     "badge_011": {
       "id": "badge_011",
       "order": 11,
-      "title": "일주일의 기적",
-      "description": "일주일을 해냈어요",
-      "condition": "7일 연속 목표 달성",
+      "title": "야간 수호",
+      "description": "밤 시간 절제를 일주일 연속 지켰어요",
+      "condition": "밤 10시 이후 제한 앱 미사용 누적 7일",
       "icon": "ico_level11",
-      "message": "일주일을 해냈어요. 기적은 매일 만들어지고 있어요!"
+      "message": "일주일 밤을 지켰어요. 기적은 매일 만들어지고 있어요!"
     },
     "badge_012": {
       "id": "badge_012",
       "order": 12,
-      "title": "두 주의 습관",
-      "description": "습관이 만들어지고 있어요",
-      "condition": "14일 연속 목표 달성",
+      "title": "야간 마스터",
+      "description": "밤 시간 절제가 습관이 됐어요",
+      "condition": "밤 10시 이후 제한 앱 미사용 누적 30일",
       "icon": "ico_level12",
-      "message": "2주가 쌓이면 습관이 돼요. 당신이 증명했어요!"
+      "message": "30일 밤을 지켰어요. 당신이 증명했어요!"
     },
     "badge_013": {
       "id": "badge_013",
       "order": 13,
-      "title": "단단한 의지",
-      "description": "의지가 단단해졌어요",
-      "condition": "목표 달성한 날 누적 20일",
+      "title": "고요의 증명",
+      "description": "밤 9시 이후 차단을 처음 완료했어요",
+      "condition": "밤 9시 이후 제한 앱 첫 미사용",
       "icon": "ico_level13",
-      "message": "20일이 쌓였어요. 흔들리지 않는 당신이에요!"
+      "message": "밤 9시 이후를 지켜냈어요. 훌륭해요!"
     },
     "badge_014": {
       "id": "badge_014",
       "order": 14,
-      "title": "철저한 절제",
-      "description": "철저하게 절제하고 있어요",
-      "condition": "제한 시간의 30% 이상 남기고 끝냈을 때",
+      "title": "고요의 결실",
+      "description": "밤 9시 이후 절제를 일주일 지켰어요",
+      "condition": "밤 9시 이후 제한 앱 미사용 누적 7일",
       "icon": "ico_level14",
-      "message": "30%를 남겼어요. 스스로를 잘 알고 있어요!"
+      "message": "일주일 밤 9시를 지켰어요!"
     },
     "badge_015": {
       "id": "badge_015",
       "order": 15,
-      "title": "난공불락",
-      "description": "어떤 유혹도 통하지 않아요",
-      "condition": "21일 연속 목표 달성",
+      "title": "고요의 전설",
+      "description": "밤 9시 이후 절제가 습관이 됐어요",
+      "condition": "밤 9시 이후 제한 앱 미사용 누적 30일",
       "icon": "ico_level15",
-      "message": "21일 연속이에요. 어떤 유혹도 통하지 않아요!"
+      "message": "30일 밤 9시를 지켰어요. 진정한 달인!"
     },
     "badge_016": {
       "id": "badge_016",
       "order": 16,
-      "title": "첫 도전",
-      "description": "첫 번째 도전을 완료했어요",
-      "condition": "다이아/별 브론즈+실버 4개 달성 시 자동 지급",
+      "title": "승리",
+      "description": "뱃지를 하나씩 모아가고 있어요",
+      "condition": "다른 뱃지 (badge_001~015) 중 6개 이상 달성 시",
       "icon": "ico_level16",
-      "message": "첫 번째 도전을 완수했어요. 다음이 기대돼요!"
+      "message": "6개의 뱃지! 승리자가 되어가고 있어요!"
     },
     "badge_017": {
       "id": "badge_017",
       "order": 17,
-      "title": "도전 계속",
-      "description": "도전을 멈추지 않고 있어요",
-      "condition": "번개/방패 6개 달성 시 자동 지급",
+      "title": "연승",
+      "description": "뱃지 수집이 계속되고 있어요",
+      "condition": "다른 뱃지 (badge_001~015) 중 10개 이상 달성 시",
       "icon": "ico_level17",
-      "message": "멈추지 않는 당신이 가장 멋져요!"
+      "message": "10개! 멈추지 않는 당신이 가장 멋져요!"
     },
     "badge_018": {
       "id": "badge_018",
       "order": 18,
-      "title": "도전 완주",
-      "description": "모든 도전을 완주했어요",
-      "condition": "달 3개 + 다이아골드 + 별골드 달성 시 자동 지급",
+      "title": "왕좌의 자리",
+      "description": "모든 뱃지를 손에 넣었어요",
+      "condition": "다른 뱃지 (badge_001~015) 중 17개 이상 달성 시",
       "icon": "ico_level18",
-      "message": "모든 도전을 완주했어요. 진심으로 대단해요!"
+      "message": "모든 뱃지! 진심으로 대단해요. 왕좌가 당신 것이에요!"
     }
   }
 }

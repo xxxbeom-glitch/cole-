@@ -23,6 +23,8 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,6 +33,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.google.firebase.auth.FirebaseAuth
 
 /**
  * 제한 중인 앱 정보 바텀시트 (Figma 350-1802)
@@ -208,6 +211,8 @@ fun AppLimitInfoBottomSheetDaily(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val repo = remember { ManualTimerRepository(context) }
+    val scope = rememberCoroutineScope()
+    val logRepo = remember { AppLimitLogRepository() }
 
     fun launchApp() {
         val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
@@ -224,6 +229,7 @@ fun AppLimitInfoBottomSheetDaily(
         isCountActive = repo.isSessionActive(packageName)
         if (isCountActive && usage >= limitMinutes) {
             repo.endSession(packageName)
+            AppLimitLogRepository.saveTimeoutEventIfNeeded(context, packageName, appName)
             isCountActive = false
         }
     }
@@ -248,6 +254,7 @@ fun AppLimitInfoBottomSheetDaily(
             todayUsageMinutes = (repo.getTodayUsageMs(packageName) / 60_000).toInt()
             if (todayUsageMinutes >= limitMinutes) {
                 repo.endSession(packageName)
+                AppLimitLogRepository.saveTimeoutEventIfNeeded(context, packageName, appName)
                 isCountActive = false
                 return@LaunchedEffect
             }
@@ -272,13 +279,32 @@ fun AppLimitInfoBottomSheetDaily(
             if (usageExhausted) return@BaseBottomSheet
             if (isCountActive) {
                 // 카운트 정지: 세션 종료 후 바텀시트 자동 닫기
+                val totalUsageMs = repo.getTodayUsageMs(packageName)
                 repo.endSession(packageName)
+                scope.launch {
+                    logRepo.saveEvent(
+                        FirebaseAuth.getInstance().currentUser?.uid,
+                        packageName,
+                        "stop",
+                        appName,
+                    )
+                }
+                BadgeAutoGrant.onCountEnded(context, packageName, limitMinutes, totalUsageMs)
                 isCountActive = false
                 todayUsageMinutes = (repo.getTodayUsageMs(packageName) / 60_000).toInt()
                 onDismissRequest()
             } else {
                 // 카운트 시작: 세션 시작 → 안내 팝업 → 확인 시 앱 실행
                 repo.startSession(packageName)
+                scope.launch {
+                    logRepo.saveEvent(
+                        FirebaseAuth.getInstance().currentUser?.uid,
+                        packageName,
+                        "start",
+                        appName,
+                    )
+                }
+                BadgeAutoGrant.onCountStartButtonPressed(context)
                 isCountActive = true
                 todayUsageMinutes = (repo.getTodayUsageMs(packageName) / 60_000).toInt()
                 showCountStartDialog = true
@@ -311,14 +337,28 @@ fun AppLimitInfoBottomSheetDaily(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            AppStatusRow(
-                appName = appName,
-                appIcon = appIcon,
-                variant = AppStatusVariant.Button,
-                usageText = if (usageExhausted) "사용 완료" else "$todayUsageMinutes/${limitMinutes}분",
-                usageLabel = if (usageExhausted) "" else "사용 중",
-                usageTextColor = AppColors.TextHighlight,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AppStatusRow(
+                    appName = appName,
+                    appIcon = appIcon,
+                    variant = AppStatusVariant.Button,
+                    usageText = if (usageExhausted) "사용 완료" else "$todayUsageMinutes/${limitMinutes}분",
+                    usageLabel = if (usageExhausted) "" else "사용 중",
+                    usageTextColor = AppColors.TextHighlight,
+                    modifier = Modifier.weight(1f),
+                )
+                AptoxSecondaryButton(
+                    text = "제한 해제",
+                    onClick = {
+                        RestrictionDeleteHelper.deleteRestrictedApp(context, packageName)
+                        onDismissRequest()
+                    },
+                )
+            }
 
             Column(
                 modifier = Modifier

@@ -6,6 +6,8 @@ import android.content.pm.PackageManager
 import android.os.Build
 import com.aptox.app.usage.AppDatabaseProvider
 import com.aptox.app.usage.DailyUsageEntity
+import com.aptox.app.usage.DailyUsageFirestoreRepository
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Calendar
@@ -71,6 +73,9 @@ class AppDataPreloadRepository(private val context: Context) {
             val entities = aggregateFromEvents(usm, startMs, endMs, userPackages, dateStr)
             if (entities.isNotEmpty()) {
                 db.insertAll(entities)
+                FirebaseAuth.getInstance().currentUser?.uid?.let { uid ->
+                    runCatching { DailyUsageFirestoreRepository().uploadDailyUsage(uid, entities) }
+                }
             }
         }
     }

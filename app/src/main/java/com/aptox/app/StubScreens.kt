@@ -68,7 +68,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
-import com.aptox.app.model.BadgeDefinition
 import com.aptox.app.ui.components.AptoxToast
 import com.google.firebase.auth.FirebaseAuth
 import android.app.usage.UsageStatsManager
@@ -77,6 +76,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.util.Log
+import androidx.credentials.exceptions.GetCredentialCancellationException
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.functions.FirebaseFunctionsException
 import java.util.concurrent.TimeUnit
@@ -121,8 +121,8 @@ fun rawScoreToResultType(rawScore: Int): SelfTestResultType = when {
 
 /**
  * 스플래시 화면 (Figma 409-6664)
- * - 로그인 제거, 로고 + 로딩 바
- * - 0% → 30% (실제 AI 캐싱) → 잠시 정지 → 99% → 잠시 정지 → 100% → onFinish
+ * - 로고 + 로딩 바 (가짜 진행, AI 분류는 백그라운드에서 100% 수행)
+ * - 0 → 30% 천천히 → 잠시 멈춤 → 30 → 85% → 잠시 멈춤 → 100% → onFinish
  */
 @Composable
 fun SplashScreen(onFinish: () -> Unit) {
@@ -130,34 +130,35 @@ fun SplashScreen(onFinish: () -> Unit) {
     var progress by remember { mutableStateOf(0f) }
 
     LaunchedEffect(Unit) {
-        val preload = AppDataPreloadRepository(context)
+        val app = context.applicationContext as? AptoxApplication
 
-        // 1. 설치된 앱 로드
-        val installedApps = withContext(Dispatchers.IO) { preload.loadInstalledApps() }
-
-        // 2. 0 → 30%: AI 캐싱 일부 수행 (실제 진행률과 동기화)
-        preload.classifyAndCacheAppsPartial(installedApps, targetProgress = 0.3f) { p ->
-            withContext(Dispatchers.Main.immediate) { progress = p * 0.3f } // 0~30% 구간
+        // 1. 0 → 30% 천천히 (가짜 진행)
+        for (i in 1..30) {
+            progress = i / 100f
+            delay(50)
         }
-        progress = 0.3f
+        delay(400) // 멈춤
 
-        // 3. 30%에서 잠시 멈춤
-        delay(400)
-
-        // 4. 30 → 99%: 애니메이션 (약 1초)
-        val steps = 35
-        for (i in 1..steps) {
-            progress = 0.3f + (0.69f * i / steps)
+        // 2. 30 → 85%
+        for (i in 31..85) {
+            progress = i / 100f
             delay(30)
         }
-        progress = 0.99f
+        delay(400) // 멈춤
 
-        // 5. 99%에서 잠시 멈춤
-        delay(400)
-
-        // 6. 100% → 화면 전환
+        // 3. 100% → 화면 전환
         progress = 1f
         delay(150)
+
+        // 4. 백그라운드에서 AI 카테고리 분류 100% 수행 (스플래시 이후 화면 진행과 병렬)
+        app?.applicationScope?.launch {
+            runCatching {
+                val preload = AppDataPreloadRepository(context)
+                val installedApps = withContext(Dispatchers.IO) { preload.loadInstalledApps() }
+                withContext(Dispatchers.IO) { preload.classifyAndCacheApps(installedApps) }
+            }
+        }
+
         onFinish()
     }
 
@@ -815,6 +816,8 @@ private fun MainAddictionCard(
 
 private sealed class SettingsDetail(val title: String) {
     data object AccountManage : SettingsDetail("계정관리")
+    data object AppRestrictionHistory : SettingsDetail("앱 사용제한 기록")
+    data class AppRestrictionHistoryDetail(val packageName: String, val appName: String) : SettingsDetail(appName)
     data object Subscription : SettingsDetail("구독관리")
     data object Notification : SettingsDetail("알림")
     data object Permission : SettingsDetail("권한설정")
@@ -981,7 +984,7 @@ private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem>
             val now = System.currentTimeMillis()
             val remainingMs = restriction.blockUntilMs - now
             if (remainingMs <= 0) {
-                RestrictionDeleteHelper.deleteRestrictedApp(context, restriction.packageName)
+                RestrictionDeleteHelper.deleteRestrictedApp(context, restriction.packageName, logRelease = false)
                 return@mapNotNull null
             }
             val todayMinutes = (usm?.let {
@@ -1025,13 +1028,13 @@ private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem>
             // 2. 오늘 하루만: 00시 기준 목록에서 제거
             if (repeatDaySet.isEmpty()) {
                 if (isTodayOnlyExpired(restriction.baselineTimeMs)) {
-                    RestrictionDeleteHelper.deleteRestrictedApp(context, restriction.packageName)
+                    RestrictionDeleteHelper.deleteRestrictedApp(context, restriction.packageName, logRelease = false)
                     return@mapNotNull null
                 }
             } else {
                 // 3. 매일 반복 / 4. 격일·특정요일: 기간 만료 시 제거
                 if (isDurationExpired(restriction.baselineTimeMs, restriction.durationWeeks)) {
-                    RestrictionDeleteHelper.deleteRestrictedApp(context, restriction.packageName)
+                    RestrictionDeleteHelper.deleteRestrictedApp(context, restriction.packageName, logRelease = false)
                     return@mapNotNull null
                 }
             }
@@ -1176,24 +1179,6 @@ fun MainFlowHost(
     var showPauseCompleteSheet by remember { mutableStateOf(false) }
     var selectedAppForPause by remember { mutableStateOf<MainAppRestrictionItem?>(null) }
 
-    // 메달 획득 오버레이 state (큐 방식 — 한 번에 하나씩 표시)
-    val badgeRepo = remember { BadgeRepository(context = context) }
-    var medalQueue by remember { mutableStateOf<List<BadgeDefinition>>(emptyList()) }
-    val currentMedal = medalQueue.firstOrNull()
-
-    // 앱 실행 시 미알림(isNotified == false) 뱃지 조회
-    LaunchedEffect(Unit) {
-        val userId = withContext(Dispatchers.IO) {
-            FirebaseAuth.getInstance().currentUser?.uid
-        } ?: return@LaunchedEffect
-        val unnotified = withContext(Dispatchers.IO) {
-            badgeRepo.getUnnotifiedBadges(userId)
-        }
-        if (unnotified.isNotEmpty()) {
-            medalQueue = unnotified
-        }
-    }
-
     // 일일 사용량 제한 완료 후 "카운트 시작하기" 탭 시 해당 앱 바텀시트 자동 오픈
     LaunchedEffect(initialAutoOpenPackage) {
         val pkg = initialAutoOpenPackage ?: return@LaunchedEffect
@@ -1325,8 +1310,9 @@ fun MainFlowHost(
                         title = settingsDetail!!.title,
                         backIcon = painterResource(R.drawable.ic_back),
                         onBackClick = {
-                            settingsDetail = when (settingsDetail) {
+                            settingsDetail = when (val d = settingsDetail) {
                                 SettingsDetail.Withdraw -> SettingsDetail.AccountManage
+                                is SettingsDetail.AppRestrictionHistoryDetail -> SettingsDetail.AppRestrictionHistory
                                 else -> null
                             }
                         },
@@ -1402,11 +1388,25 @@ fun MainFlowHost(
                                             authRepository.signInWithGoogle(context)
                                                 .onSuccess { withContext(Dispatchers.Main.immediate) { accountRefreshKey++ } }
                                                 .onFailure { e ->
+                                                    if (e.cause is GetCredentialCancellationException) return@onFailure
                                                     toastMessage = "구글 로그인 실패: ${e.message}"
                                                 }
                                         }
                                     },
                                     onWithdrawClick = { settingsDetail = SettingsDetail.Withdraw },
+                                )
+                                SettingsDetail.AppRestrictionHistory -> AppRestrictionHistoryScreen(
+                                    userId = firebaseAuthUid,
+                                    onBack = { settingsDetail = null },
+                                    onItemClick = { pkg, name ->
+                                        settingsDetail = SettingsDetail.AppRestrictionHistoryDetail(pkg, name)
+                                    },
+                                )
+                                is SettingsDetail.AppRestrictionHistoryDetail -> AppRestrictionHistoryDetailScreen(
+                                    packageName = (settingsDetail as SettingsDetail.AppRestrictionHistoryDetail).packageName,
+                                    appName = (settingsDetail as SettingsDetail.AppRestrictionHistoryDetail).appName,
+                                    userId = firebaseAuthUid,
+                                    onBack = { settingsDetail = SettingsDetail.AppRestrictionHistory },
                                 )
                                 // 구독 관리 — 유료 구독 플랜 없으므로 비활성화
                                 // SettingsDetail.Subscription -> SubscriptionManageScreen(
@@ -1498,6 +1498,7 @@ fun MainFlowHost(
                                 )
                                 null -> MyPageScreen(
                                     onAccountManageClick = { settingsDetail = SettingsDetail.AccountManage },
+                                    onAppRestrictionHistoryClick = { settingsDetail = SettingsDetail.AppRestrictionHistory },
                                     onSubscriptionManageClick = { /* 구독 관리 비활성화 */ },
                                     onNotificationClick = { settingsDetail = SettingsDetail.Notification },
                                     onPermissionClick = { settingsDetail = SettingsDetail.Permission },
@@ -1573,6 +1574,7 @@ fun MainFlowHost(
                 onDismiss = { toastMessage = null },
                 replayKey = toastReplayKey,
                 modifier = Modifier.align(Alignment.BottomCenter),
+                bottomOffsetDp = bottomBarHeightDp.coerceAtLeast(1.dp) + 26.dp,
             )
         }
 
@@ -1757,10 +1759,16 @@ fun MainFlowHost(
                 .background(AppColors.SurfaceBackgroundBackground),
         ) {
             NotificationHistoryScreen(
-                items = sampleNotificationHistoryItems(
-                    DebugTestSettings.debugNotificationHistoryCount ?: 0
-                ),
+                userId = firebaseAuthUid,
                 onBack = { showNotificationOverlay = false },
+                onItemClick = { item ->
+                    showNotificationOverlay = false
+                    navIndex = when {
+                        item.navTarget == "statistics_weekly" || item.type == "weekly_report" -> 2
+                        item.badgeId != null -> 1
+                        else -> 1
+                    }
+                },
                 onNotificationSettingsClick = null,
             )
         }
@@ -1785,23 +1793,5 @@ fun MainFlowHost(
         )
     }
 
-    // 메달 획득 오버레이 (큐의 첫 번째 메달 표시)
-    if (currentMedal != null) {
-        MedalAchievementBottomSheet(
-            badge = currentMedal,
-            animationType = MedalAnimationType.COMBINED,
-            onDismiss = {
-                scope.launch {
-                    val userId = FirebaseAuth.getInstance().currentUser?.uid
-                    if (userId != null) {
-                        withContext(Dispatchers.IO) {
-                            badgeRepo.markBadgeNotified(userId, currentMedal.id)
-                        }
-                    }
-                    medalQueue = medalQueue.drop(1)
-                }
-            },
-        )
-    }
     }
 }

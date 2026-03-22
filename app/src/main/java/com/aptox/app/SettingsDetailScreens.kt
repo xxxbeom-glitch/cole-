@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -23,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +51,221 @@ import com.aptox.app.StatisticsData
 /**
  * 설정 메뉴 세부 화면 (Figma MY-02~07)
  */
+
+/**
+ * 앱 사용제한 기록 리스트 화면 (Figma 1319-4533)
+ * - Firestore appLimitLogs에 기록이 있는 모든 앱 (제한 해제된 앱 포함)
+ * - 앱 아이콘 + 이름 + > 버튼
+ */
+@Composable
+fun AppRestrictionHistoryScreen(
+    userId: String?,
+    onBack: () -> Unit,
+    onItemClick: (packageName: String, appName: String) -> Unit,
+) {
+    val logRepo = remember { AppLimitLogRepository() }
+    val packages by logRepo.getPackagesWithLogsFlow(userId).collectAsState(initial = emptyList())
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Spacer(modifier = Modifier.height(24.dp))
+        when {
+            userId == null -> {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "로그인 후 확인할 수 있어요",
+                        style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+            packages.isEmpty() -> {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "앱 사용제한 기록이 없어요",
+                        style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+            else -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(6.dp, RoundedCornerShape(12.dp), false, Color.Black.copy(alpha = 0.06f), Color.Black.copy(alpha = 0.06f))
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(AppColors.SurfaceBackgroundCard)
+                        .padding(top = 26.dp, bottom = 16.dp, start = 18.dp, end = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    packages.forEach { pkg ->
+                        AppRestrictionHistoryRow(
+                            appName = pkg.appName,
+                            appIcon = rememberAppIconPainter(pkg.packageName),
+                            onClick = { onItemClick(pkg.packageName, pkg.appName) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppRestrictionHistoryRow(
+    appName: String,
+    appIcon: androidx.compose.ui.graphics.painter.Painter,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        AppIconBox(
+            appIcon = appIcon,
+            size = 56.dp,
+            force6dpClip = true,
+        )
+        Text(
+            text = appName,
+            style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            painter = painterResource(R.drawable.ic_chevron_right),
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            tint = AppColors.TextPrimary,
+        )
+    }
+}
+
+/**
+ * 앱 사용제한 기록 상세 화면 (Figma 1319-4815)
+ * - 헤더 = 앱 이름
+ * - 날짜별 타임라인, 시간 + 이벤트명
+ * - start/stop: 기본 텍스트 색, release: 빨강
+ */
+@Composable
+fun AppRestrictionHistoryDetailScreen(
+    packageName: String,
+    appName: String,
+    userId: String?,
+    onBack: () -> Unit,
+) {
+    val logRepo = remember { AppLimitLogRepository() }
+    val events by logRepo.getEventsFlow(userId, packageName).collectAsState(initial = emptyList())
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
+    ) {
+        Spacer(modifier = Modifier.height(24.dp))
+        when {
+            events.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 48.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "기록이 없어요",
+                        style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+            else -> {
+                val dateFormat = java.text.SimpleDateFormat("yyyy. MM. dd", java.util.Locale.KOREAN)
+                val timeFormat = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.KOREAN)
+                val groupedByDate = events.groupBy { e ->
+                    dateFormat.format(java.util.Date(e.timestamp))
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(6.dp, RoundedCornerShape(12.dp), false, Color.Black.copy(alpha = 0.06f), Color.Black.copy(alpha = 0.06f))
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(AppColors.SurfaceBackgroundCard)
+                        .padding(horizontal = 18.dp, vertical = 22.dp),
+                ) {
+                    groupedByDate.toSortedMap().entries.toList().forEachIndexed { index, entry ->
+                        val (dateStr, dayEvents) = entry
+                        if (index > 0) {
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(1.dp)
+                                    .background(Color(0xFFF3F3F3)),
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            Text(
+                                text = dateStr,
+                                style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
+                            )
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                dayEvents.forEach { event ->
+                                    val eventLabel = when (event.eventType) {
+                                        "start" -> "카운트 시작"
+                                        "stop" -> "카운트 정지"
+                                        "release" -> "사용자 제한 해제"
+                                        "timeout" -> "시간 소진"
+                                        else -> event.eventType
+                                    }
+                                    val color = if (event.eventType == "release") AppColors.Red300 else AppColors.TextBody
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                    ) {
+                                        Text(
+                                            text = timeFormat.format(java.util.Date(event.timestamp)),
+                                            style = AppTypography.Caption1.copy(color = AppColors.TextBody),
+                                            modifier = Modifier.widthIn(min = 60.dp),
+                                        )
+                                        Text(
+                                            text = eventLabel,
+                                            style = AppTypography.Caption1.copy(color = color),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 private fun isAccessibilityEnabled(context: Context): Boolean {
     val enabled = Settings.Secure.getString(

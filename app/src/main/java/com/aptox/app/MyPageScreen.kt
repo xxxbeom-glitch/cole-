@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun MyPageScreen(
     onAccountManageClick: () -> Unit = {},
+    onAppRestrictionHistoryClick: () -> Unit = {},
     onSubscriptionManageClick: () -> Unit = {},
     onNotificationClick: () -> Unit = {},
     onPermissionClick: () -> Unit = {},
@@ -63,6 +64,12 @@ fun MyPageScreen(
                     iconResId = R.drawable.ic_manageaccount,
                     label = "계정 관리",
                     onClick = onAccountManageClick,
+                )
+                MyPageDivider()
+                MyPageRowItem(
+                    iconResId = R.drawable.ic_lock,
+                    label = "앱 사용제한 기록",
+                    onClick = onAppRestrictionHistoryClick,
                 )
                 // 구독 관리 — 유료 구독 플랜 없으므로 비활성화
                 // MyPageDivider()

@@ -10,13 +10,15 @@ import android.os.Process
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.aptox.app.StatisticsData
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 
 /**
- * 매일 00:10 실행. 전날 사용량을 Room에 저장.
- * 기기에서 UsageEvents는 ~7일 후 삭제되므로, 그 전에 앱 DB에 보관.
+ * UsageStats → 로컬 DB → Firestore 백업.
+ * 실행 주기: 최초 앱 실행 시 즉시 1회, 로그인 직후 즉시 1회, 이후 6시간마다.
+ * 중복 방지: SQLite CONFLICT_REPLACE (date+packageName), Firestore set() 덮어쓰기.
  */
 class UsageStatsSyncWorker(
     private val context: Context,
@@ -43,6 +45,11 @@ class UsageStatsSyncWorker(
             val entities = aggregateFromEvents(usm, startMs, endMs, userPackages, dateStr)
             if (entities.isNotEmpty()) {
                 db.insertAll(entities)
+                FirebaseAuth.getInstance().currentUser?.uid?.let { uid ->
+                    runCatching {
+                        DailyUsageFirestoreRepository().uploadDailyUsage(uid, entities)
+                    }
+                }
             }
         }
         Result.success()

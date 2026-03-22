@@ -2,6 +2,7 @@ package com.aptox.app
 
 import android.Manifest
 import android.content.Intent
+import androidx.credentials.exceptions.GetCredentialCancellationException
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -306,7 +307,9 @@ fun SignUpFlowHost(
                         }
                         .onFailure { e ->
                             loginLoading = false
-                            loginError = e.message ?: "구글 로그인에 실패했어요"
+                            if (e.cause !is GetCredentialCancellationException) {
+                                loginError = e.message ?: "구글 로그인에 실패했어요"
+                            }
                         }
                 }
             },

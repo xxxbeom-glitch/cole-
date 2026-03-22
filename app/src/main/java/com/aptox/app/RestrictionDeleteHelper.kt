@@ -2,34 +2,57 @@ package com.aptox.app
 
 import android.content.Context
 import android.content.Intent
+import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
 
 /**
  * 제한 앱 삭제 시 필요한 처리 로직을 한 곳에서 수행.
  * - AppRestrictionRepository: 제한 설정 삭제
- * - ManualTimerRepository: 세션/누적 데이터 삭제
+ * - ManualTimerRepository: 사용량 데이터는 통계용으로 유지 (삭제하지 않음)
  * - PauseRepository: 일시정지 데이터 삭제
+ * - BlockOverlayService: 해당 앱 차단 오버레이 즉시 해제
  * - AppMonitorService: restriction map 갱신 후 감시 재시작
  * - PauseTimerNotificationService: 해당 앱 일시정지 알림 즉시 중지
- * - Firestore users/{userId}/badges 는 건드리지 않음
+ * - Firestore users/{userId}/appLimitLogs: 사용자 제한 해제 이벤트 기록
  */
 object RestrictionDeleteHelper {
 
     /**
      * 제한 앱 삭제. 경고 없이 바로 처리.
-     * 삭제 후 홈 화면 갱신은 호출 측에서 onDeleted 콜백으로 처리.
+     * @param logRelease true면 사용자 제한 해제 이벤트 Firestore 기록 (바텀시트 등 사용자 탭 시)
      */
-    fun deleteRestrictedApp(context: Context, packageName: String) {
-        // 1. ManualTimerRepository: 해당 앱 세션·누적 데이터 삭제
-        ManualTimerRepository(context).deleteAppData(packageName)
+    fun deleteRestrictedApp(context: Context, packageName: String, logRelease: Boolean = true) {
+        val restrictionRepo = AppRestrictionRepository(context)
+        val appName = restrictionRepo.getAll().find { it.packageName == packageName }?.appName
 
-        // 2. PauseRepository: 해당 앱 일시정지 데이터 삭제
+        if (logRelease) {
+            (context.applicationContext as? AptoxApplication)?.applicationScope?.launch {
+                AppLimitLogRepository().saveEvent(
+                    FirebaseAuth.getInstance().currentUser?.uid,
+                    packageName,
+                    "release",
+                    appName,
+                )
+            }
+        }
+
+        // 1. PauseRepository: 해당 앱 일시정지 데이터 삭제
         PauseRepository(context).clearForPackage(packageName)
 
+        // 2. ManualTimerRepository: 해당 앱 카운트 세션 종료 (타이머 노티 제거)
+        ManualTimerRepository(context).endSession(packageName)
+
         // 3. AppRestrictionRepository: 제한 설정 삭제
-        val restrictionRepo = AppRestrictionRepository(context)
         restrictionRepo.delete(packageName)
 
-        // 4. PauseTimerNotificationService: 해당 앱 일시정지 알림 즉시 제거
+        // 4. BlockOverlayService: 해당 앱 차단 오버레이 즉시 해제
+        val dismissOverlayIntent = Intent(context, BlockOverlayService::class.java).apply {
+            action = BlockOverlayService.ACTION_DISMISS_IF_PACKAGE
+            putExtra(BlockOverlayService.EXTRA_PACKAGE_NAME, packageName)
+        }
+        context.startService(dismissOverlayIntent)
+
+        // 5. PauseTimerNotificationService: 해당 앱 일시정지 알림 즉시 제거
         val cancelIntent = Intent(context, PauseTimerNotificationService::class.java).apply {
             action = PauseTimerNotificationService.ACTION_CANCEL_IF_PACKAGE
             putExtra(PauseTimerNotificationService.EXTRA_PACKAGE_NAME, packageName)
@@ -38,11 +61,11 @@ object RestrictionDeleteHelper {
         // (startForegroundService 시 5초 내 startForeground 필수라 여기선 부적합)
         context.startService(cancelIntent)
 
-        // 5. AppMonitorService: restriction map 갱신 후 감시 재시작
-        //    (삭제된 앱은 map에서 제외, getActiveSession()이 null이면 알림바 제거)
-        AppMonitorService.start(context, restrictionRepo.toRestrictionMap(), true)
+        // 6. AppMonitorService: restriction map 갱신 후 감시 재시작
+        //    releasedPackage 전달 시 해당 앱 타이머 세션 즉시 종료 후 노티 갱신 (apply race 방지)
+        AppMonitorService.start(context, restrictionRepo.toRestrictionMap(), true, packageName)
 
-        // 6. 일일 사용량 알람 스케줄 갱신
+        // 7. 일일 사용량 알람 스케줄 갱신
         DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(context)
     }
 }

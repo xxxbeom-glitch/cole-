@@ -17,6 +17,10 @@ object BadgeStatsPreferences {
     private const val KEY_NIGHT_STREAK = "night_block_streak"
     private const val KEY_WEEKLY_REDUCTION_CHECK_WEEK_START = "weekly_reduction_check_week_start_ms"
     private const val KEY_DEFENSE_TOTAL = "block_defense_total"
+    private const val KEY_COUNT_START_TOTAL = "count_start_total"
+    private const val KEY_COUNT_END_WITHIN_LIMIT_TOTAL = "count_end_within_limit_total"
+    private const val KEY_NIGHT_10PM_CUMULATIVE = "night_10pm_cumulative_days"
+    private const val KEY_NIGHT_9PM_CUMULATIVE = "night_9pm_cumulative_days"
     private const val PREFIX_TIME_EXPIRY = "time_expiry_done_"
     private const val PREFIX_NIGHT_DAY = "night_ok_"
 
@@ -103,6 +107,44 @@ object BadgeStatsPreferences {
         val next = p.getInt(KEY_DEFENSE_TOTAL, 0) + 1
         p.edit().putInt(KEY_DEFENSE_TOTAL, next).apply()
         return next
+    }
+
+    /** 카운트 시작 버튼 누른 횟수 (badge_002용) */
+    fun getCountStartTotal(ctx: Context): Int =
+        prefs(ctx).getInt(KEY_COUNT_START_TOTAL, 0)
+
+    fun incrementCountStartTotal(ctx: Context): Int {
+        val p = prefs(ctx)
+        val next = p.getInt(KEY_COUNT_START_TOTAL, 0) + 1
+        p.edit().putInt(KEY_COUNT_START_TOTAL, next).apply()
+        return next
+    }
+
+    /** 제한 시간 내 카운트 종료 횟수 (badge_007용) */
+    fun getCountEndWithinLimitTotal(ctx: Context): Int =
+        prefs(ctx).getInt(KEY_COUNT_END_WITHIN_LIMIT_TOTAL, 0)
+
+    fun incrementCountEndWithinLimitTotal(ctx: Context): Int {
+        val p = prefs(ctx)
+        val next = p.getInt(KEY_COUNT_END_WITHIN_LIMIT_TOTAL, 0) + 1
+        p.edit().putInt(KEY_COUNT_END_WITHIN_LIMIT_TOTAL, next).apply()
+        return next
+    }
+
+    /** 밤 10시 이후 제한 앱 미사용 누적 일수 (badge_010~012) */
+    fun getNight10pmCumulative(ctx: Context): Int =
+        prefs(ctx).getInt(KEY_NIGHT_10PM_CUMULATIVE, 0)
+
+    fun setNight10pmCumulative(ctx: Context, value: Int) {
+        prefs(ctx).edit().putInt(KEY_NIGHT_10PM_CUMULATIVE, value.coerceAtLeast(0)).apply()
+    }
+
+    /** 밤 9시 이후 제한 앱 미사용 누적 일수 (badge_013~015) */
+    fun getNight9pmCumulative(ctx: Context): Int =
+        prefs(ctx).getInt(KEY_NIGHT_9PM_CUMULATIVE, 0)
+
+    fun setNight9pmCumulative(ctx: Context, value: Int) {
+        prefs(ctx).edit().putInt(KEY_NIGHT_9PM_CUMULATIVE, value.coerceAtLeast(0)).apply()
     }
 
     fun resetAll(ctx: Context) {

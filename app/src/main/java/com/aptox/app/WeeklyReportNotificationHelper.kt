@@ -19,7 +19,7 @@ object WeeklyReportNotificationHelper {
     private const val CHANNEL_NAME = "주간 리포트"
     private const val NOTIFICATION_ID = 4001
 
-    fun sendWeeklyReportNotification(context: Context) {
+    fun sendWeeklyReportNotification(context: Context, title: String = "지난주 리포트가 도착했어요", body: String = "지난주 스마트폰 사용 리포트를 확인하세요") {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         ensureChannel(context)
         val intent = Intent(context, MainActivity::class.java).apply {
@@ -31,8 +31,8 @@ object WeeklyReportNotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle("지난 주 사용 리포트가 도착했어요 📊")
-            .setContentText("지난주 스마트폰 사용 리포트를 확인하세요")
+            .setContentTitle(title)
+            .setContentText(body)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setAutoCancel(true)
             .setContentIntent(pi)

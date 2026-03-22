@@ -9,8 +9,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.aptox.app.usage.DailyUsageFirestoreRepository
 import com.aptox.app.usage.UsageStatsSyncWorker
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 class AptoxApplication : Application() {
@@ -30,7 +32,27 @@ class AptoxApplication : Application() {
         // 미로그인 상태에서 제한만 저장한 뒤 로그인하면 badge_001 등 Firestore 배지를 줄 수 있게 함
         FirebaseAuth.getInstance().addAuthStateListener { auth ->
             if (auth.currentUser != null) {
+                BadgeAutoGrant.syncPendingBadgesToFirestore(this)
                 BadgeAutoGrant.onUserSignedInTryBadge001(this)
+                // 로컬 DB 비어있으면 Firestore에서 일별 사용량 복원 (재설치 시나리오)
+                applicationScope.launch {
+                    DailyUsageFirestoreRepository().restoreIfLocalEmpty(this@AptoxApplication)
+                }
+                // Brief 주기별 AI 요약 사전 생성 (월요일/1일/1월1일)
+                applicationScope.launch {
+                    BriefSummaryPreloader.tryPreloadScheduled(this@AptoxApplication)
+                }
+                // 로그인 성공 직후 즉시 1회 Firestore 백업
+                if (StatisticsData.hasUsageAccess(this)) {
+                    val loginSyncRequest = androidx.work.OneTimeWorkRequestBuilder<UsageStatsSyncWorker>()
+                        .setInputData(androidx.work.workDataOf(UsageStatsSyncWorker.KEY_INITIAL_SYNC to true))
+                        .build()
+                    WorkManager.getInstance(this).enqueueUniqueWork(
+                        "usage_stats_login_sync",
+                        androidx.work.ExistingWorkPolicy.REPLACE,
+                        loginSyncRequest,
+                    )
+                }
             }
         }
     }
@@ -46,6 +68,9 @@ class AptoxApplication : Application() {
         /** 포그라운드 상태에서 호출. 앱 실행 시 Application.onCreate는 백그라운드로 인식될 수 있어 MainActivity.onResume에서 호출 */
         fun startAppMonitorIfNeeded(context: android.content.Context) {
             try {
+                (context.applicationContext as? AptoxApplication)?.applicationScope?.launch {
+                    BriefSummaryPreloader.tryPreloadScheduled(context.applicationContext)
+                }
                 ManualTimerRepository(context).ensureMidnightResetIfNeeded()
                 DailyUsageMidnightResetScheduler.scheduleNextMidnight(context)
                 val repo = AppRestrictionRepository(context)
@@ -63,14 +88,16 @@ class AptoxApplication : Application() {
 
     private fun scheduleUsageStatsSync() {
         val workManager = WorkManager.getInstance(this)
-        val dailyRequest = PeriodicWorkRequestBuilder<UsageStatsSyncWorker>(1, TimeUnit.DAYS)
-            .setInitialDelay(computeInitialDelayTo0010(), TimeUnit.MILLISECONDS)
+        // 6시간 주기. 최초 실행은 6시간 후 (즉시 1회 동기화와 중복 방지)
+        val periodicRequest = PeriodicWorkRequestBuilder<UsageStatsSyncWorker>(6, TimeUnit.HOURS)
+            .setInitialDelay(6, TimeUnit.HOURS)
             .build()
         workManager.enqueueUniquePeriodicWork(
             "usage_stats_daily_sync",
             ExistingPeriodicWorkPolicy.KEEP,
-            dailyRequest,
+            periodicRequest,
         )
+        // 최초 앱 실행 시 즉시 1회 동기화 + Firestore 백업
         if (StatisticsData.hasUsageAccess(this)) {
             val initialRequest = androidx.work.OneTimeWorkRequestBuilder<UsageStatsSyncWorker>()
                 .setInputData(androidx.work.workDataOf(UsageStatsSyncWorker.KEY_INITIAL_SYNC to true))
@@ -81,19 +108,6 @@ class AptoxApplication : Application() {
                 initialRequest,
             )
         }
-    }
-
-    /** 00:10 KST까지의 초기 지연 시간(ms) */
-    private fun computeInitialDelayTo0010(): Long {
-        val cal = java.util.Calendar.getInstance()
-        val now = cal.timeInMillis
-        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-        cal.set(java.util.Calendar.MINUTE, 10)
-        cal.set(java.util.Calendar.SECOND, 0)
-        cal.set(java.util.Calendar.MILLISECOND, 0)
-        var target = cal.timeInMillis
-        if (target <= now) target += 24 * 60 * 60 * 1000L
-        return target - now
     }
 
 }

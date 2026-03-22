@@ -358,6 +358,33 @@ object StatisticsData {
     }
 
     /**
+     * 해당 날짜의 지정 시각 이후 ~ 24:00 구간에 제한 앱 사용량(ms).
+     * 뱃지용: 밤 10시/9시 이후 미사용 판정.
+     * @param yyyyMMdd 날짜 (예: "20240322")
+     * @param hourFrom 22 = 밤 10시 이후(22:00~24:00), 21 = 밤 9시 이후(21:00~24:00)
+     */
+    fun getRestrictedAppUsageAfterHour(context: Context, yyyyMMdd: String, hourFrom: Int): Long {
+        if (!hasUsageAccess(context)) return 0L
+        val restrictedPkgs = AppRestrictionRepository(context).getAll().map { it.packageName }.toSet()
+        if (restrictedPkgs.isEmpty()) return 0L
+        val year = yyyyMMdd.substring(0, 4).toIntOrNull() ?: return 0L
+        val month = yyyyMMdd.substring(4, 6).toIntOrNull()?.minus(1) ?: return 0L
+        val day = yyyyMMdd.substring(6, 8).toIntOrNull() ?: return 0L
+        val cal = Calendar.getInstance()
+        cal.set(year, month, day, hourFrom, 0, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val startMs = cal.timeInMillis
+        cal.set(Calendar.HOUR_OF_DAY, 23)
+        cal.set(Calendar.MINUTE, 59)
+        cal.set(Calendar.SECOND, 59)
+        cal.set(Calendar.MILLISECOND, 999)
+        val endMs = minOf(cal.timeInMillis, System.currentTimeMillis())
+        if (startMs >= endMs) return 0L
+        val usage = getAppUsageMsForRangeFromEvents(context, startMs, endMs)
+        return restrictedPkgs.sumOf { usage[it] ?: 0L }
+    }
+
+    /**
      * 지난 N일 구간의 앱별 실시간 사용량(ms).
      * UsageStatsManager queryEvents 기반 — DB/Worker와 독립적으로 정확한 값.
      * 라벨(위험/주의) 판정용.

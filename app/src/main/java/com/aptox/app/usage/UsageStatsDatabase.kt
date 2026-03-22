@@ -42,7 +42,7 @@ class UsageStatsDatabase(context: Context) : SQLiteOpenHelper(
                     put("usageMs", e.usageMs)
                     put("sessionCount", e.sessionCount)
                 }
-                db.insertWithOnConflict("daily_usage", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+                db.insertWithOnConflict("daily_usage", null, cv, SQLiteDatabase.CONFLICT_REPLACE) // 같은 날짜·앱 중복 upsert 방지
             }
             db.setTransactionSuccessful()
         } finally {
