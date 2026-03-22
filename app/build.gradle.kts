@@ -22,6 +22,20 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("dev") {
+            dimension = "distribution"
+            buildConfigField("boolean", "SHOW_DEBUG_MENU", "true")
+            buildConfigField("boolean", "EXCLUDE_3MIN_OPTION", "false")
+        }
+        create("externalTest") {
+            dimension = "distribution"
+            buildConfigField("boolean", "SHOW_DEBUG_MENU", "false")
+            buildConfigField("boolean", "EXCLUDE_3MIN_OPTION", "true")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -31,6 +45,7 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11

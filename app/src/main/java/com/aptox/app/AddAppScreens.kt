@@ -790,11 +790,13 @@ fun AddAppSummaryRow(
 // 스크린샷: 헤더 "일일 사용량 제한", 4개 SelectionRow, "다음" 버튼
 // ─────────────────────────────────────────────
 
-// 3분 맨 앞, 나머지는 시간 큰 순서 (180→30). DebugTestSettings.debugShow3MinDailyOption으로 3분 포함 여부 제어
-private fun getDailyTimeSteps(): List<String> = if (DebugTestSettings.debugShow3MinDailyOption) {
-    listOf("3분", "180분", "150분", "120분", "90분", "60분", "30분")
-} else {
-    listOf("180분", "150분", "120분", "90분", "60분", "30분")
+// 3분 맨 앞, 나머지는 시간 큰 순서 (180→30).
+// BuildConfig.EXCLUDE_3MIN_OPTION: externalTest 플레이버에서 3분 제외.
+// DebugTestSettings.debugShow3MinDailyOption: dev 플레이버에서 디버그 메뉴로 런타임 토글.
+private fun getDailyTimeSteps(): List<String> = when {
+    BuildConfig.EXCLUDE_3MIN_OPTION -> listOf("180분", "150분", "120분", "90분", "60분", "30분")
+    DebugTestSettings.debugShow3MinDailyOption -> listOf("3분", "180분", "150분", "120분", "90분", "60분", "30분")
+    else -> listOf("180분", "150분", "120분", "90분", "60분", "30분")
 }
 private val DAILY_DURATION_OPTIONS = listOf("오늘 하루만", "1주", "2주", "3주", "4주")
 
@@ -1301,7 +1303,16 @@ fun AddAppFlowHost(
             }
             if (showDailyTimeSheet) {
                 val dailySteps = getDailyTimeSteps()
-                val dailyFeedback = if (DebugTestSettings.debugShow3MinDailyOption) {
+                val dailyFeedback = if (BuildConfig.EXCLUDE_3MIN_OPTION) {
+                    listOf(
+                        "3시간 제한도 훌륭한 출발이에요. 조금씩 줄여봐요!",
+                        "넉넉하지만 그래도 제한하는 당신, 대단해요",
+                        "하루 2시간, 일상과 디지털의 균형점이에요",
+                        "딱 필요한 만큼만, 현명한 선택이에요",
+                        "하루 1시간 제한, 자기관리가 시작됐어요",
+                        "하루 30분, 스마트폰과 거리두기의 첫걸음이에요",
+                    )
+                } else if (DebugTestSettings.debugShow3MinDailyOption) {
                     listOf(
                         "미리 써보기·테스트용으로 3분도 괜찮아요",
                         "3시간 제한도 훌륭한 출발이에요. 조금씩 줄여봐요!",

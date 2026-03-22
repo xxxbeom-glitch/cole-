@@ -60,7 +60,7 @@ fun AptoxRootContent(
     pendingNavIndex: Int? = null,
     onNavIndexConsumed: () -> Unit = {},
 ) {
-    if (!BuildConfig.DEBUG) {
+    if (!BuildConfig.SHOW_DEBUG_MENU || !BuildConfig.DEBUG) {
         SignUpFlowHost(
             pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay,
             pendingOpenBottomSheetPackage = pendingOpenBottomSheetPackage,
@@ -208,7 +208,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = AppColors.SurfaceBackgroundBackground,
                 ) {
-                    if (BuildConfig.DEBUG) {
+                    if (BuildConfig.SHOW_DEBUG_MENU && BuildConfig.DEBUG) {
                         AptoxRootContent(
                             pendingPauseFlowFromOverlay = pendingPauseFlowFromOverlay,
                             pendingOpenBottomSheetPackage = pendingOpenBottomSheetPackage,
