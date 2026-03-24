@@ -96,9 +96,31 @@ public class AppMonitorService extends Service {
      * - 제한 앱 모니터링 중(map 비어 있지 않음): 기본 모니터링 알림 유지 (stopForeground 금지 — FGS 타임아웃/재시작 크래시 방지)
      * - 둘 다 아님: FGS 해제 후 서비스 종료
      */
+    /**
+     * 한도 소진(남은 시간 0 이하)인 세션은 노티 "진행 중" 카운트에서 제외.
+     * active_* 키만으로는 소진 후 세션이 남는 경우가 있어 필터링 필요.
+     */
+    private java.util.List<kotlin.Pair<String, Long>> filterSessionsWithRemainingMs(
+            ManualTimerRepository timerRepo,
+            java.util.List<kotlin.Pair<String, Long>> sessions) {
+        java.util.ArrayList<kotlin.Pair<String, Long>> out = new java.util.ArrayList<>();
+        for (kotlin.Pair<String, Long> p : sessions) {
+            String pkg = p.getFirst();
+            long todayUsageMs = timerRepo.getTodayUsageMs(pkg);
+            int limitMinutes = currentRestrictionMap.getOrDefault(pkg, 60);
+            long limitMs = (long) limitMinutes * 60 * 1000;
+            long remainingMs = Math.max(0, limitMs - todayUsageMs);
+            if (remainingMs > 0) {
+                out.add(p);
+            }
+        }
+        return out;
+    }
+
     private void updateNotificationIfCounting() {
         ManualTimerRepository timerRepo = new ManualTimerRepository(this);
-        java.util.List<kotlin.Pair<String, Long>> sessions = timerRepo.getAllActiveSessions();
+        java.util.List<kotlin.Pair<String, Long>> sessions =
+                filterSessionsWithRemainingMs(timerRepo, timerRepo.getAllActiveSessions());
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (!sessions.isEmpty()) {
             Notification n;
@@ -131,7 +153,8 @@ public class AppMonitorService extends Service {
 
     private Notification buildInitialNotification() {
         ManualTimerRepository timerRepo = new ManualTimerRepository(this);
-        java.util.List<kotlin.Pair<String, Long>> sessions = timerRepo.getAllActiveSessions();
+        java.util.List<kotlin.Pair<String, Long>> sessions =
+                filterSessionsWithRemainingMs(timerRepo, timerRepo.getAllActiveSessions());
         if (!sessions.isEmpty()) {
             if (sessions.size() == 1) {
                 String pkg = sessions.get(0).getFirst();

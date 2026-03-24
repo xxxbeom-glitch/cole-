@@ -12,6 +12,7 @@ import androidx.work.WorkManager
 import com.aptox.app.usage.DailyUsageFirestoreRepository
 import com.aptox.app.usage.UsageStatsSyncWorker
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
@@ -22,6 +23,9 @@ class AptoxApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // dev flavor(SHOW_DEBUG_MENU)에서만 수집 비활성화 — externalTest는 release/debug 모두 활성화
+        val crashlyticsEnabled = !BuildConfig.SHOW_DEBUG_MENU
+        FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(crashlyticsEnabled)
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         if (defaultHandler !is AptoxUncaughtExceptionHandler) {
             Thread.setDefaultUncaughtExceptionHandler(

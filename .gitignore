@@ -17,6 +17,7 @@ crash_log.txt
 crash_detail.txt
 aptox_variables.json
 color_va.json
+aptox-release.jks
 
 # Firebase Functions
 functions/node_modules

@@ -12,10 +12,38 @@
 #   public *;
 #}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# ── Release: R8 난독화로 인한 런타임 크래시 방지 (Firebase / Compose / Kotlin 등) ──
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# 디버그 스택 트레이스
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
+
+# Kotlin
+-keep class kotlin.** { *; }
+-keep class kotlinx.** { *; }
+-keepclassmembers class **$WhenMappings { <fields>; }
+
+# Firebase / Firestore
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
+-dontwarn com.google.firebase.**
+-dontwarn com.google.android.gms.**
+
+# Firebase Functions
+-keep class com.google.firebase.functions.** { *; }
+
+# Firebase Crashlytics (리포트에 예외·라인 정보)
+-keepattributes Signature
+-keep public class * extends java.lang.Throwable
+-keep class com.google.firebase.crashlytics.** { *; }
+
+# Coroutines
+-keepclassmembers class kotlinx.coroutines.** { *; }
+-dontwarn kotlinx.coroutines.**
+
+# Compose
+-keep class androidx.compose.** { *; }
+-dontwarn androidx.compose.**
+
+# DataStore
+-keep class androidx.datastore.** { *; }
