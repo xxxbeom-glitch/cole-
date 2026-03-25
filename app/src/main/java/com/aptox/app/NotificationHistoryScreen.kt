@@ -3,8 +3,10 @@ package com.aptox.app
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -100,6 +102,18 @@ fun NotificationHistoryScreen(
         if (userId != null && items != null && items!!.isNotEmpty()) {
             val maxTs = items!!.maxOfOrNull { it.timestampMs } ?: 0L
             repo.markAsChecked(userId, maxOf(System.currentTimeMillis(), maxTs))
+        }
+    }
+
+    // 화면을 나갈 때 반드시 읽음 처리 (목록 로드 전 닫아도 동작)
+    val currentUserId by rememberUpdatedState(userId)
+    val currentItems by rememberUpdatedState(items)
+    val currentRepo by rememberUpdatedState(repo)
+    DisposableEffect(Unit) {
+        onDispose {
+            val uid = currentUserId ?: return@onDispose
+            val maxTs = currentItems?.maxOfOrNull { it.timestampMs } ?: 0L
+            currentRepo.markAsChecked(uid, maxOf(System.currentTimeMillis(), maxTs))
         }
     }
     Column(

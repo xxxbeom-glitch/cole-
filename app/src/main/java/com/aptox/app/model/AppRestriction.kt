@@ -12,4 +12,6 @@ data class AppRestriction(
     val repeatDays: String = "",
     /** 일일 사용량 적용 기간(주). 0=오늘하루만/무제한, 1=1주, 2=2주, 3=3주, 4=4주 */
     val durationWeeks: Int = 0,
+    /** 시간 지정 차단 시작 시각 (ms). blockUntilMs > 0 일 때만 유효. 0이면 즉시 시작 */
+    val startTimeMs: Long = 0L,
 )

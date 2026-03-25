@@ -37,6 +37,9 @@ class AptoxApplication : Application() {
         FirebaseAuth.getInstance().addAuthStateListener { auth ->
             if (auth.currentUser != null) {
                 BadgeAutoGrant.syncPendingBadgesToFirestore(this)
+                applicationScope.launch {
+                    AppLimitLogRepository.syncPendingLocalToFirestore(this@AptoxApplication)
+                }
                 BadgeAutoGrant.onUserSignedInTryBadge001(this)
                 // 로컬 DB 비어있으면 Firestore에서 일별 사용량 복원 (재설치 시나리오)
                 applicationScope.launch {

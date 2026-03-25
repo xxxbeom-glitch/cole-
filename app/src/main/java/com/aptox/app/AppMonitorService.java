@@ -15,8 +15,10 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.util.Log;
 import androidx.core.app.NotificationCompat;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class AppMonitorService extends Service {
@@ -121,6 +123,8 @@ public class AppMonitorService extends Service {
         ManualTimerRepository timerRepo = new ManualTimerRepository(this);
         java.util.List<kotlin.Pair<String, Long>> sessions =
                 filterSessionsWithRemainingMs(timerRepo, timerRepo.getAllActiveSessions());
+        long now = System.currentTimeMillis();
+        List<android.util.Pair<String, Long>> timeSpecActive = getActiveTimeSpecifiedInWindow(now);
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (!sessions.isEmpty()) {
             Notification n;
@@ -136,6 +140,19 @@ public class AppMonitorService extends Service {
                 n = buildCountingNotification(sessions.size());
             }
             startForeground(NOTIFICATION_ID, n);
+        } else if (!timeSpecActive.isEmpty()) {
+            Notification n;
+            if (timeSpecActive.size() == 1) {
+                String pkg = timeSpecActive.get(0).first;
+                long blockUntil = timeSpecActive.get(0).second;
+                String appName = getAppNameForPackage(pkg);
+                n = buildTimeSpecifiedNotification(appName, blockUntil);
+            } else {
+                n = buildTimeSpecifiedNotification(timeSpecActive.size());
+            }
+            startForeground(NOTIFICATION_ID, n);
+            CountReminderAlarmScheduler.INSTANCE.cancel(this);
+            scheduledCountReminderPkg = null;
         } else if (!currentRestrictionMap.isEmpty()) {
             startForeground(NOTIFICATION_ID, buildDefaultNotification());
             CountReminderAlarmScheduler.INSTANCE.cancel(this);
@@ -155,6 +172,8 @@ public class AppMonitorService extends Service {
         ManualTimerRepository timerRepo = new ManualTimerRepository(this);
         java.util.List<kotlin.Pair<String, Long>> sessions =
                 filterSessionsWithRemainingMs(timerRepo, timerRepo.getAllActiveSessions());
+        long now = System.currentTimeMillis();
+        List<android.util.Pair<String, Long>> timeSpecActive = getActiveTimeSpecifiedInWindow(now);
         if (!sessions.isEmpty()) {
             if (sessions.size() == 1) {
                 String pkg = sessions.get(0).getFirst();
@@ -168,7 +187,39 @@ public class AppMonitorService extends Service {
                 return buildCountingNotification(sessions.size());
             }
         }
+        if (!timeSpecActive.isEmpty()) {
+            if (timeSpecActive.size() == 1) {
+                String pkg = timeSpecActive.get(0).first;
+                long blockUntil = timeSpecActive.get(0).second;
+                String appName = getAppNameForPackage(pkg);
+                return buildTimeSpecifiedNotification(appName, blockUntil);
+            }
+            return buildTimeSpecifiedNotification(timeSpecActive.size());
+        }
         return buildDefaultNotification();
+    }
+
+    /**
+     * 시간 지정 제한: startTimeMs ≤ now &lt; blockUntilMs 인 항목만 (제한 구간 중).
+     */
+    private List<android.util.Pair<String, Long>> getActiveTimeSpecifiedInWindow(long now) {
+        ArrayList<android.util.Pair<String, Long>> out = new ArrayList<>();
+        AppRestrictionRepository repo = new AppRestrictionRepository(this);
+        for (com.aptox.app.model.AppRestriction r : repo.getAll()) {
+            if (r.getStartTimeMs() <= 0L) continue;
+            long start = r.getStartTimeMs();
+            long end = r.getBlockUntilMs();
+            if (now >= start && now < end) {
+                out.add(new android.util.Pair<>(r.getPackageName(), r.getBlockUntilMs()));
+            }
+        }
+        return out;
+    }
+
+    /** 노티용 종료 시각 (HH:mm) */
+    private static String formatRestrictionEndTimeHhMm(long epochMs) {
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("HH:mm", java.util.Locale.KOREA);
+        return sdf.format(new java.util.Date(epochMs));
     }
 
     private Notification buildDefaultNotification() {
@@ -242,6 +293,35 @@ public class AppMonitorService extends Service {
             .build();
     }
 
+    /** 시간 지정 제한 구간 중 — 단일 앱: "{이름} 제한 중 · HH:mm까지" (액션 버튼 없음; 카운트 중지는 일일 사용량 제한 전용) */
+    private Notification buildTimeSpecifiedNotification(String appName, long blockUntilMs) {
+        PendingIntent pi = PendingIntent.getActivity(this, 0,
+            getPackageManager().getLaunchIntentForPackage(getPackageName()),
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        String endStr = formatRestrictionEndTimeHhMm(blockUntilMs);
+        String contentText = appName + " 제한 중 · " + endStr + "까지";
+        return new NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("앱 사용 시간을 기록하고 있어요")
+            .setContentText(contentText)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentIntent(pi)
+            .build();
+    }
+
+    /** 시간 지정 제한 구간 중 — 복수 앱 (액션 버튼 없음) */
+    private Notification buildTimeSpecifiedNotification(int activeCount) {
+        PendingIntent pi = PendingIntent.getActivity(this, 0,
+            getPackageManager().getLaunchIntentForPackage(getPackageName()),
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        String contentText = "앱 " + activeCount + "개 제한 중";
+        return new NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("앱 사용 시간을 기록하고 있어요")
+            .setContentText(contentText)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentIntent(pi)
+            .build();
+    }
+
     @Override
     public void onDestroy() {
         Log.d(TAG, "서비스 중지");
@@ -269,12 +349,20 @@ public class AppMonitorService extends Service {
             cal.get(java.util.Calendar.DAY_OF_MONTH));
     }
 
-    /** 날짜가 바뀌었으면 ManualTimerRepository 자정 리셋 수행 */
+    /** 날짜가 바뀌었으면 ManualTimerRepository 자정 리셋 + 시간지정 제한 갱신 수행 */
     private void checkAndApplyMidnightResetIfNeeded() {
         String today = todayDateKey();
         if (!today.equals(lastMidnightResetDate)) {
             Log.d(TAG, "자정 경과 감지 (" + lastMidnightResetDate + " → " + today + "): 일일 사용시간 초기화");
             new ManualTimerRepository(this).resetStaleActiveSessionsAtMidnight();
+            // 시간 지정 제한: 만료된 항목을 다음날 같은 시각으로 갱신 후 restriction map 업데이트
+            AppRestrictionRepository repo = new AppRestrictionRepository(this);
+            boolean renewed = repo.renewExpiredTimeSpecifiedRestrictions();
+            if (renewed) {
+                currentRestrictionMap = repo.toRestrictionMap();
+                Log.d(TAG, "시간지정 제한 갱신 완료 → restrictionMap 업데이트");
+            }
+            TimeSpecifiedRestrictionAlarmScheduler.INSTANCE.scheduleAll(this);
             lastMidnightResetDate = today;
         }
     }
@@ -395,11 +483,13 @@ public class AppMonitorService extends Service {
         boolean shouldBlock = false;
         String overlayState = BlockDialogActivity.OVERLAY_STATE_USAGE_EXCEEDED;
         if (restriction != null && restriction.getBlockUntilMs() > 0) {
-            // 시간 지정 차단
-            shouldBlock = System.currentTimeMillis() < restriction.getBlockUntilMs();
-            long remainingMin = (restriction.getBlockUntilMs() - System.currentTimeMillis()) / 60000;
-            Log.d(TAG, "체크(시간지정) | " + pkg + " 종료까지 " + remainingMin + "분 남음");
-            if (!shouldBlock) {
+            // 시간 지정 차단: startTimeMs 이전이면 아직 제한 시작 전 → 차단하지 않음
+            long now = System.currentTimeMillis();
+            boolean beforeStart = restriction.getStartTimeMs() > 0 && now < restriction.getStartTimeMs();
+            shouldBlock = !beforeStart && now < restriction.getBlockUntilMs();
+            long remainingMin = (restriction.getBlockUntilMs() - now) / 60000;
+            Log.d(TAG, "체크(시간지정) | " + pkg + " beforeStart=" + beforeStart + " 종료까지 " + remainingMin + "분 남음");
+            if (now >= restriction.getBlockUntilMs()) {
                 BadgeAutoGrant.onTimeBlockWindowEnded(this, pkg, restriction.getBlockUntilMs());
                 // 메인 "진행중인 앱"에서 만료된 시간지정 앱을 "해제됨"으로 표시하려고 repo에서 삭제하지 않음
                 Map<String, Integer> newMap = new HashMap<>(currentRestrictionMap);
@@ -475,7 +565,8 @@ public class AppMonitorService extends Service {
                 String pkg = item.substring(0, colon);
                 try {
                     int mins = Integer.parseInt(item.substring(colon + 1));
-                    if (mins > 0) map.put(pkg, mins);
+                    // limitMinutes == 0 인 시간 지정 제한도 모니터링 대상에 포함
+                    if (mins >= 0) map.put(pkg, mins);
                 } catch (NumberFormatException ignored) {}
             }
         }

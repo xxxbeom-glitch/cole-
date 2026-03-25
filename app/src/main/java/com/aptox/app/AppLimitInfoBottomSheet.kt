@@ -63,14 +63,22 @@ fun AppLimitInfoBottomSheet(
     modifier: Modifier = Modifier,
     bodyText: String? = null,
     onDetailClick: (() -> Unit)? = null,
+    /**
+     * [AppLimitInfoBottomSheetDaily]와 동일: 앱 상태 행 오른쪽에 `AptoxSecondaryButton`으로 표시.
+     * 지정 시 푸터의 secondary(ghost)는 숨김 — 제한 해제는 인라인만 사용.
+     */
+    inlineReleaseButtonText: String? = null,
+    onInlineReleaseClick: (() -> Unit)? = null,
 ) {
+    val footerSecondaryText =
+        if (inlineReleaseButtonText != null) null else secondaryButtonText
     BaseBottomSheet(
         title = title,
         onDismissRequest = onDismissRequest,
         onPrimaryClick = onPrimaryClick,
         primaryButtonText = primaryButtonText,
         primaryButtonEnabled = isPrimaryEnabled,
-        secondaryButtonText = secondaryButtonText,
+        secondaryButtonText = footerSecondaryText,
         onSecondaryClick = onSecondaryClick ?: onDismissRequest,
         modifier = modifier,
     ) {
@@ -85,15 +93,38 @@ fun AppLimitInfoBottomSheet(
                 )
             }
 
-            AppStatusRow(
-                appName = appName,
-                appIcon = appIcon,
-                variant = AppStatusVariant.Button,
-                usageText = appUsageText,
-                usageLabel = appUsageLabel,
-                usageTextColor = appUsageTextColor,
-                onDetailClick = onDetailClick,
-            )
+            if (inlineReleaseButtonText != null && onInlineReleaseClick != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AppStatusRow(
+                        appName = appName,
+                        appIcon = appIcon,
+                        variant = AppStatusVariant.Button,
+                        usageText = appUsageText,
+                        usageLabel = appUsageLabel,
+                        usageTextColor = appUsageTextColor,
+                        onDetailClick = onDetailClick,
+                        modifier = Modifier.weight(1f),
+                    )
+                    AptoxSecondaryButton(
+                        text = inlineReleaseButtonText,
+                        onClick = onInlineReleaseClick,
+                    )
+                }
+            } else {
+                AppStatusRow(
+                    appName = appName,
+                    appIcon = appIcon,
+                    variant = AppStatusVariant.Button,
+                    usageText = appUsageText,
+                    usageLabel = appUsageLabel,
+                    usageTextColor = appUsageTextColor,
+                    onDetailClick = onDetailClick,
+                )
+            }
 
             Column(
                 modifier = Modifier
@@ -281,6 +312,7 @@ fun AppLimitInfoBottomSheetDaily(
                 repo.endSession(packageName)
                 (context.applicationContext as? AptoxApplication)?.applicationScope?.launch {
                     logRepo.saveEvent(
+                        context.applicationContext,
                         FirebaseAuth.getInstance().currentUser?.uid,
                         packageName,
                         "stop",
@@ -296,6 +328,7 @@ fun AppLimitInfoBottomSheetDaily(
                 repo.startSession(packageName)
                 (context.applicationContext as? AptoxApplication)?.applicationScope?.launch {
                     logRepo.saveEvent(
+                        context.applicationContext,
                         FirebaseAuth.getInstance().currentUser?.uid,
                         packageName,
                         "start",

@@ -53,6 +53,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
+import android.app.usage.UsageStatsManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.Settings
@@ -344,7 +346,31 @@ fun AddAppSelectBottomSheet(
                         }.getOrNull()
                     }
                     .distinctBy { it.name }
-                    .sortedBy { it.name }
+                    .let { rows ->
+                        val endTime = System.currentTimeMillis()
+                        val startTime = endTime - 7 * 24 * 60 * 60 * 1000L
+                        val usageStatsManager =
+                            context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+                        val usageMap: Map<String, Long> =
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                                usageStatsManager
+                                    .queryAndAggregateUsageStats(startTime, endTime)
+                                    .mapValues { (_, u) -> u.totalTimeInForeground }
+                            } else {
+                                @Suppress("DEPRECATION")
+                                val stats = usageStatsManager.queryUsageStats(
+                                    UsageStatsManager.INTERVAL_BEST,
+                                    startTime,
+                                    endTime,
+                                ) ?: emptyList()
+                                stats
+                                    .groupBy { it.packageName }
+                                    .mapValues { (_, list) -> list.sumOf { it.totalTimeInForeground } }
+                            }
+                        rows.sortedByDescending { item ->
+                            usageMap[item.packageName] ?: 0L
+                        }
+                    }
                     .takeIf { it.isNotEmpty() }
             }.getOrNull()
         }
@@ -1259,8 +1285,11 @@ fun AddAppFlowHost(
     modifier: Modifier = Modifier,
     /** 일일 사용량 제한 완료 후 "카운트 시작하기" 탭 시 첫 번째 앱의 packageName 전달 */
     onCompleteWithFirstPackage: (String) -> Unit = {},
+    /** 홈 빈 상태 카드에서 앱 행의 「제한 앱 추가」 버튼으로 진입 시 pre-fill 앱 정보 */
+    initialPrefilledApp: com.aptox.app.model.SelectedAppInfo? = null,
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var firebaseAuthUid by remember { mutableStateOf(FirebaseAuth.getInstance().currentUser?.uid) }
     DisposableEffect(Unit) {
         val auth = FirebaseAuth.getInstance()
@@ -1281,9 +1310,17 @@ fun AddAppFlowHost(
     var step by remember { mutableStateOf(AddAppStep.AA_DAILY_01) }
     var previousStepBeforeConfirm by remember { mutableStateOf(AddAppStep.AA_02A_TIME_05) }
     var flowHeaderTitle by remember { mutableStateOf("하루 사용량 제한") }
-    var selectedAppNames by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedAppNames by remember {
+        mutableStateOf(
+            if (initialPrefilledApp != null) setOf(initialPrefilledApp.appName) else emptySet(),
+        )
+    }
     var selectedAppsForTime by remember { mutableStateOf<List<com.aptox.app.model.SelectedAppInfo>>(emptyList()) }
-    var selectedAppsForDaily by remember { mutableStateOf<List<com.aptox.app.model.SelectedAppInfo>>(emptyList()) }
+    var selectedAppsForDaily by remember {
+        mutableStateOf(
+            if (initialPrefilledApp != null) listOf(initialPrefilledApp) else emptyList(),
+        )
+    }
     var selectedTimeLimit by remember { mutableStateOf<String?>(null) }
     var showAppSelectSheet by remember { mutableStateOf(false) }
     var showTimeLimitSheet by remember { mutableStateOf(false) }
@@ -1327,7 +1364,14 @@ fun AddAppFlowHost(
                 selectedDailyMinutes = dailyLimitMinutes,
                 onAppRowClick = { showDailyAppSelectSheet = true },
                 onTimeRowClick = { showDailyTimeSheet = true },
-                onNextClick = { step = AddAppStep.AA_DAILY_05 },
+                onNextClick = {
+                    coroutineScope.launch {
+                        withContext(Dispatchers.IO) {
+                            persistDailyLimitAddFlow(context, selectedAppsForDaily, dailyLimitMinutes)
+                        }
+                        step = AddAppStep.AA_DAILY_05
+                    }
+                },
                 onBackClick = onBackFromFirst,
             )
             if (showDailyAppSelectSheet) {
@@ -1405,58 +1449,22 @@ fun AddAppFlowHost(
             LaunchedEffect(Unit) { step = AddAppStep.AA_DAILY_05 }
         }
         AddAppStep.AA_DAILY_05 -> {
-            val repo = remember { AppRestrictionRepository(context) }
-            val coroutineScope = rememberCoroutineScope()
-            // 저장 로직: 버튼 탭 시에만 실행 (뒤로가기/종료 시 저장하지 않음)
-            val saveAndFinish: suspend (afterSave: () -> Unit) -> Unit = { afterSave ->
-                val mins = parseLimitMinutes(dailyLimitMinutes ?: "30분")
-                val baselineTime = System.currentTimeMillis()
-                selectedAppsForDaily.filter { it.packageName.isNotBlank() }.forEach { app ->
-                    repo.save(com.aptox.app.model.AppRestriction(
-                        packageName = app.packageName,
-                        appName = app.appName,
-                        limitMinutes = mins,
-                        blockUntilMs = 0L,
-                        baselineTimeMs = baselineTime,
-                        repeatDays = "0,1,2,3,4,5,6",
-                        durationWeeks = 0,
-                    ))
-                }
-                val map = repo.toRestrictionMap()
-                if (map.isNotEmpty()) {
-                    AppMonitorService.stop(context)
-                    AppMonitorService.start(context, map)
-                }
-                DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(context)
-                afterSave()
-            }
+            // 저장은 AA_DAILY_01 → 여기로 올 때 이미 완료됨
             AddAppDailyLimitScreen05(
                 appName = selectedAppNames.joinToString(", ").ifEmpty { "앱" },
                 limitMinutes = dailyLimitMinutes ?: "30분",
                 onCompleteClick = {
-                    coroutineScope.launch {
-                        val firstPkg = selectedAppsForDaily.firstOrNull()?.packageName ?: ""
-                        saveAndFinish {
-                            if (firstPkg.isNotBlank()) onCompleteWithFirstPackage(firstPkg) else onComplete()
-                        }
-                    }
+                    val firstPkg = selectedAppsForDaily.firstOrNull()?.packageName ?: ""
+                    if (firstPkg.isNotBlank()) onCompleteWithFirstPackage(firstPkg) else onComplete()
                 },
                 onAddAnotherClick = {
-                    coroutineScope.launch {
-                        saveAndFinish {
-                            selectedAppNames = emptySet()
-                            selectedAppsForDaily = emptyList()
-                            dailyLimitMinutes = null
-                            step = AddAppStep.AA_DAILY_01
-                        }
-                    }
-                },
-                onBackClick = {
-                    // 뒤로가기 시 임시 데이터 초기화 후 플로우 종료 (저장하지 않음)
                     selectedAppNames = emptySet()
                     selectedAppsForDaily = emptyList()
                     dailyLimitMinutes = null
-                    onBackFromFirst()
+                    step = AddAppStep.AA_DAILY_01
+                },
+                onBackClick = {
+                    onComplete()
                 },
             )
         }
@@ -1523,7 +1531,15 @@ fun AddAppFlowHost(
         AddAppStep.AA_02A_TIME_05 -> AddAppScreenAA02ATimeSummary(
             selectedAppName = selectedAppNames.joinToString(", "),
             selectedTimeLimit = selectedTimeLimit ?: "",
-            onNextClick = { previousStepBeforeConfirm = AddAppStep.AA_02A_TIME_05; step = AddAppStep.AA_03_01 },
+            onNextClick = {
+                previousStepBeforeConfirm = AddAppStep.AA_02A_TIME_05
+                coroutineScope.launch {
+                    withContext(Dispatchers.IO) {
+                        persistAddAppTimeLimitSummaryFlow(context, selectedAppsForTime, selectedTimeLimit)
+                    }
+                    step = AddAppStep.AA_03_01
+                }
+            },
             onBackClick = { step = AddAppStep.AA_02A_TIME_01 },
             headerTitle = flowHeaderTitle,
         )
@@ -1535,7 +1551,6 @@ fun AddAppFlowHost(
             onBackClick = { step = AddAppStep.AA_02A_01 },
         )
         AddAppStep.AA_03_01 -> {
-            val repo = remember { AppRestrictionRepository(context) }
             val completeHeaderTitle = when (previousStepBeforeConfirm) {
                 AddAppStep.AA_02A_TIME_05 -> flowHeaderTitle
                 else -> "앱 제한"
@@ -1550,28 +1565,8 @@ fun AddAppFlowHost(
                 },
                 primaryButtonText = "홈으로 가기",
                 secondaryButtonText = "다른 앱 추가하기",
-                onPrimaryClick = {
-    if (previousStepBeforeConfirm == AddAppStep.AA_02A_TIME_05) {
-        val mins = parseLimitMinutes(selectedTimeLimit ?: "60분")
-        val blockUntilMs = System.currentTimeMillis() + mins * 60L * 1000L
-        selectedAppsForTime.filter { it.packageName.isNotBlank() }.forEach { app ->
-            repo.save(com.aptox.app.model.AppRestriction(
-                packageName = app.packageName,
-                appName = app.appName,
-                limitMinutes = mins,
-                blockUntilMs = blockUntilMs,
-                baselineTimeMs = 0L, // 시간지정은 사용량 카운트 안 함
-            ))
-        }
-        val map = repo.toRestrictionMap()
-        if (map.isNotEmpty()) {
-            AppMonitorService.stop(context)
-            AppMonitorService.start(context, map)
-        }
-        DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(context)
-    }
-    onComplete()
-},
+                // AA_02A_TIME_05 → 진입 시 이미 저장됨
+                onPrimaryClick = { onComplete() },
                 onSecondaryClick = {
                     selectedAppNames = emptySet()
                     selectedAppsForDaily = emptyList()
@@ -1580,11 +1575,69 @@ fun AddAppFlowHost(
                     dailyLimitMinutes = null
                     step = AddAppStep.AA_DAILY_01
                 },
-                onBackClick = { step = previousStepBeforeConfirm },
+                onBackClick = { onComplete() },
             )
         }
     }
     }
+}
+
+/** 일일 사용량 제한: 설정 완료 화면(AA_DAILY_05) 직전 단계에서 호출 */
+private suspend fun persistDailyLimitAddFlow(
+    context: Context,
+    selectedAppsForDaily: List<com.aptox.app.model.SelectedAppInfo>,
+    dailyLimitMinutes: String?,
+) {
+    val repo = AppRestrictionRepository(context)
+    val mins = parseLimitMinutes(dailyLimitMinutes ?: "30분")
+    val baselineTime = System.currentTimeMillis()
+    selectedAppsForDaily.filter { it.packageName.isNotBlank() }.forEach { app ->
+        repo.save(
+            com.aptox.app.model.AppRestriction(
+                packageName = app.packageName,
+                appName = app.appName,
+                limitMinutes = mins,
+                blockUntilMs = 0L,
+                baselineTimeMs = baselineTime,
+                repeatDays = "0,1,2,3,4,5,6",
+                durationWeeks = 0,
+            ),
+        )
+    }
+    val map = repo.toRestrictionMap()
+    if (map.isNotEmpty()) {
+        AppMonitorService.stop(context)
+        AppMonitorService.start(context, map)
+    }
+    DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(context)
+}
+
+/** 앱 제한 플로우 내 시간 제한(AA_02A) 요약 → 공통 완료(AA_03_01) 직전에 호출 */
+private suspend fun persistAddAppTimeLimitSummaryFlow(
+    context: Context,
+    selectedAppsForTime: List<com.aptox.app.model.SelectedAppInfo>,
+    selectedTimeLimit: String?,
+) {
+    val repo = AppRestrictionRepository(context)
+    val mins = parseLimitMinutes(selectedTimeLimit ?: "60분")
+    val blockUntilMs = System.currentTimeMillis() + mins * 60L * 1000L
+    selectedAppsForTime.filter { it.packageName.isNotBlank() }.forEach { app ->
+        repo.save(
+            com.aptox.app.model.AppRestriction(
+                packageName = app.packageName,
+                appName = app.appName,
+                limitMinutes = mins,
+                blockUntilMs = blockUntilMs,
+                baselineTimeMs = 0L,
+            ),
+        )
+    }
+    val map = repo.toRestrictionMap()
+    if (map.isNotEmpty()) {
+        AppMonitorService.stop(context)
+        AppMonitorService.start(context, map)
+    }
+    DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(context)
 }
 
 private fun parseLimitMinutes(limitStr: String): Int {

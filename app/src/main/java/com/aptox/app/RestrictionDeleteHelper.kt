@@ -28,6 +28,7 @@ object RestrictionDeleteHelper {
         if (logRelease) {
             (context.applicationContext as? AptoxApplication)?.applicationScope?.launch {
                 AppLimitLogRepository().saveEvent(
+                    context.applicationContext,
                     FirebaseAuth.getInstance().currentUser?.uid,
                     packageName,
                     "release",
@@ -63,5 +64,8 @@ object RestrictionDeleteHelper {
 
         // 7. 일일 사용량 알람 스케줄 갱신
         DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(context)
+
+        // 8. 시간 지정 제한 시작/종료 알람 취소
+        TimeSpecifiedRestrictionAlarmScheduler.cancelForPackage(context, packageName)
     }
 }

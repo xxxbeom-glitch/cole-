@@ -17,7 +17,7 @@ android {
         applicationId = "com.aptox.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 8
+        versionCode = 10
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -79,6 +79,7 @@ dependencies {
 
     // Firebase
     implementation(platform("com.google.firebase:firebase-bom:34.0.0"))
+    implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-functions")
@@ -103,6 +104,7 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     // WorkManager + Room/Startup (명시 버전으로 전이 의존성 정렬 — WorkDatabase 초기화 안정화)
+    // work-runtime-ktx 2.10.2는 Room 2.6.x와 함께 빌드됨. Room 2.6.1과 동일 계열로 유지할 것.
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

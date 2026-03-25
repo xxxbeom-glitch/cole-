@@ -117,7 +117,7 @@ sealed class DebugScreen(val category: String, val label: String) {
     data object SelfTestVer2 : DebugScreen("인증/온보딩", "스마트폰 사용패턴 테스트")
     data object SelfTestLoading : DebugScreen("인증/온보딩", "테스트 결과 로딩 애니메이션")
     data object UsagePatternAnalysis : DebugScreen("인증/온보딩", "사용패턴 분석 결과")
-    data object AppExplanationOnboarding : DebugScreen("인증/온보딩", "앱 설명 온보딩 (미구현)")
+    data object AppIntroOnboarding : DebugScreen("인증/온보딩", "앱 소개 (App intro)")
     // 화면 목차에서 제거됨 (바로가기/자가테스트 플로우)
     data object Login : DebugScreen("인증/온보딩", "Login")
     data object SelfTest : DebugScreen("인증/온보딩", "자가테스트")
@@ -132,6 +132,7 @@ sealed class DebugScreen(val category: String, val label: String) {
     data object AddAppDaily04 : DebugScreen("앱 제한", "AA-02B: 설정 요약")
     data object AddAppDaily05 : DebugScreen("앱 제한", "AA-02B: 완료")
     data object AddAppFlowHost : DebugScreen("앱 제한", "앱 제한 플로우 전체")
+    data object TimeSpecifiedFlow : DebugScreen("앱 제한", "시간 지정 제한 플로우 전체")
 
     // 메인
     data object MainFlow : DebugScreen("메인", "메인 (홈/챌린지/통계/설정)")
@@ -143,6 +144,8 @@ sealed class DebugScreen(val category: String, val label: String) {
     data object SelfTestResultST10 : DebugScreen("테스트", "자가테스트 결과 ST-10 (반원형 게이지)")
     data object LoadingAnimation : DebugScreen("테스트", "로딩 애니메이션 (3dot → 체크)")
     data object AppIconTest : DebugScreen("테스트", "앱 아이콘 테스트")
+    data object ToastAnimationTest : DebugScreen("테스트", "토스트 애니메이션 테스트")
+    data object DrumrollTimePicker : DebugScreen("테스트", "드럼롤 시간 선택 피커")
 
     // 바텀시트
     data object BaseBottomSheet : DebugScreen("바텀시트", "BaseBottomSheet (기본형)")
@@ -247,6 +250,10 @@ private fun DebugScreenPreview(
         DebugScreen.AddAppFlowHost -> AddAppFlowHost(
             onComplete = onAddAppComplete,
             onBackFromFirst = onAddAppComplete,
+        )
+        DebugScreen.TimeSpecifiedFlow -> TimeSpecifiedFlowHost(
+            onComplete = onBack,
+            onBackFromFirst = onBack,
         )
         DebugScreen.MainFlow -> MainFlowHost(
             onAddAppClick = { onNavigateToScreen(DebugScreen.AddAppFlowHost) },
@@ -384,8 +391,12 @@ private fun DebugScreenPreview(
             onGhostClick = onBack,
             enforceRequiredPermissionsForNext = false,
         )
-        // 앱 설명 온보딩: 미구현 — 목차에만 표시, 탭 시 아무 동작 없음
-        // DebugScreen.AppExplanationOnboarding -> (호출되지 않음)
+        DebugScreen.AppIntroOnboarding -> AppIntroOnboardingScreen(
+            onNextClick = onBack,
+            onBackClick = onBack,
+        )
+        DebugScreen.ToastAnimationTest -> ToastAnimationTestScreen(onBack = onBack)
+        DebugScreen.DrumrollTimePicker -> DrumrollTimePickerTestScreen(onBack = onBack)
         DebugScreen.UsageStatsTest -> UsageStatsTestScreen(onBack = onBack)
         DebugScreen.AppMonitorTest -> AppMonitorTestScreen(onBack = onBack)
         DebugScreen.BlockOverlayTest -> BlockOverlayTestScreen(onBack = onBack)
@@ -661,34 +672,25 @@ private fun DebugScreenListSection(
         listOf(
             DebugScreen.Splash,
             DebugScreen.Permission,
+            DebugScreen.AppIntroOnboarding,
             DebugScreen.SelfTestVer2,
             DebugScreen.SelfTestLoading,
             DebugScreen.UsagePatternAnalysis,
-            DebugScreen.AppExplanationOnboarding,
         ).forEach { screen ->
-            val isNonNavigable = screen == DebugScreen.AppExplanationOnboarding
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
-                    .background(
-                        if (isNonNavigable) AppColors.SurfaceBackgroundCard.copy(alpha = 0.7f)
-                        else AppColors.SurfaceBackgroundCard
-                    )
-                    .then(
-                        if (isNonNavigable) Modifier
-                        else Modifier.clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) { onScreenSelect(screen) }
-                    )
+                    .background(AppColors.SurfaceBackgroundCard)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { onScreenSelect(screen) }
                     .padding(16.dp),
             ) {
                 Text(
                     text = screen.label,
-                    style = AppTypography.BodyMedium.copy(
-                        color = if (isNonNavigable) AppColors.TextSecondary else AppColors.TextPrimary,
-                    ),
+                    style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary),
                 )
             }
         }
@@ -699,7 +701,7 @@ private fun DebugScreenListSection(
             text = "앱 제한",
             style = AppTypography.Caption2.copy(color = AppColors.TextHighlight),
         )
-        listOf(DebugScreen.AddAppFlowHost).forEach { screen ->
+        listOf(DebugScreen.AddAppFlowHost, DebugScreen.TimeSpecifiedFlow).forEach { screen ->
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -897,6 +899,8 @@ private fun DebugDesignSystemDetailSection(
 private fun DebugTestsContent(onBack: () -> Unit) {
     var selectedScreen by remember { mutableStateOf<DebugScreen?>(null) }
     val testScreens = listOf(
+        DebugScreen.ToastAnimationTest,
+        DebugScreen.DrumrollTimePicker,
         DebugScreen.AppIconTest,
         DebugScreen.UsageStatsTest,
         DebugScreen.AppMonitorTest,
@@ -1583,14 +1587,15 @@ private fun DebugTestSettingsSection() {
         // 6. 앱 사용제한 기록 초기화
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(text = "앱 사용제한 기록 초기화", style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary))
-            Text(text = "Firestore users/{userId}/appLimitLogs 전체 삭제. 설정 > 앱 사용제한 기록 화면에서 보이는 타임라인 데이터를 초기화합니다.", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
+            Text(text = "비로그인 로컬 기록 + timeout dedup prefs 삭제. 로그인 시 Firestore users/{userId}/appLimitLogs 전체 삭제.", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
             AptoxPrimaryButton(
                 text = "앱 사용제한 기록 초기화",
                 onClick = {
-                    val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: return@AptoxPrimaryButton
                     scope.launch {
-                        runCatching { AppLimitLogRepository().clearAll(uid) }
                         AppLimitLogRepository.clearTimeoutPrefs(context)
+                        AppLimitLogLocalPreferences.clear(context)
+                        val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                        if (uid != null) runCatching { AppLimitLogRepository().clearAll(uid) }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),

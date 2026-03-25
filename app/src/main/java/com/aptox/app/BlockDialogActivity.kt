@@ -12,6 +12,7 @@ import android.os.Bundle
  * 케이스 1 (COUNT_NOT_STARTED): 사용 시간이 남아있음 - 카운트 시작 / 닫기
  * 케이스 2 (USAGE_EXCEEDED, blockUntilMs <= 0): 사용시간 전부 소진 - 닫기
  * 케이스 3 (blockUntilMs > 0): 시간 지정 차단 - 일시정지 / 홈으로 이동
+ * 케이스 4 (MIDNIGHT_RESET): 00:00 자정에 카운트 세션이 종료됨 - 카운트 시작 / 닫기
  */
 class BlockDialogActivity : Activity() {
 
@@ -49,6 +50,7 @@ class BlockDialogActivity : Activity() {
         when {
             blockUntilMs > 0 -> showTimeSpecifiedDialog(packageName, appName, blockUntilMs)
             overlayState == OVERLAY_STATE_COUNT_NOT_STARTED -> showCountNotStartedDialog(packageName, appName)
+            overlayState == OVERLAY_STATE_MIDNIGHT_RESET -> showMidnightResetDialog(packageName, appName)
             else -> showUsageExceededDialog(packageName, appName)
         }
     }
@@ -69,6 +71,34 @@ class BlockDialogActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle("앱을 사용하려면 카운트 시작 버튼을 눌러주세요")
             .setMessage("앱을 필요한 만큼 사용하신 후에는 반드시 카운트 중지를 눌러주셔야 해요")
+            .setCancelable(false)
+            .setPositiveButton("카운트 시작") { _, _ ->
+                val i = Intent(this, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    putExtra(AppMonitorService.EXTRA_OPEN_BOTTOM_SHEET, packageName)
+                }
+                startActivity(i)
+                goHomeAndFinish(skipHome = true)
+            }
+            .setNegativeButton("닫기") { _, _ ->
+                goHomeAndFinish()
+            }
+            .setOnKeyListener { _, keyCode, event ->
+                if (keyCode == android.view.KeyEvent.KEYCODE_BACK && event.action == android.view.KeyEvent.ACTION_UP) {
+                    goHomeAndFinish()
+                    true
+                } else false
+            }
+            .create()
+            .also { it.setCanceledOnTouchOutside(false) }
+            .show()
+    }
+
+    /** 케이스 4: 00:00 자정에 카운트 세션이 종료됨 - 카운트 시작 / 닫기 */
+    private fun showMidnightResetDialog(packageName: String, appName: String) {
+        AlertDialog.Builder(this)
+            .setTitle("자정이 지나 카운트가 종료됐어요")
+            .setMessage("새 날이 시작됐어요. 오늘도 $appName 사용을 시작하려면 카운트를 눌러주세요.")
             .setCancelable(false)
             .setPositiveButton("카운트 시작") { _, _ ->
                 val i = Intent(this, MainActivity::class.java).apply {
@@ -114,22 +144,18 @@ class BlockDialogActivity : Activity() {
             .show()
     }
 
-    /** 케이스 3: 시간 지정 차단 - 일시정지 / 홈으로 이동 */
+    /** 케이스 3: 시간 지정 차단 - 닫기 */
     private fun showTimeSpecifiedDialog(packageName: String, appName: String, blockUntilMs: Long) {
         BadgeAutoGrant.onBlockDefenseOverlayShown(applicationContext)
 
-        val pauseRepo = PauseRepository(this)
-        val pauseMinutes = 5
-        val maxCount = Int.MAX_VALUE
-        val remainingCount = pauseRepo.getRemainingCount(packageName, maxCount)
         val remainingTimeText = formatBlockRemainingTime(blockUntilMs)
-        val message = "${remainingTimeText} 뒤에는 제한 해제가 되니\n조금만 더 참아봐요"
+        val message = "${remainingTimeText} 후에 사용 가능해요"
 
-        val builder = AlertDialog.Builder(this)
-            .setTitle("지금은 $appName 을 사용하실 수 없어요")
+        AlertDialog.Builder(this)
+            .setTitle("지금은 사용하실 수 없어요")
             .setMessage(message)
             .setCancelable(false)
-            .setNegativeButton("홈으로 이동") { _, _ ->
+            .setPositiveButton("닫기") { _, _ ->
                 goHomeAndFinish()
             }
             .setOnKeyListener { _, keyCode, event ->
@@ -138,22 +164,7 @@ class BlockDialogActivity : Activity() {
                     true
                 } else false
             }
-
-        if (remainingCount > 0) {
-            builder.setPositiveButton("${pauseMinutes}분 일시정지") { _, _ ->
-                val i = Intent(this, MainActivity::class.java).apply {
-                    action = ACTION_PAUSE_FLOW_FROM_OVERLAY
-                    putExtra(EXTRA_PACKAGE_NAME, packageName)
-                    putExtra(EXTRA_APP_NAME, appName)
-                    putExtra(EXTRA_BLOCK_UNTIL_MS, blockUntilMs)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                }
-                startActivity(i)
-                goHomeAndFinish(skipHome = true)
-            }
-        }
-
-        builder.create()
+            .create()
             .also { it.setCanceledOnTouchOutside(false) }
             .show()
     }
@@ -202,6 +213,7 @@ class BlockDialogActivity : Activity() {
         const val EXTRA_OVERLAY_STATE = "overlay_state"
         const val OVERLAY_STATE_USAGE_EXCEEDED = "USAGE_EXCEEDED"
         const val OVERLAY_STATE_COUNT_NOT_STARTED = "COUNT_NOT_STARTED"
+        const val OVERLAY_STATE_MIDNIGHT_RESET = "MIDNIGHT_RESET"
         const val ACTION_PAUSE_FLOW_FROM_OVERLAY = "com.aptox.app.PAUSE_FLOW_FROM_OVERLAY"
         const val ACTION_DISMISS_IF_PACKAGE = "com.aptox.app.DISMISS_IF_PACKAGE"
 

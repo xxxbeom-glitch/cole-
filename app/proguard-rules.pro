@@ -52,6 +52,7 @@
 -keep class androidx.work.** { *; }
 -keep interface androidx.work.** { *; }
 -keep class androidx.work.impl.** { *; }
+-keep class androidx.work.impl.WorkDatabase_Impl { *; }
 -keep class * extends androidx.room.RoomDatabase
 -keep class androidx.room.** { *; }
 -dontwarn androidx.work.**

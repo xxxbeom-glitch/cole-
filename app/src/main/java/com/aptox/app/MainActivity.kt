@@ -2,7 +2,6 @@ package com.aptox.app
 
 import android.Manifest
 import android.content.Intent
-import androidx.credentials.exceptions.GetCredentialCancellationException
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -26,6 +25,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.aptox.app.ui.components.AptoxToast
+import com.google.firebase.analytics.FirebaseAnalytics
 import androidx.compose.ui.res.painterResource
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowInsetsControllerCompat
@@ -34,7 +35,8 @@ import android.content.Context
 import kotlinx.coroutines.launch
 
 /**
- * 스플래시/권한 직후: 필수 권한 → (최초 1회) 이름+자가테스트(Ver2) → 분석 로딩(ST-09) → 사용패턴 결과 → 메인.
+ * 스플래시/권한 직후: 필수 권한 → (온보딩 1회) 앱 소개 → 이름+자가테스트(Ver2) → 분석 로딩(ST-09) → 사용패턴 결과 → 메인.
+ * 권한 화면을 거친 경우에만 앱 소개가 끼고, 이미 권한이 있으면 스플래시 직후 Ver2로 진입.
  * [FirstRunFlowRepository] 완료 플래그는 사용패턴 분석 완료 시에만 true.
  */
 private suspend fun resolveStepAfterAuth(context: Context, firstRunRepo: FirstRunFlowRepository): SignUpStep {
@@ -45,10 +47,10 @@ private suspend fun resolveStepAfterAuth(context: Context, firstRunRepo: FirstRu
     return SignUpStep.MAIN
 }
 
-/** 권한 화면「다음에 하기」— 필수 미허용이어도 동일 1회 플로우(이름·자가테스트부터) */
-private suspend fun resolveStepAfterPermissionDeferred(context: Context, firstRunRepo: FirstRunFlowRepository): SignUpStep {
+/** 권한 안내 화면 종료 후(허용 완료 또는 「다음에 하기」) 온보딩이면 앱 소개 화면으로 */
+private suspend fun resolveStepAfterPermissionScreen(context: Context, firstRunRepo: FirstRunFlowRepository): SignUpStep {
     if (!firstRunRepo.isOnboardingFlowCompleted()) {
-        return SignUpStep.SELFTEST_VER2
+        return SignUpStep.APP_INTRO_ONBOARDING
     }
     return SignUpStep.MAIN
 }
@@ -103,6 +105,8 @@ data class PendingPauseFlowFromOverlay(
 enum class SignUpStep {
     SPLASH,
     PERMISSION,
+    /** App intro after device permission screen; next → SelfTest Ver2 */
+    APP_INTRO_ONBOARDING,
     LOGIN,
     EMAIL,
     PASSWORD,
@@ -114,8 +118,8 @@ enum class SignUpStep {
     SELFTEST_LOADING,
     USAGE_PATTERN_ANALYSIS,
     SELFTEST_RESULT,
-    APP_EXPLANATION_ONBOARDING,
     ADD_APP,
+    TIME_SPECIFIED,
     MAIN,
     // 비밀번호 재설정 RS-01 ~ RS-03
     PASSWORD_RESET_EMAIL,
@@ -267,10 +271,16 @@ fun SignUpFlowHost(
     var selfTestUserName by remember { mutableStateOf("") }
     var loginError by remember { mutableStateOf<String?>(null) }
     var loginLoading by remember { mutableStateOf(false) }
+    var loginCancelToast by remember { mutableStateOf<String?>(null) }
+    var loginCancelToastKey by remember { mutableStateOf(0) }
     var autoOpenPackage by remember { mutableStateOf<String?>(null) }
+    var prefilledApp by remember { mutableStateOf<com.aptox.app.model.SelectedAppInfo?>(null) }
     val scope = rememberCoroutineScope()
     val authRepository = remember { AuthRepository() }
     val firstRunRepo = remember { FirstRunFlowRepository(context) }
+    val firebaseAnalytics = remember {
+        FirebaseAnalytics.getInstance(context.applicationContext)
+    }
 
     // 현재 화면 렌더링
     when (step) {
@@ -285,40 +295,65 @@ fun SignUpFlowHost(
             onPrimaryClick = {
                 scope.launch {
                     if (!context.areRequiredAppPermissionsGranted()) return@launch
-                    step = resolveStepAfterAuth(context, firstRunRepo)
+                    step = resolveStepAfterPermissionScreen(context, firstRunRepo)
                 }
             },
             onGhostClick = {
                 scope.launch {
-                    step = resolveStepAfterPermissionDeferred(context, firstRunRepo)
+                    step = resolveStepAfterPermissionScreen(context, firstRunRepo)
                 }
             },
         )
-        SignUpStep.LOGIN -> SplashLoginScreen(
-            initialButtonsVisible = true,
-            onGoogleLoginClick = {
-                loginError = null
-                loginLoading = true
-                scope.launch {
-                    authRepository.signInWithGoogle(context)
-                        .onSuccess {
-                            loginLoading = false
-                            scope.launch {
-                                step = resolveStepAfterAuth(context, firstRunRepo)
-                            }
-                        }
-                        .onFailure { e ->
-                            loginLoading = false
-                            if (e !is GetCredentialCancellationException && e.cause !is GetCredentialCancellationException) {
-                                loginError = e.message ?: "구글 로그인에 실패했어요"
-                            }
-                        }
-                }
-            },
-            errorMessage = loginError,
-            onClearError = { loginError = null },
-            isLoading = loginLoading,
+        SignUpStep.APP_INTRO_ONBOARDING -> AppIntroOnboardingScreen(
+            onNextClick = { step = SignUpStep.SELFTEST_VER2 },
+            onBackClick = { step = SignUpStep.PERMISSION },
         )
+        SignUpStep.LOGIN -> Box(modifier = Modifier.fillMaxSize()) {
+            SplashLoginScreen(
+                initialButtonsVisible = true,
+                onGoogleLoginClick = {
+                    loginError = null
+                    loginLoading = true
+                    scope.launch {
+                        authRepository.signInWithGoogle(context)
+                            .onSuccess {
+                                loginLoading = false
+                                scope.launch {
+                                    step = resolveStepAfterAuth(context, firstRunRepo)
+                                }
+                            }
+                            .onFailure { e ->
+                                loginLoading = false
+                                if (LoginAnalytics.isGoogleLoginCancelled(e)) {
+                                    LoginAnalytics.logLoginCancelled(
+                                        firebaseAnalytics,
+                                        "google",
+                                        "signup_login",
+                                    )
+                                    loginCancelToastKey++
+                                    loginCancelToast = "로그인을 취소했습니다"
+                                } else {
+                                    LoginAnalytics.logLoginFailed(
+                                        firebaseAnalytics,
+                                        "google",
+                                        e.message ?: "구글 로그인에 실패했어요",
+                                    )
+                                    loginError = e.message ?: "구글 로그인에 실패했어요"
+                                }
+                            }
+                    }
+                },
+                errorMessage = loginError,
+                onClearError = { loginError = null },
+                isLoading = loginLoading,
+            )
+            AptoxToast(
+                message = loginCancelToast ?: "",
+                visible = loginCancelToast != null,
+                onDismiss = { loginCancelToast = null },
+                replayKey = loginCancelToastKey,
+            )
+        }
         // 비활성화: 회원가입 플로우 (EMAIL, PASSWORD, NAME_BIRTH_PHONE, VERIFICATION, COMPLETE)
         SignUpStep.EMAIL,
         SignUpStep.PASSWORD,
@@ -337,7 +372,7 @@ fun SignUpFlowHost(
             },
         )
         SignUpStep.SELFTEST_VER2 -> SelfTestScreenVer2(
-            onBack = { step = SignUpStep.PERMISSION },
+            onBack = { step = SignUpStep.APP_INTRO_ONBOARDING },
             onComplete = { name, answers ->
                 selfTestUserName = name
                 UserPreferencesRepository(context).userName = name
@@ -359,14 +394,6 @@ fun SignUpFlowHost(
                 }
             },
         )
-        SignUpStep.APP_EXPLANATION_ONBOARDING -> AppExplanationOnboardingScreen(
-            onFinish = {
-                scope.launch {
-                    firstRunRepo.setOnboardingFlowCompleted(true)
-                    step = SignUpStep.MAIN
-                }
-            },
-        )
         SignUpStep.SELFTEST_RESULT -> SelfTestResultScreenST10(
             resultType = computeSelfTestResultType(selfTestAnswers),
             onStartClick = {
@@ -379,15 +406,40 @@ fun SignUpFlowHost(
             rawScore = selfTestAnswers.values.sumOf { (4 - it).coerceIn(0, 4) }.coerceIn(8, 32),
         )
         SignUpStep.ADD_APP -> AddAppFlowHost(
-            onComplete = { step = SignUpStep.MAIN },
-            onBackFromFirst = { step = SignUpStep.MAIN },
+            onComplete = {
+                prefilledApp = null
+                step = SignUpStep.MAIN
+            },
+            onBackFromFirst = {
+                prefilledApp = null
+                step = SignUpStep.MAIN
+            },
             onCompleteWithFirstPackage = { pkg ->
+                prefilledApp = null
                 autoOpenPackage = pkg
+                step = SignUpStep.MAIN
+            },
+            initialPrefilledApp = prefilledApp,
+        )
+        SignUpStep.TIME_SPECIFIED -> TimeSpecifiedFlowHost(
+            onComplete = {
+                prefilledApp = null
+                step = SignUpStep.MAIN
+            },
+            onBackFromFirst = {
+                prefilledApp = null
                 step = SignUpStep.MAIN
             },
         )
         SignUpStep.MAIN -> MainFlowHost(
-            onAddAppClick = { step = SignUpStep.ADD_APP },
+            onAddAppClick = { app ->
+                prefilledApp = app
+                step = SignUpStep.ADD_APP
+            },
+            onTimeSpecifiedClick = { app ->
+                prefilledApp = app
+                step = SignUpStep.TIME_SPECIFIED
+            },
             onLogout = { step = SignUpStep.LOGIN },
             initialPauseFlowFromOverlay = pendingPauseFlowFromOverlay,
             onPauseFlowConsumed = { activity?.clearPendingPauseFlowFromOverlay() },

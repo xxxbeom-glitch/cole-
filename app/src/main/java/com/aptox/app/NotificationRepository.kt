@@ -118,6 +118,10 @@ class NotificationRepository(
 
     /**
      * 미확인 알림 존재 여부. 알림 내역 화면에서 새 알림까지 전부 확인하면 false.
+     *
+     * 로그인 직후 등 `last_checked_{userId}`가 없을 때(0) Firestore에 쌓여 있던 기존 알림만으로
+     * 배지가 켜지지 않도록, 첫 목록 수신 시 확인 시각을 그 목록의 최신 타임스탬프로 한 번 맞춘다.
+     * 이후 도착하는 알림만 `timestampMs > last_checked`로 미읽음 처리된다.
      */
     fun hasUnreadNotificationsFlow(userId: String?): Flow<Boolean> {
         if (userId.isNullOrBlank() || prefs == null) return kotlinx.coroutines.flow.flowOf(false)
@@ -126,7 +130,12 @@ class NotificationRepository(
             getNotificationsFlow(userId),
             Companion.markCheckedTrigger.onStart { emit(Unit) },
         ) { items, _ ->
-            val lastCheckedMs = prefs!!.getLong(key, 0L)
+            var lastCheckedMs = prefs!!.getLong(key, 0L)
+            if (lastCheckedMs == 0L && items.isNotEmpty()) {
+                val maxTs = items.maxOf { it.timestampMs }
+                prefs!!.edit().putLong(key, maxTs).commit()
+                lastCheckedMs = maxTs
+            }
             items.any { it.timestampMs > lastCheckedMs }
         }
     }

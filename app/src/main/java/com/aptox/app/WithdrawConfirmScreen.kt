@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.dp
  */
 @Composable
 fun WithdrawConfirmScreen(
-    onBack: () -> Unit,
     onConfirmWithdraw: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -97,12 +96,9 @@ fun WithdrawConfirmScreen(
             }
         }
 
-        // 하단 버튼 영역 (AptoxTwoLineButton 가이드)
-        AptoxTwoLineButton(
-            primaryText = "탈퇴하기",
-            ghostText = "돌아가기",
-            onPrimaryClick = onConfirmWithdraw,
-            onGhostClick = onBack,
+        AptoxPrimaryButton(
+            text = "탈퇴하기",
+            onClick = onConfirmWithdraw,
             enabled = isSelected,
             modifier = Modifier
                 .align(Alignment.BottomCenter)

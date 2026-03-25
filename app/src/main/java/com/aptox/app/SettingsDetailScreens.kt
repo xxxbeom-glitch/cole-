@@ -47,6 +47,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import android.content.Context
 import android.provider.Settings
 import com.aptox.app.StatisticsData
+import java.text.Collator
+import java.util.Locale
 
 /**
  * 설정 메뉴 세부 화면 (Figma MY-02~07)
@@ -63,19 +65,25 @@ fun AppRestrictionHistoryScreen(
     onBack: () -> Unit,
     onItemClick: (packageName: String, appName: String) -> Unit,
 ) {
+    val context = LocalContext.current
     val logRepo = remember { AppLimitLogRepository() }
-    val packages by logRepo.getPackagesWithLogsFlow(userId).collectAsState(initial = emptyList())
+    val packages by logRepo.getPackagesWithLogsFlow(context, userId).collectAsState(initial = emptyList())
+    val sortedPackages = remember(packages) {
+        val collator = Collator.getInstance(Locale.KOREAN)
+        packages.sortedWith(compareBy(collator) { it.appName })
+    }
 
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 56.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Spacer(modifier = Modifier.height(24.dp))
         when {
-            packages.isEmpty() -> {
+            sortedPackages.isEmpty() -> {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
                     contentAlignment = Alignment.Center,
@@ -94,10 +102,10 @@ fun AppRestrictionHistoryScreen(
                         .shadow(6.dp, RoundedCornerShape(12.dp), false, Color.Black.copy(alpha = 0.06f), Color.Black.copy(alpha = 0.06f))
                         .clip(RoundedCornerShape(12.dp))
                         .background(AppColors.SurfaceBackgroundCard)
-                        .padding(top = 26.dp, bottom = 16.dp, start = 18.dp, end = 18.dp),
+                        .padding(top = 26.dp, bottom = 32.dp, start = 18.dp, end = 18.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    packages.forEach { pkg ->
+                    sortedPackages.forEach { pkg ->
                         AppRestrictionHistoryRow(
                             appName = pkg.appName,
                             appIcon = rememberAppIconPainter(pkg.packageName),
@@ -162,14 +170,16 @@ fun AppRestrictionHistoryDetailScreen(
     userId: String?,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
     val logRepo = remember { AppLimitLogRepository() }
-    val events by logRepo.getEventsFlow(userId, packageName).collectAsState(initial = emptyList())
+    val events by logRepo.getEventsFlow(context, userId, packageName).collectAsState(initial = emptyList())
 
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 56.dp),
     ) {
         Spacer(modifier = Modifier.height(24.dp))
         when {
@@ -188,64 +198,74 @@ fun AppRestrictionHistoryDetailScreen(
                 }
             }
             else -> {
-                val dateFormat = java.text.SimpleDateFormat("yyyy. MM. dd", java.util.Locale.KOREAN)
-                val timeFormat = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.KOREAN)
-                val groupedByDate = events.groupBy { e ->
-                    dateFormat.format(java.util.Date(e.timestamp))
-                }
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(6.dp, RoundedCornerShape(12.dp), false, Color.Black.copy(alpha = 0.06f), Color.Black.copy(alpha = 0.06f))
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(AppColors.SurfaceBackgroundCard)
-                        .padding(horizontal = 18.dp, vertical = 22.dp),
-                ) {
-                    groupedByDate.toSortedMap().entries.toList().forEachIndexed { index, entry ->
-                        val (dateStr, dayEvents) = entry
-                        if (index > 0) {
-                            Spacer(modifier = Modifier.height(14.dp))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(Color(0xFFF3F3F3)),
-                            )
-                            Spacer(modifier = Modifier.height(14.dp))
+                    val timeFormat = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.KOREAN)
+                    val dateEntries = remember(events) {
+                        val dateFormat = java.text.SimpleDateFormat("yyyy. MM. dd", java.util.Locale.KOREAN)
+                        val grouped = events.groupBy { e ->
+                            dateFormat.format(java.util.Date(e.timestamp))
                         }
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                        ) {
-                            Text(
-                                text = dateStr,
-                                style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
-                            )
+                        grouped.entries
+                            .sortedByDescending { (_, dayEvents) ->
+                                dayEvents.maxOfOrNull { it.timestamp } ?: 0L
+                            }
+                            .map { (dateStr, dayEvents) ->
+                                dateStr to dayEvents.sortedByDescending { it.timestamp }
+                            }
+                    }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .shadow(6.dp, RoundedCornerShape(12.dp), false, Color.Black.copy(alpha = 0.06f), Color.Black.copy(alpha = 0.06f))
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(AppColors.SurfaceBackgroundCard)
+                            .padding(start = 18.dp, end = 18.dp, top = 22.dp, bottom = 32.dp),
+                    ) {
+                        dateEntries.forEachIndexed { index, entry ->
+                            val (dateStr, dayEvents) = entry
+                            if (index > 0) {
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(1.dp)
+                                        .background(Color(0xFFF3F3F3)),
+                                )
+                                Spacer(modifier = Modifier.height(14.dp))
+                            }
                             Column(
-                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
                             ) {
-                                dayEvents.forEach { event ->
-                                    val eventLabel = when (event.eventType) {
-                                        "start" -> "카운트 시작"
-                                        "stop" -> "카운트 중지"
-                                        "release" -> "사용자 제한 해제"
-                                        "timeout" -> "시간 소진"
-                                        else -> event.eventType
-                                    }
-                                    val color = if (event.eventType == "release") AppColors.Red300 else AppColors.TextBody
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                    ) {
-                                        Text(
-                                            text = timeFormat.format(java.util.Date(event.timestamp)),
-                                            style = AppTypography.Caption1.copy(color = AppColors.TextBody),
-                                            modifier = Modifier.widthIn(min = 60.dp),
-                                        )
-                                        Text(
-                                            text = eventLabel,
-                                            style = AppTypography.Caption1.copy(color = color),
-                                        )
+                                Text(
+                                    text = dateStr,
+                                    style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
+                                )
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    dayEvents.forEach { event ->
+                                        val eventLabel = when (event.eventType) {
+                                            "start" -> "카운트 시작"
+                                            "stop" -> "카운트 중지"
+                                            "release" -> "사용자 제한 해제"
+                                            "timeout" -> "시간 소진"
+                                            else -> event.eventType
+                                        }
+                                        val color = if (event.eventType == "release") AppColors.Red300 else AppColors.TextBody
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                        ) {
+                                            Text(
+                                                text = timeFormat.format(java.util.Date(event.timestamp)),
+                                                style = AppTypography.Caption1.copy(color = AppColors.TextBody),
+                                                modifier = Modifier.widthIn(min = 60.dp),
+                                            )
+                                            Text(
+                                                text = eventLabel,
+                                                style = AppTypography.Caption1.copy(color = color),
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -254,7 +274,6 @@ fun AppRestrictionHistoryDetailScreen(
                 }
             }
         }
-    }
 }
 
 private fun isAccessibilityEnabled(context: Context): Boolean {

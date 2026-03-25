@@ -30,7 +30,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import com.aptox.app.AppTypography
 
-private val ToastBackgroundColor = Color(0x3C000000)
+private val ToastBackgroundColor = Color.Black.copy(alpha = 0.85f)
 private val ToastMinWidth = 100.dp
 private val ToastHorizontalPadding = 20.dp
 private val ToastVerticalPadding = 8.dp

@@ -24,6 +24,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
                 AppMonitorService.start(ctx, map)
                 Log.d(TAG, "부팅 완료: AppMonitorService 재시작 (제한 앱 ${map.size}개)")
             }
+            TimeSpecifiedRestrictionAlarmScheduler.scheduleAll(ctx)
             DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(ctx)
             WeeklyReportAlarmScheduler.applySchedule(ctx, NotificationPreferences.isWeeklyReportEnabled(ctx))
         } catch (e: Throwable) {

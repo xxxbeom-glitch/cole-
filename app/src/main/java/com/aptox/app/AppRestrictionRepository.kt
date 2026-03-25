@@ -40,9 +40,40 @@ class AppRestrictionRepository(private val context: Context) {
         prefs.edit().remove(KEY_RESTRICTIONS).apply()
     }
 
+    /**
+     * 시간 지정 제한 앱 중 blockUntilMs가 지난 항목을 다음날 같은 시각으로 자동 갱신.
+     * - startTimeMs, blockUntilMs 모두 +24시간
+     * - 갱신된 항목이 있으면 true 반환
+     */
+    fun renewExpiredTimeSpecifiedRestrictions(): Boolean {
+        val list = getAll().toMutableList()
+        val now = System.currentTimeMillis()
+        val oneDayMs = 24 * 60 * 60 * 1000L
+        var changed = false
+        for (i in list.indices) {
+            val r = list[i]
+            if (r.startTimeMs > 0 && r.blockUntilMs <= now) {
+                // 만료된 경우 다음날 같은 시각으로 갱신 (하루씩 전진하여 미래 시각이 될 때까지)
+                var newStart = r.startTimeMs
+                var newEnd = r.blockUntilMs
+                while (newEnd <= now) {
+                    newStart += oneDayMs
+                    newEnd += oneDayMs
+                }
+                list[i] = r.copy(startTimeMs = newStart, blockUntilMs = newEnd)
+                changed = true
+                Log.d(TAG, "시간지정 갱신: ${r.packageName} → start=$newStart end=$newEnd")
+            }
+        }
+        if (changed) {
+            prefs.edit().putString(KEY_RESTRICTIONS, serialize(list)).apply()
+        }
+        return changed
+    }
+
     private fun serialize(list: List<AppRestriction>): String {
         return list.joinToString(SEP_ITEM) {
-            "${it.packageName}$SEP_FIELD${it.appName}$SEP_FIELD${it.limitMinutes}$SEP_FIELD${it.blockUntilMs}$SEP_FIELD${it.baselineTimeMs}$SEP_FIELD${it.repeatDays}$SEP_FIELD${it.durationWeeks}"
+            "${it.packageName}$SEP_FIELD${it.appName}$SEP_FIELD${it.limitMinutes}$SEP_FIELD${it.blockUntilMs}$SEP_FIELD${it.baselineTimeMs}$SEP_FIELD${it.repeatDays}$SEP_FIELD${it.durationWeeks}$SEP_FIELD${it.startTimeMs}"
         }
     }
 
@@ -59,6 +90,7 @@ class AppRestrictionRepository(private val context: Context) {
                     baselineTimeMs = parts.getOrNull(4)?.toLongOrNull() ?: 0L,
                     repeatDays = parts.getOrNull(5) ?: "",
                     durationWeeks = parts.getOrNull(6)?.toIntOrNull() ?: 0,
+                    startTimeMs = parts.getOrNull(7)?.toLongOrNull() ?: 0L,
                 )
             } else null
         }

@@ -55,7 +55,9 @@ class AptoxAccessibilityService : AccessibilityService() {
         if (pauseRepo.isPaused(pkg)) return
 
         val (shouldBlock, overlayState) = if (restriction.blockUntilMs > 0) {
-            Pair(System.currentTimeMillis() < restriction.blockUntilMs, BlockDialogActivity.OVERLAY_STATE_USAGE_EXCEEDED)
+            val now = System.currentTimeMillis()
+            val beforeStart = restriction.startTimeMs > 0 && now < restriction.startTimeMs
+            Pair(!beforeStart && now < restriction.blockUntilMs, BlockDialogActivity.OVERLAY_STATE_USAGE_EXCEEDED)
         } else {
             val timerRepo = ManualTimerRepository(this)
             val sessionActive = timerRepo.isSessionActive(pkg)

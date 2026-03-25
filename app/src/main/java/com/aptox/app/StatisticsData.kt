@@ -1106,19 +1106,51 @@ object StatisticsData {
         }
 
     /**
-     * 지난 1주일 기준, AI 분류(캐시)에 해당하는 앱 중 사용량 상위 3개.
-     * 홈 "진행 중 앱 없음" 카드용 — [loadAppUsageForAllowedCategories]와 동일 소스로 통일.
-     * 캐시가 아직 비었을 때만 기존 하드코딩 카테고리 매핑([loadAppUsage])으로 보조.
+     * 한 기간 안에서 최대 3개까지 채움: AI 캐시 → 하드코딩 AI 카테고리 → 전체 사용량 순.
+     * 동일 패키지는 한 번만 포함.
      */
-    suspend fun loadTop3AppsFromAiCategories(context: Context): List<StatsAppItem> {
-        val (startMs, endMs, _) = getLastNDaysRange(7, 0)
+    private suspend fun mergeTop3AppsForRange(context: Context, startMs: Long, endMs: Long): List<StatsAppItem> {
+        val seen = mutableSetOf<String>()
+        val result = mutableListOf<StatsAppItem>()
+        fun appendDistinct(sorted: List<StatsAppItem>) {
+            for (item in sorted) {
+                if (item.packageName in seen) continue
+                seen.add(item.packageName)
+                result.add(item)
+                if (result.size >= 3) return
+            }
+        }
         val fromCache = loadAppUsageForAllowedCategories(context, startMs, endMs)
             .sortedByDescending { it.usageMs }
-            .take(3)
-        if (fromCache.isNotEmpty()) return fromCache
-        return loadAppUsage(context, startMs, endMs)
-            .filter { it.categoryTag != null && it.categoryTag in AI_CATEGORIES }
-            .take(3)
+        appendDistinct(fromCache)
+        if (result.size < 3) {
+            val fromHardcoded = loadAppUsage(context, startMs, endMs)
+                .filter { it.categoryTag != null && it.categoryTag in AI_CATEGORIES }
+                .sortedByDescending { it.usageMs }
+            appendDistinct(fromHardcoded)
+        }
+        if (result.size < 3) {
+            val raw = loadAppUsage(context, startMs, endMs)
+                .sortedByDescending { it.usageMs }
+            appendDistinct(raw)
+        }
+        return result
+    }
+
+    /**
+     * 홈 "진행 중 앱 없음" 카드용 상위 3앱.
+     * - 조회 기간: 우선 [getLastNDaysRange] 7일(오늘 0시 기준, 완료일 위주 범위 + DB/이벤트 합산 로직은 [loadAppUsage]와 동일).
+     * - 7일에서 3개 미만이면 30일, 그래도 부족하면 90일까지 순차 확장.
+     */
+    suspend fun loadTop3AppsFromAiCategories(context: Context): List<StatsAppItem> {
+        var best = emptyList<StatsAppItem>()
+        for (dayCount in listOf(7, 30, 90)) {
+            val (startMs, endMs, _) = getLastNDaysRange(dayCount, 0)
+            val batch = mergeTop3AppsForRange(context, startMs, endMs)
+            if (batch.size >= 3) return batch.take(3)
+            best = batch
+        }
+        return best.take(3)
     }
 
     /**

@@ -64,6 +64,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -71,6 +72,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
 import com.aptox.app.ui.components.AptoxToast
 import com.aptox.app.ui.components.LocalBottomBarHeight
+import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.auth.FirebaseAuth
 import android.app.usage.UsageStatsManager
 import android.content.Context
@@ -78,7 +80,6 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.util.Log
-import androidx.credentials.exceptions.GetCredentialCancellationException
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.functions.FirebaseFunctionsException
 import java.util.concurrent.TimeUnit
@@ -90,7 +91,7 @@ import com.aptox.app.usage.UsageStatsLocalRepository
 
 /** 주간 통계 탭 진입 시 7일치 미만이면 표시 */
 private const val WEEKLY_STATS_NEED_DATA_TOAST =
-    "아직 7일치 데이터가 없어요. 데이터가 쌓이면 더 정확한 통계를 볼 수 있어요."
+    "최소 7일치의 데이터가 누적 된 후 보실 수 있어요"
 
 /** 자가테스트 결과 레벨 (8~32점 구간) */
 enum class SelfTestResultType {
@@ -258,31 +259,31 @@ private fun SplashWithLoadingBar(
     }
 }
 
-/** 앱 설명 온보딩 (플로우: 사용패턴 분석 → 홈) */
+/**
+ * 앱 소개 온보딩 (권한 안내 직후 1회).
+ * Placed before 이름·자가테스트 Ver2; copy/레이아웃은 추후 기획 반영.
+ */
 @Composable
-fun AppExplanationOnboardingScreen(
-    onFinish: () -> Unit,
+fun AppIntroOnboardingScreen(
+    onNextClick: () -> Unit,
+    onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    BackHandler(onBack = onBackClick)
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(AppColors.SurfaceBackgroundBackground)
             .windowInsetsPadding(WindowInsets.statusBars)
             .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 24.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.Bottom,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
-        Text(
-            text = "디자인/개발 진행중",
-            style = AppTypography.HeadingH1.copy(color = AppColors.TextSecondary),
-            textAlign = TextAlign.Center,
-        )
-        Spacer(modifier = Modifier.height(36.dp))
+        Spacer(modifier = Modifier.weight(1f))
         AptoxPrimaryButton(
-            text = "시작하기",
-            onClick = onFinish,
+            text = "다음",
+            onClick = onNextClick,
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -325,6 +326,8 @@ internal data class MainAppRestrictionItem(
     val duration: String = "",
     /** 시간 지정 제한: 제한 해제 시각 (ms) */
     val blockUntilMs: Long = 0L,
+    /** 시간 지정 제한: 제한 시작 시각 (ms). 0이면 즉시 시작 */
+    val startTimeMs: Long = 0L,
     /** 오늘 일시정지 사용 횟수 */
     val pauseUsedCount: Int = 0,
     /** 오늘 일시정지 남은 횟수 */
@@ -438,11 +441,17 @@ private fun MainHomeDataEmptyCard(
     greetingTitle: String,
     greetingSubtext: String,
     top3Apps: List<StatisticsData.StatsAppItem>,
-    onAddAppClick: () -> Unit,
+    onAddAppClick: (com.aptox.app.model.SelectedAppInfo?) -> Unit,
+    onTimeSpecifiedClick: (com.aptox.app.model.SelectedAppInfo?) -> Unit = {},
     onStatisticsClick: () -> Unit,
     modifier: Modifier = Modifier,
     contentBetweenGreetingAndTop3: @Composable () -> Unit = {},
 ) {
+    // 제한 방식 선택 바텀시트 상태
+    var showRestrictionTypeSheet by remember { mutableStateOf(false) }
+    // 바텀시트에서 선택 후 전달할 앱 정보 (null = 하단 "사용제한 앱 추가" 버튼 경로)
+    var pendingAppInfo by remember { mutableStateOf<com.aptox.app.model.SelectedAppInfo?>(null) }
+
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -453,7 +462,7 @@ private fun MainHomeDataEmptyCard(
             onClick = onStatisticsClick,
         )
         contentBetweenGreetingAndTop3()
-        // 카드 내부 Figma 662:2907 간격: 헤드↔서브 12dp, 서브↔앱리스트 12dp, 앱행 간 12dp, 앱리스트↔버튼 18dp
+        // 카드 내부: 타이틀↔서브 12dp, 서브↔앱리스트 18dp, 앱행 간 12dp, 앱리스트↔버튼 18dp
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -464,29 +473,29 @@ private fun MainHomeDataEmptyCard(
             verticalArrangement = Arrangement.spacedBy(18.dp), // 앱리스트 ↔ 버튼
         ) {
             if (top3Apps.isNotEmpty()) {
-                val first = top3Apps[0]
-                val firstHours = (first.usageMs / (60_000 * 60)).toInt().coerceAtLeast(0)
-                val followNames = top3Apps.drop(1).joinToString(", ") { it.name }
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { // 헤드↔서브, 서브↔앱리스트, 앱행 간
+                Column {
                     Text(
-                        text = "지난 일주일 동안 ${first.name}에 ${firstHours}시간을 사용하셨어요",
+                        text = "최근 7일 동안 가장 많은 시간을 사용한 앱 순으로 정렬했어요",
                         style = AppTypography.HeadingH2.copy(color = AppColors.TextPrimary),
                     )
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        if (followNames.isNotEmpty()) {
-                            Text(
-                                text = "${followNames}이 뒤를 이었어요",
-                                style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
-                            )
-                        }
-                        Text(
-                            text = "지금이 조절을 시작하기 딱 좋은 타이밍이에요",
-                            style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "이 앱들이 하루 중 꽤 많은 시간을 차지하고 있어요",
+                        style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
+                    )
+                    Spacer(modifier = Modifier.height(18.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         top3Apps.forEach { app ->
-                            MainHomeTopAppRow(app = app)
+                            MainHomeTopAppRow(
+                                app = app,
+                                onAddRestrictionClick = {
+                                    pendingAppInfo = com.aptox.app.model.SelectedAppInfo(
+                                        appName = app.name,
+                                        packageName = app.packageName,
+                                    )
+                                    showRestrictionTypeSheet = true
+                                },
+                            )
                         }
                     }
                 }
@@ -506,28 +515,51 @@ private fun MainHomeDataEmptyCard(
             AptoxAddAppButton(
                 text = "사용제한 앱 추가",
                 icon = painterResource(R.drawable.ic_add_circle),
-                onClick = onAddAppClick,
+                onClick = {
+                    pendingAppInfo = null
+                    showRestrictionTypeSheet = true
+                },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(6.dp),
             )
         }
     }
+
+    // 제한 방식 선택 바텀시트
+    if (showRestrictionTypeSheet) {
+        RestrictionTypeSelectBottomSheet(
+            onDailyLimitClick = {
+                showRestrictionTypeSheet = false
+                onAddAppClick(pendingAppInfo)
+            },
+            onTimeSpecifiedClick = {
+                showRestrictionTypeSheet = false
+                onTimeSpecifiedClick(pendingAppInfo)
+            },
+            onDismissRequest = { showRestrictionTypeSheet = false },
+        )
+    }
 }
 
-/** 지난 일주일 top3 앱 행 (Figma 1104:4072 — List/App Status Data View) */
+/** 지난 일주일 top3 앱 행 (Figma 1397:4494 — 앱명 + 하루 평균 사용, 우측 제한 앱 추가) */
 @Composable
 private fun MainHomeTopAppRow(
     app: StatisticsData.StatsAppItem,
+    onAddRestrictionClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val dailyAvgMin = (app.usageMs / 7 / 60_000).toInt().coerceAtLeast(0)
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(56.dp),
+            .heightIn(min = 56.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -536,32 +568,30 @@ private fun MainHomeTopAppRow(
                 size = 56.dp,
             )
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (app.categoryTag != null) CategoryTag(tag = if (app.categoryTag == "주식,코인") "주식/코인" else app.categoryTag)
-                }
                 Text(
                     text = app.name,
                     style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(max = 120.dp),
                 )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "하루 평균 ",
+                        style = AppTypography.Caption2.copy(color = AppColors.TextSecondary),
+                    )
+                    Text(
+                        text = "${java.text.DecimalFormat("#,###").format(dailyAvgMin)}분 사용",
+                        style = AppTypography.Caption2.copy(color = AppColors.Red300),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
-        Column(
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                text = "하루 평균",
-                style = AppTypography.Caption1.copy(color = AppColors.TextCaption),
-            )
-            val dailyAvgMin = (app.usageMs / 7 / 60_000).toInt().coerceAtLeast(0)
-            Text(
-                text = "${java.text.DecimalFormat("#,###").format(dailyAvgMin)}분 사용",
-                style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
-            )
-        }
+        AptoxSecondaryButton(
+            text = "제한 앱 추가",
+            onClick = onAddRestrictionClick,
+        )
     }
 }
 
@@ -731,60 +761,69 @@ private fun MainAppRestrictionCardEmpty(
             }
         }
         if (recommendedApp != null) {
-            Column(verticalArrangement = Arrangement.spacedBy(26.dp)) {
+            val dailyAvgMin = (recommendedApp.usageMs / 7 / 60_000).toInt().coerceAtLeast(0)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Row(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .then(if (onRecommendedAppClick != null) Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onRecommendedAppClick(recommendedApp.packageName) } else Modifier),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                        .weight(1f)
+                        .padding(end = 8.dp)
+                        .then(
+                            if (onRecommendedAppClick != null) {
+                                Modifier.clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                ) { onRecommendedAppClick(recommendedApp.packageName) }
+                            } else {
+                                Modifier
+                            },
+                        ),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        AppIconBox(
-                            appIcon = rememberAppIconPainter(recommendedApp.packageName),
-                            size = 56.dp,
-                        )
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                text = recommendedApp.name,
-                                style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
+                    AppIconBox(
+                        appIcon = rememberAppIconPainter(recommendedApp.packageName),
+                        size = 56.dp,
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            text = "하루 평균",
-                            style = AppTypography.Caption1.copy(color = AppColors.TextCaption),
+                            text = recommendedApp.name,
+                            style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
-                        val dailyAvgMin = (recommendedApp.usageMs / 7 / 60_000).toInt().coerceAtLeast(0)
                         Text(
-                            text = "${java.text.DecimalFormat("#,###").format(dailyAvgMin)}분 사용",
-                            style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
+                            text = "하루 평균 ${java.text.DecimalFormat("#,###").format(dailyAvgMin)}분 사용",
+                            style = AppTypography.Caption2.copy(color = AppColors.TextSecondary),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
+                AptoxSecondaryButton(
+                    text = "제한 앱 추가",
+                    onClick = onAddAppClick,
+                )
             }
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            AptoxAddAppButton(
-                text = addButtonText,
-                icon = painterResource(R.drawable.ic_add_circle),
-                onClick = onAddAppClick,
+        if (recommendedApp == null) {
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(6.dp),
-            )
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                AptoxAddAppButton(
+                    text = addButtonText,
+                    icon = painterResource(R.drawable.ic_add_circle),
+                    onClick = onAddAppClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(6.dp),
+                )
+            }
         }
     }
 }
@@ -832,7 +871,8 @@ private sealed class SettingsDetail(val title: String) {
 /** MA-01 메인 화면: 실제 AppRestrictionRepository 데이터 사용 (Figma 336-2910, 1104-5627) */
 @Composable
 internal fun MainScreenMA01(
-    onAddAppClick: () -> Unit,
+    onAddAppClick: (com.aptox.app.model.SelectedAppInfo?) -> Unit,
+    onTimeSpecifiedClick: (com.aptox.app.model.SelectedAppInfo?) -> Unit = {},
     onPermissionClick: () -> Unit = {},
     onDetailClick: (MainAppRestrictionItem) -> Unit = {},
     onStatisticsClick: () -> Unit = {},
@@ -895,11 +935,14 @@ internal fun MainScreenMA01(
                 greetingTitle = greeting.title,
                 greetingSubtext = greeting.subtext,
                 top3Apps = top3Apps,
-                onAddAppClick = onAddAppClick,
+                onAddAppClick = { app -> onAddAppClick(app) },
+                onTimeSpecifiedClick = { app -> onTimeSpecifiedClick(app) },
                 onStatisticsClick = onStatisticsClick,
                 contentBetweenGreetingAndTop3 = { TodaySmartphoneUsageCard(usageMs = todayUsageMs) },
             )
         } else if (restrictionItems.isNotEmpty()) {
+            var showRestrictionTypeSheet by remember { mutableStateOf(false) }
+
             MainCommentSection(
                 comment = "최근 인스타그램의 사용시간이\n늘어나고 있어요!",
                 subtext = "약간의 제한이 필요해요",
@@ -908,10 +951,24 @@ internal fun MainScreenMA01(
             TodaySmartphoneUsageCard(usageMs = todayUsageMs)
             MainAppRestrictionCard(
                 apps = restrictionItems,
-                onAddAppClick = onAddAppClick,
+                onAddAppClick = { showRestrictionTypeSheet = true },
                 onDetailClick = onDetailClick,
                 addButtonText = "사용제한 앱 추가",
             )
+
+            if (showRestrictionTypeSheet) {
+                RestrictionTypeSelectBottomSheet(
+                    onDailyLimitClick = {
+                        showRestrictionTypeSheet = false
+                        onAddAppClick(null)
+                    },
+                    onTimeSpecifiedClick = {
+                        showRestrictionTypeSheet = false
+                        onTimeSpecifiedClick(null)
+                    },
+                    onDismissRequest = { showRestrictionTypeSheet = false },
+                )
+            }
         } else {
             MainCommentSection(
                 comment = greeting.title,
@@ -922,6 +979,62 @@ internal fun MainScreenMA01(
         }
 
         Spacer(modifier = Modifier.height(20.dp))
+    }
+}
+
+private const val TIME_SPEC_ONE_DAY_MS = 24L * 60 * 60 * 1000
+
+private fun isSameCalendarDay(aMs: Long, bMs: Long): Boolean {
+    val ca = Calendar.getInstance().apply { timeInMillis = aMs }
+    val cb = Calendar.getInstance().apply { timeInMillis = bMs }
+    return ca.get(Calendar.YEAR) == cb.get(Calendar.YEAR) &&
+        ca.get(Calendar.DAY_OF_YEAR) == cb.get(Calendar.DAY_OF_YEAR)
+}
+
+/** timeMs가 now 기준 '내일' 달력 날짜인지 */
+private fun isCalendarTomorrow(timeMs: Long, nowMs: Long): Boolean {
+    val calTarget = Calendar.getInstance().apply { timeInMillis = timeMs }
+    val calTomorrow = Calendar.getInstance().apply {
+        timeInMillis = nowMs
+        add(Calendar.DAY_OF_YEAR, 1)
+    }
+    return calTarget.get(Calendar.YEAR) == calTomorrow.get(Calendar.YEAR) &&
+        calTarget.get(Calendar.DAY_OF_YEAR) == calTomorrow.get(Calendar.DAY_OF_YEAR)
+}
+
+/**
+ * 시간 지정 제한의 (시작, 종료)를 now 이후 유효한 구간으로 맞춤 (일 단위 반복).
+ */
+private fun rollToNextTimeSpecifiedWindow(startTimeMs: Long, blockUntilMs: Long, now: Long): Pair<Long, Long> {
+    var s = startTimeMs
+    var e = blockUntilMs
+    while (e <= now) {
+        s += TIME_SPEC_ONE_DAY_MS
+        e += TIME_SPEC_ONE_DAY_MS
+    }
+    return s to e
+}
+
+/**
+ * 시간 지정 제한 상태 한 줄 문구 (카드·자세히 보기 공통).
+ * - 제한 중: "오전/오후 H시( …분)까지 제한 중" (종료 시각만)
+ * - 시작 전(당일): "오전/오후 H시부터 제한"
+ * - 시작 전(다음날 등): "내일 오전/오후 H시부터 제한" (내일이면), 그 외는 "오전/오후 H시부터 제한"
+ */
+private fun timeSpecifiedStatusLine(startTimeMs: Long, blockUntilMs: Long, now: Long): String {
+    val (s, e) = rollToNextTimeSpecifiedWindow(startTimeMs, blockUntilMs, now)
+    val startStr = KoreanTimeFormat.formatHourClock(s)
+    val endStr = KoreanTimeFormat.formatHourClock(e)
+    return when {
+        now >= s && now < e -> "${endStr}까지 제한 중"
+        now < s -> {
+            when {
+                isSameCalendarDay(now, s) -> "${startStr}부터 제한"
+                isCalendarTomorrow(s, now) -> "내일 ${startStr}부터 제한"
+                else -> "${startStr}부터 제한"
+            }
+        }
+        else -> "내일 ${startStr}부터 제한"
     }
 }
 
@@ -982,15 +1095,16 @@ private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem>
     val todayIdx = todayDayIndex()
 
     val result = restrictions.mapNotNull { restriction ->
-        val isTimeSpecified = restriction.blockUntilMs > 0
+        val isTimeSpecified = restriction.startTimeMs > 0
         if (isTimeSpecified) {
-            // 1. 시간지정: 제한 종료 시 목록에서 즉시 제거
             val now = System.currentTimeMillis()
+            // 1. 시간지정: blockUntilMs가 지났으면 다음날 같은 시각으로 갱신 후 재조회
+            //    (매일 반복 — 삭제하지 않음)
+            val restriction = if (restriction.blockUntilMs <= now) {
+                repo.renewExpiredTimeSpecifiedRestrictions()
+                repo.getAll().find { it.packageName == restriction.packageName } ?: return@mapNotNull null
+            } else restriction
             val remainingMs = restriction.blockUntilMs - now
-            if (remainingMs <= 0) {
-                RestrictionDeleteHelper.deleteRestrictedApp(context, restriction.packageName, logRelease = false)
-                return@mapNotNull null
-            }
             val todayMinutes = (usm?.let {
                 UsageStatsUtils.getUsageSinceBaselineMinutes(it, restriction.packageName, restriction.baselineTimeMs, visiblePkgs)
             } ?: 0).toInt().coerceAtLeast(0)
@@ -1001,9 +1115,27 @@ private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem>
             val pauseLeftMs = (pauseUntilMs - now).coerceAtLeast(0)
             val pauseStartMs = pauseUntilMs - 5 * 60 * 1000
             val pauseElapsedMs = (now - pauseStartMs).coerceAtLeast(0)
-            val (usageText, usageLabel) = when {
-                isPaused -> formatDurationHhMmSs(pauseElapsedMs) to "일시정지 중"
-                else -> "${formatDurationHhMmSs(remainingMs.coerceAtLeast(0))} 후" to "해제"
+
+            // 시간 지정 상태 문구: roll 후 구간 기준 (카드·자세히 보기와 동일)
+            val (winStart, winEnd) = rollToNextTimeSpecifiedWindow(
+                restriction.startTimeMs,
+                restriction.blockUntilMs,
+                now,
+            )
+            val isBeforeStart = !isPaused && now < winStart
+            val isInRestriction = !isPaused && now >= winStart && now < winEnd
+
+            val (usageText, usageLabel, textColor) = when {
+                isPaused -> Triple(
+                    formatDurationHhMmSs(pauseElapsedMs),
+                    "일시정지 중",
+                    AppColors.Red300,
+                )
+                else -> Triple(
+                    timeSpecifiedStatusLine(restriction.startTimeMs, restriction.blockUntilMs, now),
+                    "",
+                    AppColors.TextHighlight,
+                )
             }
             MainAppRestrictionItem(
                 appName = restriction.appName,
@@ -1015,15 +1147,13 @@ private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem>
                 todayUsageMinutes = todayMinutes,
                 restrictionType = RestrictionType.TIME_SPECIFIED,
                 blockUntilMs = restriction.blockUntilMs,
+                startTimeMs = restriction.startTimeMs,
                 isPaused = isPaused,
                 pauseUsedCount = pauseUsedCount,
                 pauseRemainingCount = pauseRemainingCount,
                 pauseLeftMin = (pauseLeftMs / 60000).toInt(),
-                usageTextColor = when {
-                    isPaused -> AppColors.Red300
-                    else -> AppColors.TextHighlight
-                },
-                usageLabelColor = AppColors.TextSecondary,
+                usageTextColor = textColor,
+                usageLabelColor = if (isPaused || isBeforeStart || isInRestriction) AppColors.TextSecondary else null,
             )
         } else {
             // 일일 사용량: repeatDays 분기
@@ -1132,7 +1262,8 @@ fun MainScreenMA02(
 
 @Composable
 fun MainFlowHost(
-    onAddAppClick: () -> Unit,
+    onAddAppClick: (com.aptox.app.model.SelectedAppInfo?) -> Unit,
+    onTimeSpecifiedClick: (com.aptox.app.model.SelectedAppInfo?) -> Unit = {},
     onLogout: () -> Unit,
     isFreeUser: Boolean = true,
     initialPauseFlowFromOverlay: PendingPauseFlowFromOverlay? = null,
@@ -1146,6 +1277,9 @@ fun MainFlowHost(
 ) {
     val context = LocalContext.current
     val authRepository = remember { AuthRepository() }
+    val firebaseAnalytics = remember {
+        FirebaseAnalytics.getInstance(context.applicationContext)
+    }
     val scope = rememberCoroutineScope()
     var accountRefreshKey by remember { mutableIntStateOf(0) }
     val currentUserInfo by produceState<AuthRepository.CurrentUserInfo?>(initialValue = null, accountRefreshKey) {
@@ -1335,9 +1469,17 @@ fun MainFlowHost(
     // 시스템 네비바 영역 채움: 프리미엄 배너(#2B2B2B) / 유료(카드 배경)
     val bottomFillColor = if (isFreeUser) Color(0xFF2B2B2B) else AppColors.SurfaceBackgroundCard
 
-    val onAddAppClickGuarded: () -> Unit = {
+    val onAddAppClickGuarded: (com.aptox.app.model.SelectedAppInfo?) -> Unit = { app ->
         if (context.areRequiredAppPermissionsGranted()) {
-            onAddAppClick()
+            onAddAppClick(app)
+        } else {
+            showRequiredPermissionDialog = true
+        }
+    }
+
+    val onTimeSpecifiedClickGuarded: (com.aptox.app.model.SelectedAppInfo?) -> Unit = { app ->
+        if (context.areRequiredAppPermissionsGranted()) {
+            onTimeSpecifiedClick(app)
         } else {
             showRequiredPermissionDialog = true
         }
@@ -1426,6 +1568,7 @@ fun MainFlowHost(
                         Box(modifier = Modifier.weight(1f)) {
                             MainScreenMA01(
                                 onAddAppClick = onAddAppClickGuarded,
+                                onTimeSpecifiedClick = onTimeSpecifiedClickGuarded,
                                 onDetailClick = { item ->
                                     selectedAppForDetail = item
                                     showAppLimitInfoSheet = true
@@ -1467,9 +1610,22 @@ fun MainFlowHost(
                                             authRepository.signInWithGoogle(context)
                                                 .onSuccess { withContext(Dispatchers.Main.immediate) { accountRefreshKey++ } }
                                                 .onFailure { e ->
-                                                    if (e is GetCredentialCancellationException) return@onFailure
-                                                    if (e.cause is GetCredentialCancellationException) return@onFailure
-                                                    toastMessage = "구글 로그인 실패: ${e.message}"
+                                                    if (LoginAnalytics.isGoogleLoginCancelled(e)) {
+                                                        LoginAnalytics.logLoginCancelled(
+                                                            firebaseAnalytics,
+                                                            "google",
+                                                            "settings_account",
+                                                        )
+                                                        toastReplayKey += 1
+                                                        toastMessage = "로그인을 취소했습니다"
+                                                    } else {
+                                                        LoginAnalytics.logLoginFailed(
+                                                            firebaseAnalytics,
+                                                            "google",
+                                                            e.message ?: "구글 로그인 실패",
+                                                        )
+                                                        toastMessage = "구글 로그인 실패: ${e.message}"
+                                                    }
                                                 }
                                         }
                                     },
@@ -1567,7 +1723,6 @@ fun MainFlowHost(
                                     },
                                 )
                                 SettingsDetail.Withdraw -> WithdrawConfirmScreen(
-                                    onBack = { settingsDetail = SettingsDetail.AccountManage },
                                     onConfirmWithdraw = {
                                         settingsDetail = null
                                         // TODO: 실제 탈퇴 API 호출 후 로그아웃 등 처리
@@ -1673,8 +1828,6 @@ fun MainFlowHost(
         if (showAppLimitInfoSheet && selectedAppForDetail != null) {
             val item = selectedAppForDetail!!
             val appIcon = rememberAppIconPainter(item.packageName)
-            // 60분 초과일 때만 일시정지 가능
-            val canPause = item.limitMinutes > 60
 
             val dismiss: () -> Unit = {
                 showAppLimitInfoSheet = false
@@ -1682,53 +1835,40 @@ fun MainFlowHost(
             }
 
             when {
-                // ── 스크린샷3: 시간지정 + 일시정지 진행 중 ──
-                item.restrictionType == RestrictionType.TIME_SPECIFIED && item.isPaused -> {
-                    val pauseStatusText = if (item.pauseLeftMin > 0) "${item.pauseLeftMin}분 남음 (${item.pauseUsedCount}회차)" else "5분 남음 (${item.pauseUsedCount}회차)"
+                // ── 시간 지정 제한 (isPaused 여부 무관, 3가지 상태 표시) ──
+                item.restrictionType == RestrictionType.TIME_SPECIFIED -> {
+                    val now = System.currentTimeMillis()
+                    val (winStart, winEnd) = rollToNextTimeSpecifiedWindow(
+                        item.startTimeMs,
+                        item.blockUntilMs,
+                        now,
+                    )
+                    val pauseRepo = PauseRepository(context)
+                    val pauseUntilMs = pauseRepo.getPauseUntilMs(item.packageName)
+                    val pauseStartMs = pauseUntilMs - 5 * 60 * 1000
+                    val pauseElapsedMs = (now - pauseStartMs).coerceAtLeast(0)
                     AppLimitInfoBottomSheet(
                         title = "제한 중인 앱",
                         appName = item.appName,
                         appIcon = appIcon,
-                        appUsageText = "일시정지 종료 후 이어서 진행됩니다",
-                        appUsageLabel = "",
-                        appUsageTextColor = AppColors.Red300,
+                        appUsageText = if (item.isPaused) {
+                            formatDurationHhMmSs(pauseElapsedMs)
+                        } else {
+                            timeSpecifiedStatusLine(item.startTimeMs, item.blockUntilMs, now)
+                        },
+                        appUsageLabel = if (item.isPaused) "일시정지 중" else "",
                         summaryRows = listOf(
-                            AppLimitSummaryRow("제한 시간", "${item.limitMinutes}분"),
-                            AppLimitSummaryRow("남은 시간", "${(item.blockUntilMs - System.currentTimeMillis()).coerceAtLeast(0) / 60000}분"),
+                            AppLimitSummaryRow("제한 시작 시간", KoreanTimeFormat.formatHourClock(winStart)),
+                            AppLimitSummaryRow("제한 종료 시간", KoreanTimeFormat.formatHourClock(winEnd)),
                             AppLimitSummaryRow("제한 방식", "시간 지정 제한"),
-                            AppLimitSummaryRow("일시정지 사용 여부", pauseStatusText, valueColor = AppColors.Red300),
                         ),
                         primaryButtonText = "닫기",
-                        secondaryButtonText = null,
                         onPrimaryClick = dismiss,
-                        onDismissRequest = dismiss,
-                    )
-                }
-                // ── 스크린샷1: 시간지정 + 일시정지 미사용 ──
-                item.restrictionType == RestrictionType.TIME_SPECIFIED -> {
-                    val remainingMin = (item.blockUntilMs - System.currentTimeMillis()).coerceAtLeast(0) / 60000
-                    val pauseStatusText = if (item.pauseUsedCount == 0) "미사용" else "${item.pauseRemainingCount}회 남음"
-                    AppLimitInfoBottomSheet(
-                        title = "제한 중인 앱",
-                        appName = item.appName,
-                        appIcon = appIcon,
-                        appUsageText = "${remainingMin}분 후 제한 해제",
-                        appUsageLabel = "",
-                        summaryRows = listOf(
-                            AppLimitSummaryRow("제한 시간", "${item.limitMinutes}분"),
-                            AppLimitSummaryRow("남은 시간", "${remainingMin}분"),
-                            AppLimitSummaryRow("제한 방식", "시간 지정 제한"),
-                            AppLimitSummaryRow("일시정지 사용 여부", pauseStatusText),
-                        ),
-                        primaryButtonText = "일시 정지하기",
-                        isPrimaryEnabled = canPause,
-                        onPrimaryClick = {
-                            showAppLimitInfoSheet = false
-                            selectedAppForPause = item
-                            showPauseProposalSheet = true
+                        inlineReleaseButtonText = "제한 해제",
+                        onInlineReleaseClick = {
+                            RestrictionDeleteHelper.deleteRestrictedApp(context, item.packageName)
+                            dismiss()
                         },
-                        secondaryButtonText = "닫기",
-                        onSecondaryClick = dismiss,
                         onDismissRequest = dismiss,
                     )
                 }
