@@ -7,6 +7,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -108,7 +109,7 @@ fun AppRestrictionHistoryScreen(
                     sortedPackages.forEach { pkg ->
                         AppRestrictionHistoryRow(
                             appName = pkg.appName,
-                            appIcon = rememberAppIconPainter(pkg.packageName),
+                            packageName = pkg.packageName,
                             onClick = { onItemClick(pkg.packageName, pkg.appName) },
                         )
                     }
@@ -121,7 +122,7 @@ fun AppRestrictionHistoryScreen(
 @Composable
 private fun AppRestrictionHistoryRow(
     appName: String,
-    appIcon: androidx.compose.ui.graphics.painter.Painter,
+    packageName: String,
     onClick: () -> Unit,
 ) {
     Row(
@@ -136,8 +137,8 @@ private fun AppRestrictionHistoryRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        AppIconBox(
-            appIcon = appIcon,
+        AppIconBoxOrGreyIfUninstalled(
+            packageName = packageName,
             size = 56.dp,
             force6dpClip = false,
         )
@@ -240,7 +241,7 @@ fun AppRestrictionHistoryDetailScreen(
                                     style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
                                 )
                                 Column(
-                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
                                     dayEvents.forEach { event ->
                                         val eventLabel = when (event.eventType) {
@@ -258,12 +259,12 @@ fun AppRestrictionHistoryDetailScreen(
                                         ) {
                                             Text(
                                                 text = timeFormat.format(java.util.Date(event.timestamp)),
-                                                style = AppTypography.Caption1.copy(color = AppColors.TextBody),
+                                                style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
                                                 modifier = Modifier.widthIn(min = 60.dp),
                                             )
                                             Text(
                                                 text = eventLabel,
-                                                style = AppTypography.Caption1.copy(color = color),
+                                                style = AppTypography.BodyMedium.copy(color = color),
                                             )
                                         }
                                     }
@@ -462,20 +463,23 @@ fun SubscriptionManageScreen(
 }
 
 /**
- * 알림 설정 화면 (Figma 1022-3823, 1068-4550)
+ * 알림 설정 화면 (Figma 1022-3823)
  * - 기기 알림: 시스템 알림 허용 상태 + 설정 진입
- * - 주간 리포트 / 마감 임박 / 목표 달성 / 카운트 중지 알림: 토글
- * - 기기 알림 미허용 시 모든 토글 비활성화 + "기기 알림을 먼저 허용해주세요" 안내
+ * - 챌린지: 뱃지 획득 알림
+ * - 하루 사용량 지정: 마감 임박 / 카운트 중지 알림
+ * - 지정 시간 제한: 시작 / 종료 알림
+ * - 기기 알림 미허용 시 모든 토글 비활성화
  */
 @Composable
 fun NotificationSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val prefs = remember { NotificationPreferences }
-    var weeklyReport by remember { mutableStateOf(prefs.isWeeklyReportEnabled(context)) }
+    var badgeAcquired by remember { mutableStateOf(prefs.isBadgeAcquiredEnabled(context)) }
     var deadlineImminent by remember { mutableStateOf(prefs.isDeadlineImminentEnabled(context)) }
-    var goalAchievedAlert by remember { mutableStateOf(prefs.isGoalAchievedEnabled(context)) }
     var countReminder by remember { mutableStateOf(prefs.isCountReminderEnabled(context)) }
+    var timeSpecifiedStart by remember { mutableStateOf(prefs.isTimeSpecifiedStartEnabled(context)) }
+    var timeSpecifiedEnd by remember { mutableStateOf(prefs.isTimeSpecifiedEndEnabled(context)) }
     var deviceNotificationsEnabled by remember { mutableStateOf(true) }
 
     fun refreshDeviceNotifications() {
@@ -487,10 +491,11 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 refreshDeviceNotifications()
-                weeklyReport = prefs.isWeeklyReportEnabled(context)
+                badgeAcquired = prefs.isBadgeAcquiredEnabled(context)
                 deadlineImminent = prefs.isDeadlineImminentEnabled(context)
-                goalAchievedAlert = prefs.isGoalAchievedEnabled(context)
                 countReminder = prefs.isCountReminderEnabled(context)
+                timeSpecifiedStart = prefs.isTimeSpecifiedStartEnabled(context)
+                timeSpecifiedEnd = prefs.isTimeSpecifiedEndEnabled(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -502,14 +507,12 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
     ) { }
 
     val toggleEnabled = deviceNotificationsEnabled
-    LaunchedEffect(weeklyReport, deadlineImminent, goalAchievedAlert, countReminder, toggleEnabled) {
-        prefs.setWeeklyReportEnabled(context, weeklyReport)
+    LaunchedEffect(badgeAcquired, deadlineImminent, countReminder, timeSpecifiedStart, timeSpecifiedEnd) {
+        prefs.setBadgeAcquiredEnabled(context, badgeAcquired)
         prefs.setDeadlineImminentEnabled(context, deadlineImminent)
-        prefs.setGoalAchievedEnabled(context, goalAchievedAlert)
         prefs.setCountReminderEnabled(context, countReminder)
-        if (toggleEnabled) {
-            WeeklyReportAlarmScheduler.applySchedule(context, weeklyReport)
-        }
+        prefs.setTimeSpecifiedStartEnabled(context, timeSpecifiedStart)
+        prefs.setTimeSpecifiedEndEnabled(context, timeSpecifiedEnd)
     }
 
     Box(
@@ -523,10 +526,11 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 80.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             Spacer(modifier = Modifier.height(24.dp))
-            // Figma 1022-3824: 기기 알림 단독 카드
+
+            // 기기 알림 단독 카드
             DeviceNotificationCard(
                 badgeText = if (deviceNotificationsEnabled) "허용됨" else "허용되지 않음",
                 badgeAllowed = deviceNotificationsEnabled,
@@ -541,29 +545,25 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
                     }
                 },
             )
-            // Figma 1068-4550: 주간 리포트 / 마감 임박 / 목표 달성 / 카운트 중지 알림 카드
-            SettingsListCard {
+
+            // 챌린지 섹션
+            NotificationSection(label = "챌린지") {
                 SettingsRowWithToggle(
-                    label = "주간 리포트",
-                    subtitle = "월요일마다, 지난 한 주 사용 현황을 알려드려요",
-                    checked = weeklyReport,
-                    onCheckedChange = { weeklyReport = it },
+                    label = "뱃지 획득 알림",
+                    subtitle = "뱃지를 획득할 때마다 알려드려요",
+                    checked = badgeAcquired,
+                    onCheckedChange = { badgeAcquired = it },
                     enabled = toggleEnabled,
                 )
-                SettingsDivider()
+            }
+
+            // 하루 사용량 지정 섹션
+            NotificationSection(label = "하루 사용량 지정") {
                 SettingsRowWithToggle(
                     label = "마감 임박 알림",
-                    subtitle = "하루 한도 1분 전에 미리 알려드려요",
+                    subtitle = "일일 한도 1분 전에 미리 알려드려요",
                     checked = deadlineImminent,
                     onCheckedChange = { deadlineImminent = it },
-                    enabled = toggleEnabled,
-                )
-                SettingsDivider()
-                SettingsRowWithToggle(
-                    label = "목표 달성 알림",
-                    subtitle = "챌린지 성공 시 바로 알려드려요",
-                    checked = goalAchievedAlert,
-                    onCheckedChange = { goalAchievedAlert = it },
                     enabled = toggleEnabled,
                 )
                 SettingsDivider()
@@ -575,8 +575,49 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
                     enabled = toggleEnabled,
                 )
             }
+
+            // 지정 시간 제한 섹션
+            NotificationSection(label = "지정 시간 제한") {
+                SettingsRowWithToggle(
+                    label = "시작 알림",
+                    subtitle = "설정된 시간에 시작하면 알려드려요",
+                    checked = timeSpecifiedStart,
+                    onCheckedChange = { timeSpecifiedStart = it },
+                    enabled = toggleEnabled,
+                )
+                SettingsDivider()
+                SettingsRowWithToggle(
+                    label = "종료 알림",
+                    subtitle = "설정된 시간에 끝나면 알려드려요",
+                    checked = timeSpecifiedEnd,
+                    onCheckedChange = { timeSpecifiedEnd = it },
+                    enabled = toggleEnabled,
+                )
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
         }
+    }
+}
+
+/**
+ * 알림 설정 섹션: 레이블 텍스트 + 카드 컨테이너
+ */
+@Composable
+private fun NotificationSection(
+    label: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = label,
+            style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
+            modifier = Modifier.padding(start = 18.dp),
+        )
+        SettingsListCard(content = content)
     }
 }
 

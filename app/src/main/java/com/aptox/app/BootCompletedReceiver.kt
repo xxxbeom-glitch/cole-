@@ -26,7 +26,8 @@ class BootCompletedReceiver : BroadcastReceiver() {
             }
             TimeSpecifiedRestrictionAlarmScheduler.scheduleAll(ctx)
             DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(ctx)
-            WeeklyReportAlarmScheduler.applySchedule(ctx, NotificationPreferences.isWeeklyReportEnabled(ctx))
+            BriefDailyAlarmScheduler.schedule(ctx)
+
         } catch (e: Throwable) {
             Log.e(TAG, "부팅 후 AppMonitor 시작 실패", e)
         }

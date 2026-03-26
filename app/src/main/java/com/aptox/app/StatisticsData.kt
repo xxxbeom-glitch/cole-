@@ -39,9 +39,6 @@ import java.util.Calendar
  */
 object StatisticsData {
 
-    /** 주간 통계 화면 진입 최소 날짜 수 (데이터가 존재하는 날 기준, 연속 아님) */
-    const val MIN_DAYS_FOR_WEEKLY = 7
-
     /** 월간 탭 활성화 최소 누적 일수 */
     const val MIN_DAYS_FOR_MONTHLY = 30
 
@@ -111,6 +108,28 @@ object StatisticsData {
         /** 주의 배지 표시 (디자인용) */
         val isWarning: Boolean = false,
     )
+
+    /**
+     * 어제 하루 범위: 어제 00:00:00.000 ~ 23:59:59.999
+     * 주간 Brief 생성 기준으로 사용.
+     */
+    fun getYesterdayRange(): Triple<Long, Long, String> {
+        val cal = Calendar.getInstance()
+        cal.add(Calendar.DAY_OF_YEAR, -1)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val startMs = cal.timeInMillis
+        cal.set(Calendar.HOUR_OF_DAY, 23)
+        cal.set(Calendar.MINUTE, 59)
+        cal.set(Calendar.SECOND, 59)
+        cal.set(Calendar.MILLISECOND, 999)
+        val endMs = cal.timeInMillis
+        val fmt = java.text.SimpleDateFormat("M.d", java.util.Locale.KOREAN)
+        val label = fmt.format(java.util.Date(startMs))
+        return Triple(startMs, endMs, label)
+    }
 
     /** 주간 탭용: weekOffset 0=이번 주, -1=저번 주, 1=다음 주 */
     fun getWeekRange(weekOffset: Int): Triple<Long, Long, String> {
@@ -1106,39 +1125,17 @@ object StatisticsData {
         }
 
     /**
-     * 한 기간 안에서 최대 3개까지 채움: AI 캐시 → 하드코딩 AI 카테고리 → 전체 사용량 순.
-     * 동일 패키지는 한 번만 포함.
+     * 한 기간 안에서 사용량 상위 3개 앱 ([loadAppUsage] 합산 기준).
      */
-    private suspend fun mergeTop3AppsForRange(context: Context, startMs: Long, endMs: Long): List<StatsAppItem> {
-        val seen = mutableSetOf<String>()
-        val result = mutableListOf<StatsAppItem>()
-        fun appendDistinct(sorted: List<StatsAppItem>) {
-            for (item in sorted) {
-                if (item.packageName in seen) continue
-                seen.add(item.packageName)
-                result.add(item)
-                if (result.size >= 3) return
-            }
-        }
-        val fromCache = loadAppUsageForAllowedCategories(context, startMs, endMs)
-            .sortedByDescending { it.usageMs }
-        appendDistinct(fromCache)
-        if (result.size < 3) {
-            val fromHardcoded = loadAppUsage(context, startMs, endMs)
-                .filter { it.categoryTag != null && it.categoryTag in AI_CATEGORIES }
+    private suspend fun mergeTop3AppsForRange(context: Context, startMs: Long, endMs: Long): List<StatsAppItem> =
+        withContext(Dispatchers.IO) {
+            loadAppUsage(context, startMs, endMs)
                 .sortedByDescending { it.usageMs }
-            appendDistinct(fromHardcoded)
+                .take(3)
         }
-        if (result.size < 3) {
-            val raw = loadAppUsage(context, startMs, endMs)
-                .sortedByDescending { it.usageMs }
-            appendDistinct(raw)
-        }
-        return result
-    }
 
     /**
-     * 홈 "진행 중 앱 없음" 카드용 상위 3앱.
+     * 홈 "진행 중 앱 없음" 카드용 상위 3앱(기간 합산 사용량 내림차순).
      * - 조회 기간: 우선 [getLastNDaysRange] 7일(오늘 0시 기준, 완료일 위주 범위 + DB/이벤트 합산 로직은 [loadAppUsage]와 동일).
      * - 7일에서 3개 미만이면 30일, 그래도 부족하면 90일까지 순차 확장.
      */

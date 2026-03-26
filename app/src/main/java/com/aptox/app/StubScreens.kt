@@ -84,35 +84,68 @@ import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.functions.FirebaseFunctionsException
 import java.util.concurrent.TimeUnit
 import java.util.Calendar
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.aptox.app.usage.UsageStatsLocalRepository
+import kotlin.math.roundToInt
 
-/** 주간 통계 탭 진입 시 7일치 미만이면 표시 */
-private const val WEEKLY_STATS_NEED_DATA_TOAST =
-    "최소 7일치의 데이터가 누적 된 후 보실 수 있어요"
-
-/** 자가테스트 결과 레벨 (8~32점 구간) */
+/** 자가테스트 결과 레벨 */
 enum class SelfTestResultType {
-    /** 8~13점 */
+    /** 온보딩 Ver2: 0~44점 (100점 환산) */
     HEALTH,
-    /** 14~19점 */
+    /** 온보딩 Ver2: 0~44점 (100점 환산) — HEALTH와 동일 구간, 레거시 호환용 */
     GOOD,
-    /** 20~25점 */
+    /** 온보딩 Ver2: 45~69점 (100점 환산) */
     CAUTION,
-    /** 26~32점 */
+    /** 온보딩 Ver2: 70~100점 (100점 환산) */
     DANGER,
 }
 
-fun computeSelfTestResultType(answers: Map<Int, Int>): SelfTestResultType {
-    val rawScore = answers.values.sumOf { (4 - it).coerceIn(0, 4) }.coerceIn(8, 32)
-    return when {
-        rawScore <= 13 -> SelfTestResultType.HEALTH
-        rawScore <= 19 -> SelfTestResultType.GOOD
-        rawScore <= 25 -> SelfTestResultType.CAUTION
-        else -> SelfTestResultType.DANGER
+/**
+ * 7문항 리커트 응답 맵 → 100점 환산 점수 (0~100)
+ * 원점수 = answers.values.sumOf { 3 - it } → 0~21 (낮을수록 건강)
+ * 역산 원점수 = 21 - 원점수 → 0~21 (높을수록 위험)
+ * 100점 환산 = round(역산 원점수 / 21 * 100)
+ */
+fun computeDiagnosisScore(answers: Map<Int, Int>): Int {
+    if (answers.isEmpty()) return 0
+    // 저장값: 3 - 선택인덱스 (0=전혀 그렇지 않다 → 저장3, 3=매우 그렇다 → 저장0)
+    // 위험도 점수 = 저장값을 그대로 합산 (낮은 저장값 = 높은 위험)
+    // 저장값 합계: 0(최고위험)~21(최저위험)
+    val storedSum = answers.values.sumOf { it.coerceIn(0, 3) }
+    // 위험 방향으로 역산: 21 - storedSum → 0(건강)~21(위험)
+    val dangerRaw = 21 - storedSum
+    return ((dangerRaw / 21f) * 100f).roundToInt().coerceIn(0, 100)
+}
+
+/** 100점 환산 점수 → SelfTestResultType */
+fun diagnosisScoreToResultType(score: Int): SelfTestResultType = when {
+    score <= 44 -> SelfTestResultType.GOOD
+    score <= 69 -> SelfTestResultType.CAUTION
+    else -> SelfTestResultType.DANGER
+}
+
+private fun selfTestResultTypeFromRawScore(rawScore: Int, answerCount: Int): SelfTestResultType {
+    val min = answerCount
+    val max = answerCount * 4
+    val s = rawScore.coerceIn(min, max)
+    return when (answerCount) {
+        8 -> when {
+            s <= 13 -> SelfTestResultType.HEALTH
+            s <= 19 -> SelfTestResultType.GOOD
+            s <= 25 -> SelfTestResultType.CAUTION
+            else -> SelfTestResultType.DANGER
+        }
+        else -> when {
+            s <= 11 -> SelfTestResultType.GOOD
+            s <= 16 -> SelfTestResultType.GOOD
+            s <= 22 -> SelfTestResultType.CAUTION
+            else -> SelfTestResultType.DANGER
+        }
     }
+}
+
+fun computeSelfTestResultType(answers: Map<Int, Int>): SelfTestResultType {
+    if (answers.size == 7) return diagnosisScoreToResultType(computeDiagnosisScore(answers))
+    val rawScore = answers.values.sumOf { (4 - it).coerceIn(0, 4) }
+    return selfTestResultTypeFromRawScore(rawScore, 8)
 }
 
 /** 홈 화면 제한 앱 영역 상태 (items + top3Apps 동시 로드로 플래시 방지) */
@@ -122,18 +155,15 @@ private data class HomeRestrictionState(
     val top3Apps: List<StatisticsData.StatsAppItem>,
 )
 
-/** rawScore(8~32)를 SelfTestResultType으로 변환 */
-fun rawScoreToResultType(rawScore: Int): SelfTestResultType = when {
-    rawScore <= 13 -> SelfTestResultType.HEALTH
-    rawScore <= 19 -> SelfTestResultType.GOOD
-    rawScore <= 25 -> SelfTestResultType.CAUTION
-    else -> SelfTestResultType.DANGER
-}
+/** rawScore를 SelfTestResultType으로 변환 (answerCount: 7=온보딩 Ver2, 8=레거시 8문항) */
+fun rawScoreToResultType(rawScore: Int, answerCount: Int = 7): SelfTestResultType =
+    selfTestResultTypeFromRawScore(rawScore, answerCount)
 
 /**
  * 스플래시 화면 (Figma 409-6664)
- * - 로고 + 로딩 바 (가짜 진행, AI 분류는 백그라운드에서 100% 수행)
- * - 0 → 30% 천천히 → 잠시 멈춤 → 30 → 85% → 잠시 멈춤 → 100% → onFinish
+ * - 0 → 30%: 로고 표시 + 앱 목록 로드 (가짜 진행)
+ * - 30 → 100%: classifyAndCacheApps onProgress 실제 진행률 반영
+ * - 분류 실패/예외 시 즉시 100%로 완료 처리 (스플래시 블로킹 방지)
  */
 @Composable
 fun SplashScreen(onFinish: () -> Unit) {
@@ -141,35 +171,37 @@ fun SplashScreen(onFinish: () -> Unit) {
     var progress by remember { mutableStateOf(0f) }
 
     LaunchedEffect(Unit) {
-        val app = context.applicationContext as? AptoxApplication
-
-        // 1. 0 → 30% 천천히 (가짜 진행)
+        // 1. 0 → 30%: 로고 표시 구간 (앱 목록 로드와 병행)
         for (i in 1..30) {
             progress = i / 100f
-            delay(50)
+            delay(40)
         }
-        delay(400) // 멈춤
 
-        // 2. 30 → 85%
-        for (i in 31..85) {
-            progress = i / 100f
-            delay(30)
+        // 2. 앱 목록 로드 (빠름, 실패해도 빈 목록으로 진행)
+        val preload = AppDataPreloadRepository(context)
+        val installedApps = runCatching {
+            withContext(Dispatchers.IO) { preload.loadInstalledApps() }
+        }.getOrElse { emptyList() }
+
+        // 3. 30 → 100%: 실제 분류 진행률 반영 (캐시 미스 없으면 즉시 100%)
+        runCatching {
+            withContext(Dispatchers.IO) {
+                preload.classifyAndCacheAppsPartial(
+                    installedApps = installedApps,
+                    targetProgress = 1f,
+                    onProgress = { classifyProgress ->
+                        // classifyProgress 0~1 → 진행바 30~100% 구간에 매핑
+                        progress = 0.3f + classifyProgress * 0.7f
+                    },
+                )
+            }
+        }.onFailure {
+            // 분류 실패 시 진행바를 100%로 강제 완료
+            progress = 1f
         }
-        delay(400) // 멈춤
 
-        // 3. 100% → 화면 전환
         progress = 1f
         delay(150)
-
-        // 4. 백그라운드에서 AI 카테고리 분류 100% 수행 (스플래시 이후 화면 진행과 병렬)
-        app?.applicationScope?.launch {
-            runCatching {
-                val preload = AppDataPreloadRepository(context)
-                val installedApps = withContext(Dispatchers.IO) { preload.loadInstalledApps() }
-                withContext(Dispatchers.IO) { preload.classifyAndCacheApps(installedApps) }
-            }
-        }
-
         onFinish()
     }
 
@@ -1301,55 +1333,11 @@ fun MainFlowHost(
     var toastMessage by remember { mutableStateOf<String?>(null) }
     /** AptoxToast 동일 문구 연속 표시 시 애니·자동닫힘 재실행용 */
     var toastReplayKey by remember { mutableIntStateOf(0) }
-    /** 7일치 이상 사용 기록이 있을 때만 통계 탭 진입 허용 (null=로딩 중) */
-    var weeklyStatsEligible by remember { mutableStateOf<Boolean?>(null) }
-    val lifecycleOwner = LocalLifecycleOwner.current
 
-    LaunchedEffect(Unit) {
-        weeklyStatsEligible = withContext(Dispatchers.IO) {
-            UsageStatsLocalRepository(context).getDaysWithDataCountBlocking() >= StatisticsData.MIN_DAYS_FOR_WEEKLY
-        }
-    }
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                scope.launch {
-                    weeklyStatsEligible = withContext(Dispatchers.IO) {
-                        UsageStatsLocalRepository(context).getDaysWithDataCountBlocking() >= StatisticsData.MIN_DAYS_FOR_WEEKLY
-                    }
-                }
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    val tryNavigateToStatisticsTab: () -> Unit = {
-        when (weeklyStatsEligible) {
-            false -> {
-                toastReplayKey += 1
-                toastMessage = WEEKLY_STATS_NEED_DATA_TOAST
-            }
-            true -> {
-                navIndex = 2
-                settingsDetail = null
-            }
-            null -> {
-                scope.launch {
-                    val ok = withContext(Dispatchers.IO) {
-                        UsageStatsLocalRepository(context).getDaysWithDataCountBlocking() >= StatisticsData.MIN_DAYS_FOR_WEEKLY
-                    }
-                    weeklyStatsEligible = ok
-                    if (ok) {
-                        navIndex = 2
-                        settingsDetail = null
-                    } else {
-                        toastReplayKey += 1
-                        toastMessage = WEEKLY_STATS_NEED_DATA_TOAST
-                    }
-                }
-            }
-        }
+    /** 홈 코멘트/바텀 네비 등에서 통계 탭(주간·월간·연간)으로 이동 */
+    val navigateToStatisticsTab: () -> Unit = {
+        navIndex = 2
+        settingsDetail = null
     }
     var showTermsSheet by remember { mutableStateOf(false) }
     var showPrivacySheet by remember { mutableStateOf(false) }
@@ -1405,18 +1393,6 @@ fun MainFlowHost(
                 toastMessage = "로그인 후 진행 가능합니다"
                 onNavIndexConsumed()
                 return@LaunchedEffect
-            }
-            if (idx == 2) {
-                val ok = withContext(Dispatchers.IO) {
-                    UsageStatsLocalRepository(context).getDaysWithDataCountBlocking() >= StatisticsData.MIN_DAYS_FOR_WEEKLY
-                }
-                weeklyStatsEligible = ok
-                if (!ok) {
-                    toastReplayKey += 1
-                    toastMessage = WEEKLY_STATS_NEED_DATA_TOAST
-                    onNavIndexConsumed()
-                    return@LaunchedEffect
-                }
             }
             navIndex = idx
             onNavIndexConsumed()
@@ -1573,7 +1549,7 @@ fun MainFlowHost(
                                     selectedAppForDetail = item
                                     showAppLimitInfoSheet = true
                                 },
-                                onStatisticsClick = tryNavigateToStatisticsTab,
+                                onStatisticsClick = navigateToStatisticsTab,
                                 restrictionRefreshKey = restrictionRefreshKey,
                             )
                         }
@@ -1790,10 +1766,6 @@ fun MainFlowHost(
                                     toastMessage = "로그인 후 진행 가능합니다"
                                     return@AptoxBottomNavBar
                                 }
-                                if (it == 2) {
-                                    tryNavigateToStatisticsTab()
-                                    return@AptoxBottomNavBar
-                                }
                                 navIndex = it
                                 if (it != 3) settingsDetail = null
                             }
@@ -1993,7 +1965,7 @@ fun MainFlowHost(
                     showNotificationOverlay = false
                     when {
                         item.navTarget == "statistics_weekly" || item.type == "weekly_report" ->
-                            tryNavigateToStatisticsTab()
+                            navigateToStatisticsTab()
                         item.badgeId != null -> {
                             navIndex = 1
                         }

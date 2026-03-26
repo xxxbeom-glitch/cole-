@@ -116,7 +116,9 @@ sealed class DebugScreen(val category: String, val label: String) {
     data object Permission : DebugScreen("인증/온보딩", "기기 권한 안내")
     data object SelfTestVer2 : DebugScreen("인증/온보딩", "스마트폰 사용패턴 테스트")
     data object SelfTestLoading : DebugScreen("인증/온보딩", "테스트 결과 로딩 애니메이션")
-    data object UsagePatternAnalysis : DebugScreen("인증/온보딩", "사용패턴 분석 결과")
+    data object UsagePatternAnalysis : DebugScreen("인증/온보딩", "진단 결과")
+    /** 테스트 → 로딩 → 진단 결과까지 이어지는 전체 플로우 */
+    data object SelfTestFullFlow : DebugScreen("인증/온보딩", "사용패턴 테스트 → 진단 결과 (전체 플로우)")
     data object AppIntroOnboarding : DebugScreen("인증/온보딩", "앱 소개 (App intro)")
     // 화면 목차에서 제거됨 (바로가기/자가테스트 플로우)
     data object Login : DebugScreen("인증/온보딩", "Login")
@@ -197,6 +199,7 @@ private fun DebugScreenPreview(
         DebugScreen.SelfTestVer2 -> SelfTestScreenVer2(onBack = onBack)
         DebugScreen.SelfTestLoading -> SelfTestLoadingScreen(onFinish = onBack)
         DebugScreen.UsagePatternAnalysis -> DebugUsagePatternAnalysisPreview(onBack = onBack)
+        DebugScreen.SelfTestFullFlow -> DebugSelfTestFullFlowPreview(onBack = onBack)
         DebugScreen.SelfTestResult -> SelfTestResultScreen(
             resultType = SelfTestResultType.CAUTION,
             onStartClick = onBack,
@@ -424,7 +427,11 @@ private fun DebugSplashPreview(onBack: () -> Unit) {
 @Composable
 private fun DebugUsagePatternAnalysisPreview(onBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
-        UsagePatternAnalysisScreen(userName = "아영", onFinish = onBack)
+        DiagnosisResultScreen(
+            userName = "아영",
+            diagnosisScore = 85,
+            onFinish = onBack,
+        )
         AptoxGhostButton(
             text = "돌아가기",
             onClick = onBack,
@@ -434,6 +441,39 @@ private fun DebugUsagePatternAnalysisPreview(onBack: () -> Unit) {
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .widthIn(max = 120.dp),
         )
+    }
+}
+
+/**
+ * 사용패턴 테스트 → 로딩 → 진단 결과까지 이어지는 전체 플로우 디버그 프리뷰.
+ * 실제 온보딩과 동일하게 이름 입력 + 7문항 응답 → 로딩 → 결과 화면까지 직접 테스트 가능.
+ */
+@Composable
+private fun DebugSelfTestFullFlowPreview(onBack: () -> Unit) {
+    var phase by remember { mutableStateOf(0) } // 0=테스트, 1=로딩, 2=결과
+    var userName by remember { mutableStateOf("") }
+    var answers by remember { mutableStateOf<Map<Int, Int>>(emptyMap()) }
+
+    when (phase) {
+        0 -> SelfTestScreenVer2(
+            onBack = onBack,
+            onComplete = { name, ans ->
+                userName = name
+                answers = ans
+                phase = 1
+            },
+        )
+        1 -> SelfTestLoadingScreen(
+            onFinish = { phase = 2 },
+            userName = userName,
+        )
+        2 -> Box(modifier = Modifier.fillMaxSize()) {
+            DiagnosisResultScreen(
+                userName = userName,
+                diagnosisScore = computeDiagnosisScore(answers),
+                onFinish = onBack,
+            )
+        }
     }
 }
 
@@ -673,6 +713,7 @@ private fun DebugScreenListSection(
             DebugScreen.Splash,
             DebugScreen.Permission,
             DebugScreen.AppIntroOnboarding,
+            DebugScreen.SelfTestFullFlow,
             DebugScreen.SelfTestVer2,
             DebugScreen.SelfTestLoading,
             DebugScreen.UsagePatternAnalysis,

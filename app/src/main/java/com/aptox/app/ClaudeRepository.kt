@@ -122,6 +122,12 @@ class ClaudeRepository(
      * @param dailyLimitExceededCount 제한 초과 횟수. null이면 미포함
      * @return Result<Pair<title, body>>
      */
+    /**
+     * Brief 카드용 타이틀+본문 생성
+     * - periodLabel "일간": Daily Brief 전용. 항상 "어제" 기준 표현 사용.
+     *   타이틀 35자 이내, 본문 2문장 이내.
+     * - periodLabel "월간"/"연간"/"주간": 기존 동작 유지.
+     */
     suspend fun generateBriefSummaryWithTitle(
         periodLabel: String,
         dateMinutes: List<Long>,
@@ -133,7 +139,9 @@ class ClaudeRepository(
         goalAchievementRate: Float? = null,
         dailyLimitExceededCount: Int? = null,
     ): Result<Pair<String, String>> = runCatching {
+        val isDaily = periodLabel == "일간"
         val (periodDesc, titlePrefix) = when (periodLabel) {
+            "일간" -> "어제 하루" to "어제는"
             "월간" -> "한 달" to "지난달은"
             "연간" -> "한 해" to "지난해는"
             else -> "한 주" to "지난주는"
@@ -163,15 +171,24 @@ class ClaudeRepository(
             val slotLabels = listOf("0~2시", "2~4시", "4~6시", "6~8시", "8~10시", "10~12시", "12~14시", "14~16시", "16~18시", "18~20시", "20~22시", "22~24시")
             slotLabels.forEachIndexed { i, l -> append("$l: ${timeSlotMinutes.getOrElse(i) { 0L }}분\n") }
             append("\n위 데이터를 바탕으로 응답을 두 부분으로 작성해주세요.\n")
-            append("1) 첫 줄: \"$titlePrefix\"으로 시작하는 한 문장 타이틀\n")
-            append("2) 빈 줄 뒤: 2~3문장의 친근한 말투 본문 (결과가 좋으면 칭찬, 나쁘면 솔직하게 지적 후 개선 권유)\n")
+            if (isDaily) {
+                append("1) 첫 줄: \"$titlePrefix\"으로 시작하는 타이틀.\n")
+                append("   - 반드시 \"어제\" 기준 표현만 사용. \"지난주\", \"이번 주\" 등 주 단위 표현 절대 금지.\n")
+                append("   - 35자 이내로 작성 (공백 포함).\n")
+                append("2) 빈 줄 뒤: 친근한 말투 본문. 정확히 2문장 이내로 작성.\n")
+            } else {
+                append("1) 첫 줄: \"$titlePrefix\"으로 시작하는 한 문장 타이틀\n")
+                append("2) 빈 줄 뒤: 2~3문장의 친근한 말투 본문 (결과가 좋으면 칭찬, 나쁘면 솔직하게 지적 후 개선 권유)\n")
+            }
             append("타이틀과 본문만 출력하세요. 다른 설명 없이.")
         }
         val resp = chat(prompt).getOrThrow()
         val text = resp.reply.trim()
         val parts = text.split("\n\n", limit = 2)
-        val title = parts.firstOrNull()?.trim()?.takeIf { it.isNotBlank() } ?: titlePrefix
+        var title = parts.firstOrNull()?.trim()?.takeIf { it.isNotBlank() } ?: titlePrefix
         val body = parts.getOrNull(1)?.trim()?.takeIf { it.isNotBlank() } ?: text
+        // Daily Brief: 타이틀 35자 초과 시 잘라내기
+        if (isDaily && title.length > 35) title = title.take(35)
         title to body
     }
 }

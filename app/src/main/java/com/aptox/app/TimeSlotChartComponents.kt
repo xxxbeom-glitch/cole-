@@ -77,17 +77,28 @@ fun TimeSlotBarChartComponent(
             @Composable
             fun YAxisLabels() {
                 val ticks = yTicks.asReversed()
-                Column(
+                val labelDensity = LocalDensity.current
+                val halfLabelDp = with(labelDensity) {
+                    (ChartAxisTextStyle.lineHeight.toPx() / 2f).toDp()
+                }
+                val denom = ticks.lastIndex.coerceAtLeast(1)
+                Box(
                     modifier = Modifier
                         .width(ChartYAxisWidth)
                         .height(TotalChartHeight)
                         .padding(start = 2.dp)
                         .alpha(0.8f)
                         .padding(vertical = ChartVerticalPadding),
-                    verticalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    ticks.forEach { tick ->
-                        Text(text = formatTimeSlotYLabel(tick), style = ChartAxisTextStyle)
+                    ticks.forEachIndexed { index, tick ->
+                        val fraction = index / denom.toFloat()
+                        Text(
+                            text = formatTimeSlotYLabel(tick),
+                            style = ChartAxisTextStyle,
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .offset(y = TimeSlotBarChartHeight * fraction - halfLabelDp),
+                        )
                     }
                 }
             }
@@ -130,10 +141,11 @@ fun TimeSlotBarChartComponent(
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
-                        val lineCount = maxOf(1, yTicks.size - 1)
+                        // 기간별 사용량과 동일: Y틱 개수만큼 가로 점선(맨 아래 바닥선 포함: 0 / 1H / 2H)
                         val pathEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 12f), 0f)
-                        for (i in 0 until lineCount) {
-                            val y = size.height * (i.toFloat() / lineCount)
+                        val denom = (yTicks.size - 1).coerceAtLeast(1)
+                        for (i in 0 until yTicks.size) {
+                            val y = size.height * (i.toFloat() / denom)
                             drawLine(
                                 color = AppColors.Grey450.copy(alpha = 0.6f),
                                 start = Offset(0f, y),

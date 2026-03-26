@@ -45,6 +45,8 @@ object TimeSpecifiedRestrictionNotificationHelper {
      * @param isStart true: 시작 알림, false: 종료(해제) 알림
      */
     fun show(context: Context, appName: String, packageName: String, isStart: Boolean) {
+        if (isStart && !NotificationPreferences.isTimeSpecifiedStartEnabled(context)) return
+        if (!isStart && !NotificationPreferences.isTimeSpecifiedEndEnabled(context)) return
         ensureChannel(context)
         val nm = NotificationManagerCompat.from(context)
         if (!nm.areNotificationsEnabled()) return

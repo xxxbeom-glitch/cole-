@@ -43,24 +43,6 @@ class NotificationRepository(
     }
 
     /**
-     * 주간 리포트 알림을 users/{userId}/notifications에 추가.
-     * @param body Brief AI 요약 타이틀
-     */
-    suspend fun saveWeeklyReportNotification(userId: String, title: String, body: String) = runCatching {
-        firestore.collection("users").document(userId).collection("notifications")
-            .add(
-                mapOf(
-                    "type" to "weekly_report",
-                    "title" to title,
-                    "body" to body,
-                    "timestamp" to FieldValue.serverTimestamp(),
-                    "navTarget" to "statistics_weekly",
-                ),
-            )
-            .await()
-    }
-
-    /**
      * 알림 목록 실시간 스트림. 최신순 정렬.
      */
     fun getNotificationsFlow(userId: String): Flow<List<NotificationHistoryItem>> = callbackFlow {
@@ -89,7 +71,6 @@ class NotificationRepository(
 
         val typeLabel = when (type) {
             "badge" -> "챌린지 성공"
-            "weekly_report" -> "주간 리포트"
             else -> type
         }
         val timeText = formatTimeAgo(timestamp)

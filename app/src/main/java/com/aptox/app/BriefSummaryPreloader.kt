@@ -45,10 +45,15 @@ object BriefSummaryPreloader {
         return BriefSummaryCache.has(context, cacheKey)
     }
 
+    /**
+     * 주간 Brief 사전 생성.
+     * 데이터 기준: 어제 00:00 ~ 23:59:59
+     * 캐시 키: WEEKLY_DAILY_yyyyMMdd (어제 날짜) — 매일 아침 6시 갱신 시 새 키로 교체됨.
+     */
     suspend fun tryPreloadLastWeek(context: Context) {
         if (!StatisticsData.hasUsageAccess(context)) return
-        val (startMs, endMs, _) = StatisticsData.getWeekRange(-1)
-        val cacheKey = "WEEKLY_${UsageStatsLocalRepository.msToYyyyMmDd(startMs)}"
+        val (startMs, endMs, _) = StatisticsData.getYesterdayRange()
+        val cacheKey = "WEEKLY_DAILY_${UsageStatsLocalRepository.msToYyyyMmDd(startMs)}"
         if (BriefSummaryCache.has(context, cacheKey)) return
 
         val deferred = CompletableDeferred<Unit>()
@@ -113,11 +118,11 @@ object BriefSummaryPreloader {
         }
     }
 
-    /** Worker 등에서 호출: 지난주 Brief 생성 후 타이틀 반환 */
+    /** BriefDailyAlarmReceiver 등에서 호출: 어제 데이터 기반 Brief 생성 후 타이틀 반환 */
     suspend fun ensureLastWeekAndGetTitle(context: Context): String? {
         if (!StatisticsData.hasUsageAccess(context)) return null
-        val (startMs, endMs, _) = StatisticsData.getWeekRange(-1)
-        val cacheKey = "WEEKLY_${UsageStatsLocalRepository.msToYyyyMmDd(startMs)}"
+        val (startMs, endMs, _) = StatisticsData.getYesterdayRange()
+        val cacheKey = "WEEKLY_DAILY_${UsageStatsLocalRepository.msToYyyyMmDd(startMs)}"
         BriefSummaryCache.get(context, cacheKey)?.let { return it.title }
 
         withContext(Dispatchers.IO) {

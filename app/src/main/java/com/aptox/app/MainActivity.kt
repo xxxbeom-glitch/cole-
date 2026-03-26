@@ -382,11 +382,15 @@ fun SignUpFlowHost(
         )
         SignUpStep.SELFTEST_LOADING -> SelfTestLoadingScreen(
             onFinish = { step = SignUpStep.USAGE_PATTERN_ANALYSIS },
-        )
-        SignUpStep.USAGE_PATTERN_ANALYSIS -> UsagePatternAnalysisScreen(
             userName = selfTestUserName.ifBlank {
                 UserPreferencesRepository(context).userName ?: "아영"
             },
+        )
+        SignUpStep.USAGE_PATTERN_ANALYSIS -> DiagnosisResultScreen(
+            userName = selfTestUserName.ifBlank {
+                UserPreferencesRepository(context).userName ?: "아영"
+            },
+            diagnosisScore = computeDiagnosisScore(selfTestAnswers),
             onFinish = {
                 scope.launch {
                     firstRunRepo.setOnboardingFlowCompleted(true)
@@ -394,17 +398,23 @@ fun SignUpFlowHost(
                 }
             },
         )
-        SignUpStep.SELFTEST_RESULT -> SelfTestResultScreenST10(
-            resultType = computeSelfTestResultType(selfTestAnswers),
-            onStartClick = {
-                scope.launch {
-                    firstRunRepo.setOnboardingFlowCompleted(true)
-                    step = SignUpStep.MAIN
-                }
-            },
-            onBackClick = { step = SignUpStep.SELFTEST },
-            rawScore = selfTestAnswers.values.sumOf { (4 - it).coerceIn(0, 4) }.coerceIn(8, 32),
-        )
+        SignUpStep.SELFTEST_RESULT -> {
+            val answerCount = if (selfTestAnswers.size == 8) 8 else 7
+            val sum = selfTestAnswers.values.sumOf { (4 - it).coerceIn(0, 4) }
+            val raw = sum.coerceIn(answerCount, answerCount * 4)
+            SelfTestResultScreenST10(
+                resultType = computeSelfTestResultType(selfTestAnswers),
+                onStartClick = {
+                    scope.launch {
+                        firstRunRepo.setOnboardingFlowCompleted(true)
+                        step = SignUpStep.MAIN
+                    }
+                },
+                onBackClick = { step = SignUpStep.SELFTEST },
+                rawScore = raw,
+                answerCount = answerCount,
+            )
+        }
         SignUpStep.ADD_APP -> AddAppFlowHost(
             onComplete = {
                 prefilledApp = null
@@ -430,6 +440,7 @@ fun SignUpFlowHost(
                 prefilledApp = null
                 step = SignUpStep.MAIN
             },
+            initialPrefilledApp = prefilledApp,
         )
         SignUpStep.MAIN -> MainFlowHost(
             onAddAppClick = { app ->

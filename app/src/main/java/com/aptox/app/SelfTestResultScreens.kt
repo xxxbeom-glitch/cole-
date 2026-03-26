@@ -44,9 +44,16 @@ import kotlin.math.roundToInt
 // ST-10 자가테스트 결과 화면 (Figma 576-2686)
 // ─────────────────────────────────────────────
 
-/** (레거시) rawScore → displayScore 250~500 (ResultGaugeGraph / DebugGaugeTestScreen용) */
-fun rawScoreToDisplayScore(rawScore: Int): Int =
-    (250 + rawScore.coerceIn(0, 32) * 250f / 32f).roundToInt().coerceIn(250, 500)
+/**
+ * rawScore → displayScore 250~500 (ResultGaugeGraph / DebugGaugeTestScreen용)
+ * @param answerCount 7(온보딩 Ver2) 또는 8(레거시 ST-01~08)
+ */
+fun rawScoreToDisplayScore(rawScore: Int, answerCount: Int = 7): Int {
+    val min = answerCount
+    val max = answerCount * 4
+    val r = rawScore.coerceIn(min, max)
+    return (250 + (r - min) * 250f / (max - min).toFloat()).roundToInt().coerceIn(250, 500)
+}
 
 /** (레거시) displayScore → 해석 문자열 (ResultGaugeGraph / DebugGaugeTestScreen용) */
 fun displayScoreToInterpretation(displayScore: Int): String = when {
@@ -55,9 +62,12 @@ fun displayScoreToInterpretation(displayScore: Int): String = when {
     else -> "스마트폰 사용 습관이 건강해요!"
 }
 
-/** rawScore(8~32) → 게이지 progress 0~1 */
-fun rawScoreToProgress(rawScore: Int): Float =
-    ((rawScore - 8) / 24f).coerceIn(0f, 1f)
+/** rawScore → 게이지 progress 0~1 (answerCount에 따라 최소·최대 점수 범위가 달라짐) */
+fun rawScoreToProgress(rawScore: Int, answerCount: Int = 7): Float {
+    val min = answerCount.toFloat()
+    val max = (answerCount * 4).toFloat()
+    return ((rawScore - min) / (max - min)).coerceIn(0f, 1f)
+}
 
 private val GaugeBarWidth = 260.dp
 private val GaugeBarHeight = 12.dp
@@ -121,9 +131,13 @@ fun SelfTestResultScreen(
     onBackClick: () -> Unit,
     rawScore: Int,
     userName: String = "장원영",
+    answerCount: Int = 7,
     modifier: Modifier = Modifier,
 ) {
-    val progress = rawScoreToProgress(rawScore.coerceIn(8, 32))
+    val progress = rawScoreToProgress(
+        rawScore.coerceIn(answerCount, answerCount * 4),
+        answerCount,
+    )
     val animatedProgress by animateFloatAsState(
         targetValue = progress,
         animationSpec = tween(durationMillis = 600),

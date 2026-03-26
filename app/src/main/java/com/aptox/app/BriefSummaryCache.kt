@@ -42,4 +42,11 @@ object BriefSummaryCache {
     }
 
     suspend fun has(context: Context, key: String): Boolean = get(context, key) != null
+
+    suspend fun remove(context: Context, key: String) {
+        context.applicationContext.briefSummaryDataStore.edit { prefs ->
+            prefs.remove(titleKey(key))
+            prefs.remove(bodyKey(key))
+        }
+    }
 }

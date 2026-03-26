@@ -32,6 +32,8 @@ class AptoxApplication : Application() {
                 AptoxUncaughtExceptionHandler(this, defaultHandler),
             )
         }
+        NotificationPreferences.migrateIfNeeded(this)
+        BriefDailyAlarmScheduler.schedule(this)
         scheduleUsageStatsSync()
         // 미로그인 상태에서 제한만 저장한 뒤 로그인하면 badge_001 등 Firestore 배지를 줄 수 있게 함
         FirebaseAuth.getInstance().addAuthStateListener { auth ->
@@ -87,7 +89,7 @@ class AptoxApplication : Application() {
                     AppMonitorService.start(context, map, clearForegroundPkg)
                 }
                 DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(context)
-                WeeklyReportAlarmScheduler.applySchedule(context, NotificationPreferences.isWeeklyReportEnabled(context))
+
             } catch (e: Throwable) {
                 Log.e(TAG, "AppMonitor 시작 실패", e)
             }

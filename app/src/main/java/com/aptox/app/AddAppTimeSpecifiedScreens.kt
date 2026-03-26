@@ -76,7 +76,8 @@ private fun timeStringToMinutes(time: String): Int? {
 }
 
 /**
- * "HH:MM 오전|오후" 형식 문자열을 오늘 날짜 기준 ms 타임스탬프로 변환
+ * "HH:MM 오전|오후" 형식 문자열을 오늘 날짜 기준 ms 타임스탬프로 변환.
+ * 초·밀리초는 0으로 맞춰 분 단위 시각과 [adjustTimeSpecifiedWindow]의 분 단위 비교가 일치한다.
  */
 private fun timeStringToTodayMs(time: String): Long? {
     val totalMin = timeStringToMinutes(time) ?: return null
@@ -93,13 +94,15 @@ private const val ONE_DAY_MS = 24L * 60 * 60 * 1000
 
 /**
  * 시작/종료 시각을 올바른 날짜로 조정:
- * - startMs가 now보다 과거면 → 내일로 +1일
- * - endMs가 startMs보다 작거나 같으면 (자정을 넘기는 케이스) → endMs +1일
+ * - 시작: 분 단위로만 비교. 같은 분이면 오늘 구간으로 유지하고, 시작 분이 현재 분보다 과거일 때만 내일로 이동.
+ * - 종료가 시작보다 앞서면(당일 자정 넘김 등) → endMs +1일
  */
 private fun adjustTimeSpecifiedWindow(startMs: Long, endMs: Long, now: Long): Pair<Long, Long> {
     var s = startMs
     var e = endMs
-    if (s <= now) s += ONE_DAY_MS
+    val sMin = s / 60_000L * 60_000L
+    val nowMin = now / 60_000L * 60_000L
+    if (sMin < nowMin) s += ONE_DAY_MS
     if (e <= s) e += ONE_DAY_MS
     return s to e
 }
@@ -115,21 +118,28 @@ private enum class TimeSpecifiedStep {
  * 시간 지정 제한 플로우 호스트
  * - SETUP에서 「다음」 시 저장 후 COMPLETE(설정 완료)로 이동 — 완료 화면 이전 단계 뒤로가기는 미저장
  * - COMPLETE에서 뒤로가기/앱 추가하기/닫기는 이미 저장된 상태로 홈(onComplete)
+ *
+ * @param initialPrefilledApp 홈 빈 카드 등에서 「제한 앱 추가」→ 시간 지정으로 진입 시 미리 채울 앱 (AddAppFlowHost의 [initialPrefilledApp]과 동일 역할)
  */
 @Composable
 fun TimeSpecifiedFlowHost(
     onComplete: () -> Unit,
     onBackFromFirst: () -> Unit,
     modifier: Modifier = Modifier,
+    initialPrefilledApp: com.aptox.app.model.SelectedAppInfo? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var step by remember { mutableStateOf(TimeSpecifiedStep.SETUP) }
 
-    // 선택값 상태
-    var selectedAppName by remember { mutableStateOf("") }
-    var selectedPackageName by remember { mutableStateOf("") }
+    // 선택값 상태 (홈에서 전달된 앱이 있으면 앱명·패키지 프리필)
+    var selectedAppName by remember(initialPrefilledApp) {
+        mutableStateOf(initialPrefilledApp?.appName.orEmpty())
+    }
+    var selectedPackageName by remember(initialPrefilledApp) {
+        mutableStateOf(initialPrefilledApp?.packageName.orEmpty())
+    }
     var selectedStartTime by remember { mutableStateOf<String?>(null) }
     var selectedEndTime by remember { mutableStateOf<String?>(null) }
 

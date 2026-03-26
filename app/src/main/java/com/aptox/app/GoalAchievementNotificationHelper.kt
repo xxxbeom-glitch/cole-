@@ -19,7 +19,7 @@ object GoalAchievementNotificationHelper {
     private const val CHANNEL_NAME = "목표 달성"
 
     fun send(context: Context, badgeTitle: String) {
-        if (!NotificationPreferences.isGoalAchievedEnabled(context)) return
+        if (!NotificationPreferences.isBadgeAcquiredEnabled(context)) return
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         ensureChannel(context)
         val intent = Intent(context, MainActivity::class.java).apply {

@@ -36,10 +36,10 @@ import kotlin.math.roundToInt
  */
 @Composable
 fun DebugGaugeTestScreen(onBack: () -> Unit) {
-    var rawScore by remember { mutableFloatStateOf(16f) } // 0..32
+    var rawScore by remember { mutableFloatStateOf(16f) } // 7..28 (7문항 합계)
     var animationEnabled by remember { mutableStateOf(true) }
 
-    val displayScore = rawScoreToDisplayScore(rawScore.roundToInt())
+    val displayScore = rawScoreToDisplayScore(rawScore.roundToInt(), answerCount = 7)
     val interpretation = displayScoreToInterpretation(displayScore)
     val targetProgress = ((displayScore - 250) / 250f).coerceIn(0f, 1f)
 
@@ -88,7 +88,7 @@ fun DebugGaugeTestScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
-                text = "rawScore: ${rawScore.roundToInt()} / 32",
+                text = "rawScore: ${rawScore.roundToInt()} / 28",
                 style = AppTypography.Caption1.copy(color = AppColors.TextCaption),
             )
             Text(
@@ -105,7 +105,7 @@ fun DebugGaugeTestScreen(onBack: () -> Unit) {
             )
         }
 
-        // 슬라이더 (rawScore 0..32)
+        // 슬라이더 (rawScore 7..28, 7문항 합계)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -113,14 +113,14 @@ fun DebugGaugeTestScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = "rawScore 조정 (0 ~ 32)",
+                text = "rawScore 조정 (7 ~ 28)",
                 style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
             )
             Slider(
                 value = rawScore,
                 onValueChange = { rawScore = it },
-                valueRange = 0f..32f,
-                steps = 31,
+                valueRange = 7f..28f,
+                steps = 20,
                 modifier = Modifier.fillMaxWidth(),
             )
             // 구간 라벨
@@ -128,9 +128,9 @@ fun DebugGaugeTestScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text("LOW (0)", style = AppTypography.Caption1.copy(color = AppColors.TextCaption))
-                Text("MID (10)", style = AppTypography.Caption1.copy(color = AppColors.TextCaption))
-                Text("HIGH (32)", style = AppTypography.Caption1.copy(color = AppColors.TextCaption))
+                Text("LOW (7)", style = AppTypography.Caption1.copy(color = AppColors.TextCaption))
+                Text("MID (17)", style = AppTypography.Caption1.copy(color = AppColors.TextCaption))
+                Text("HIGH (28)", style = AppTypography.Caption1.copy(color = AppColors.TextCaption))
             }
         }
 
@@ -150,18 +150,18 @@ fun DebugGaugeTestScreen(onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 AptoxOutlinedTextButton(
-                    text = "LOW (0)",
-                    onClick = { rawScore = 0f },
+                    text = "LOW (7)",
+                    onClick = { rawScore = 7f },
                     modifier = Modifier.weight(1f),
                 )
                 AptoxOutlinedTextButton(
-                    text = "MID (9)",
-                    onClick = { rawScore = 9f },
+                    text = "MID (17)",
+                    onClick = { rawScore = 17f },
                     modifier = Modifier.weight(1f),
                 )
                 AptoxOutlinedTextButton(
-                    text = "HIGH (32)",
-                    onClick = { rawScore = 32f },
+                    text = "HIGH (28)",
+                    onClick = { rawScore = 28f },
                     modifier = Modifier.weight(1f),
                 )
             }

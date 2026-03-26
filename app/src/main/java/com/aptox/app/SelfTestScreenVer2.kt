@@ -38,17 +38,30 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
-/** Ver2 4단계 답변 → 기존 8문항 형식 Map (rawScore/resultType 계산용) */
-private fun buildVer2Answers(
-    step1: Int?,
-    step2: MutableList<Int>,
-    step3: Int?,
-    step4: Int?,
-): Map<Int, Int> {
-    val s4 = (step4 ?: 1).coerceIn(0, 3)
-    val value = 3 - s4
-    return (0..7).associateWith { value }
-}
+/** 리커트 선택 인덱스(0=전혀 그렇지 않다 … 3=매우 그렇다) → 저장값 (기존 (4-it) 합산과 호환) */
+private fun likertIndexToStoredValue(index: Int): Int = 3 - index.coerceIn(0, 3)
+
+private fun buildUsagePatternAnswerMap(likertAnswers: List<Int?>): Map<Int, Int> =
+    likertAnswers.mapIndexedNotNull { idx, sel ->
+        if (sel == null) null else idx to likertIndexToStoredValue(sel)
+    }.toMap()
+
+private val UsagePatternLikertOptions = listOf(
+    "전혀 그렇지 않다",
+    "그렇지 않다",
+    "그렇다",
+    "매우 그렇다",
+)
+
+private val UsagePatternQuestions = listOf(
+    "스마트폰 사용을 줄여야겠다고\n느끼지만 잘 안 된다",
+    "스마트폰 없으면\n불안하거나 초조하다",
+    "스마트폰 때문에\n수면·식사 등 일상이 방해받는다",
+    "일/공부 중에도\n습관적으로 스마트폰을 확인한다",
+    "스마트폰이 없으면\n뭘 해야 할지 모르겠다",
+    "자기 전이나 일어나자마자\n스마트폰부터 확인한다",
+    "스마트폰 사용 시간이\n생각보다 훨씬 길게 느껴진다",
+)
 
 /**
  * 자가테스트 진단 ver2 (Figma 1127-*)
@@ -64,31 +77,25 @@ fun SelfTestScreenVer2(
 ) {
     var currentStep by remember { mutableIntStateOf(0) }
     var userName by remember { mutableStateOf("") }
-    var step1Selected by remember { mutableStateOf<Int?>(null) }
-    val step2Selected = remember { mutableStateListOf<Int>() }
-    var step3Selected by remember { mutableStateOf<Int?>(null) }
-    var step4Selected by remember { mutableStateOf<Int?>(null) }
+    val likertAnswers = remember { mutableStateListOf<Int?>(null, null, null, null, null, null, null) }
 
-    val totalSteps = 5
+    val totalSteps = 8 // 이름 + 리커트 7문항
     val progress = (currentStep + 1) / totalSteps.toFloat()
 
     BackHandler { onBack() }
 
     val primaryEnabled = when (currentStep) {
         0 -> userName.isNotBlank()
-        1 -> step1Selected != null
-        2 -> step2Selected.isNotEmpty()
-        3 -> step3Selected != null
-        4 -> step4Selected != null
+        in 1..7 -> likertAnswers[currentStep - 1] != null
         else -> false
     }
-    val primaryText = if (currentStep == 4) "완료" else "다음"
+    val primaryText = if (currentStep == 7) "완료" else "다음"
     val doPrimaryClick: () -> Unit = {
         when (currentStep) {
             0 -> { if (userName.isNotBlank()) { currentStep += 1 } }
-            1, 2, 3 -> currentStep++
-            4 -> {
-                val answers = buildVer2Answers(step1Selected, step2Selected, step3Selected, step4Selected)
+            in 1..6 -> currentStep++
+            7 -> {
+                val answers = buildUsagePatternAnswerMap(likertAnswers)
                 onComplete(userName.trim(), answers)
             }
             else -> { }
@@ -122,55 +129,15 @@ fun SelfTestScreenVer2(
 
             when (currentStep) {
                 0 -> NameStepContent(userName = userName, onNameChange = { userName = it.take(5) })
-                1 -> SingleSelectStepContent(
-                    question = "평소 스마트폰을 많이\n사용한다고 생각하세요?",
-                    options = listOf(
-                        "네, 많이 사용하는 것 같아요",
-                        "아니요, 적당히 사용하는 것 같아요",
-                        "잘 모르겠어요",
-                    ),
-                    selectedIndex = step1Selected,
-                    onOptionSelected = { step1Selected = it },
-                )
-                2 -> MultiSelectStepContent(
-                    question = "가장 많이 사용하는 앱은\n어떤 종류에요?",
-                    subtitle = "중복 선택이 가능해요",
-                    options = listOf(
-                        "SNS (인스타그램, X, 틱톡 등)",
-                        "OTT (유튜브, 넷플릭스, 디즈니+ 등)",
-                        "게임 (라스트워, 리니지M 등)",
-                        "웹툰 (네이버 웹툰, 카카오웹툰, 투믹스 등)",
-                        "쇼핑 (쿠팡, 무신사, 에이블리, 29cm 등)",
-                    ),
-                    selectedIndices = step2Selected,
-                    onOptionToggled = { idx ->
-                        if (idx in step2Selected) step2Selected.remove(idx)
-                        else step2Selected.add(idx)
-                    },
-                )
-                3 -> SingleSelectStepContent(
-                    question = "선택하신 앱을 하루동안\n대략 얼마나 사용하시나요?",
-                    options = listOf(
-                        "1시간 이하",
-                        "1시간 이상",
-                        "2시간 이상",
-                        "3시간 이상",
-                        "잘 모르겠어요",
-                    ),
-                    selectedIndex = step3Selected,
-                    onOptionSelected = { step3Selected = it },
-                )
-                4 -> SingleSelectStepContent(
-                    question = "지금 당장 스마트폰을 잃어버린다면\n기분이 어떠실 것 같으세요",
-                    options = listOf(
-                        "조금 심심할 것 같아요",
-                        "조금 짜증나고 불안할 것 같아요",
-                        "일이 손에 안잡히고 잠도 안올 것 같아요",
-                        "아주 많이 화가 날 것 같아요",
-                    ),
-                    selectedIndex = step4Selected,
-                    onOptionSelected = { step4Selected = it },
-                )
+                in 1..7 -> {
+                    val qIdx = currentStep - 1
+                    SingleSelectStepContent(
+                        question = UsagePatternQuestions[qIdx],
+                        options = UsagePatternLikertOptions,
+                        selectedIndex = likertAnswers[qIdx],
+                        onOptionSelected = { likertAnswers[qIdx] = it },
+                    )
+                }
             }
         }
 
@@ -288,45 +255,5 @@ private fun SelfTestVer2OptionButton(
                 textAlign = TextAlign.Center,
             )
         )
-    }
-}
-
-@Composable
-private fun MultiSelectStepContent(
-    question: String,
-    subtitle: String,
-    options: List<String>,
-    selectedIndices: List<Int>,
-    onOptionToggled: (Int) -> Unit,
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(36.dp),
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = question,
-                style = AppTypography.HeadingH2.copy(color = AppColors.TextPrimary),
-                textAlign = TextAlign.Center,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = subtitle,
-                style = AppTypography.Caption2.copy(color = AppColors.TextDisclaimer),
-            )
-        }
-        Column(
-            modifier = Modifier.fillMaxWidth().widthIn(max = 296.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            options.forEachIndexed { index, option ->
-                SelfTestVer2OptionButton(
-                    text = option,
-                    selected = index in selectedIndices,
-                    onClick = { onOptionToggled(index) },
-                )
-            }
-        }
     }
 }

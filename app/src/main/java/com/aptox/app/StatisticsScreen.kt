@@ -37,6 +37,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -148,7 +149,9 @@ private val StatsCardListItemSpacing = 12.dp
  * - 날짜 범위 선택 + 요일별 막대 차트
  * - 스택 바 (카테고리 비율) + 최다 앱 리스트
  * - 그룹 막대 차트 (전주 vs 이번주)
+ * - 아래로 당기면 Daily Brief만 재생성 (탭 차트 데이터는 그대로)
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatisticsScreen(
     modifier: Modifier = Modifier,
@@ -203,18 +206,6 @@ fun StatisticsScreen(
         }
     }
 
-    // 월간·연간 탭: 조건 미충족 시 접근 금지 (30일/180일 이상 사용 후 활성화)
-    var statsDisabledIndices by remember { mutableStateOf(setOf(1, 2)) }
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            val days = UsageStatsLocalRepository(context).getCumulativeDaysSinceFirstUseBlocking()
-            val disabled = mutableSetOf<Int>()
-            if (days < StatisticsData.MIN_DAYS_FOR_MONTHLY) disabled.add(1)
-            if (days < StatisticsData.MIN_DAYS_FOR_YEARLY) disabled.add(2)
-            statsDisabledIndices = disabled.toSet()
-        }
-    }
-
     // 카드별 독립적인 주/연도/월 네비게이션
     var weekOffsetDateChart by remember { mutableIntStateOf(0) }
     var monthOffsetDateChart by remember { mutableIntStateOf(0) } // 월간: 0=이번 달
@@ -229,67 +220,74 @@ fun StatisticsScreen(
     var showHelpSheet by remember { mutableStateOf<StatsHelpType?>(null) }
     var toastMessage by remember { mutableStateOf<String?>(null) }
 
+    var briefRefreshGeneration by remember { mutableIntStateOf(0) }
+    var isBriefPullRefreshing by remember { mutableStateOf(false) }
+    val pullRefreshScope = rememberCoroutineScope()
+
     Box(modifier = modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .padding(top = 24.dp, bottom = 32.dp)
-                .windowInsetsPadding(WindowInsets.navigationBars),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
-        AptoxSegmentedTab(
-            items = tabLabels,
-            selectedIndex = selectedTab,
-            onTabSelected = { selectedTab = it },
-            disabledIndices = statsDisabledIndices,
-            onDisabledTabClick = { idx ->
-                when (idx) {
-                    1 -> toastMessage = "월간 통계는 30일 이상 사용 후 확인할 수 있어요"
-                    2 -> toastMessage = "연간 통계는 6개월 이상 사용 후 확인할 수 있어요"
+        PullToRefreshBox(
+            isRefreshing = isBriefPullRefreshing,
+            onRefresh = {
+                pullRefreshScope.launch {
+                    isBriefPullRefreshing = true
+                    briefRefreshGeneration++
                 }
             },
-        )
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 24.dp, bottom = 32.dp)
+                    .windowInsetsPadding(WindowInsets.navigationBars),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                DailyBriefCard(
+                    refreshGeneration = briefRefreshGeneration,
+                    onRegenerateComplete = { isBriefPullRefreshing = false },
+                )
 
-        StatsInsightCard(
-            tabEnum = tabEnum,
-            weekOffset = weekOffsetDateChart,
-            monthOffset = monthOffsetDateChart,
-            yearOffset = yearOffsetDateChart,
-        )
-        StatsDateChartSection(
-            tabEnum = tabEnum,
-            weekOffset = weekOffsetDateChart,
-            onWeekChange = { weekOffsetDateChart = it },
-            monthOffset = monthOffsetDateChart,
-            onMonthChange = { monthOffsetDateChart = it },
-            yearOffset = yearOffsetDateChart,
-            onYearChange = { yearOffsetDateChart = it },
-            onInfoClick = { showHelpSheet = StatsHelpType.DATE_CHART },
-        )
-        StatsStackedBarAndAppList(
-            tabEnum = tabEnum,
-            weekOffset = weekOffsetCategory,
-            onWeekChange = { weekOffsetCategory = it },
-            monthOffset = monthOffsetCategory,
-            onMonthChange = { monthOffsetCategory = it },
-            yearOffset = yearOffsetCategory,
-            onYearChange = { yearOffsetCategory = it },
-            onInfoClick = { showHelpSheet = StatsHelpType.CATEGORY },
-        )
-        StatsTimeSlotSection(
-            tabEnum = tabEnum,
-            weekOffset = weekOffsetComparison,
-            onWeekChange = { weekOffsetComparison = it },
-            monthOffset = monthOffsetComparison,
-            onMonthChange = { monthOffsetComparison = it },
-            yearOffset = yearOffsetComparison,
-            onYearChange = { yearOffsetComparison = it },
-            onInfoClick = { showHelpSheet = StatsHelpType.TIME_SLOT },
-        )
-        // 맨 아래 스크롤 시 바텀바로부터 32dp 여백 (padding bottom으로 적용)
-    }
+                AptoxSegmentedTab(
+                    items = tabLabels,
+                    selectedIndex = selectedTab,
+                    onTabSelected = { selectedTab = it },
+                )
+
+                StatsDateChartSection(
+                    tabEnum = tabEnum,
+                    weekOffset = weekOffsetDateChart,
+                    onWeekChange = { weekOffsetDateChart = it },
+                    monthOffset = monthOffsetDateChart,
+                    onMonthChange = { monthOffsetDateChart = it },
+                    yearOffset = yearOffsetDateChart,
+                    onYearChange = { yearOffsetDateChart = it },
+                    onInfoClick = { showHelpSheet = StatsHelpType.DATE_CHART },
+                )
+                StatsStackedBarAndAppList(
+                    tabEnum = tabEnum,
+                    weekOffset = weekOffsetCategory,
+                    onWeekChange = { weekOffsetCategory = it },
+                    monthOffset = monthOffsetCategory,
+                    onMonthChange = { monthOffsetCategory = it },
+                    yearOffset = yearOffsetCategory,
+                    onYearChange = { yearOffsetCategory = it },
+                    onInfoClick = { showHelpSheet = StatsHelpType.CATEGORY },
+                )
+                StatsTimeSlotSection(
+                    tabEnum = tabEnum,
+                    weekOffset = weekOffsetComparison,
+                    onWeekChange = { weekOffsetComparison = it },
+                    monthOffset = monthOffsetComparison,
+                    onMonthChange = { monthOffsetComparison = it },
+                    yearOffset = yearOffsetComparison,
+                    onYearChange = { yearOffsetComparison = it },
+                    onInfoClick = { showHelpSheet = StatsHelpType.TIME_SLOT },
+                )
+                // 맨 아래 스크롤 시 바텀바로부터 32dp 여백 (padding bottom으로 적용)
+            }
+        }
 
         AptoxToast(
             message = toastMessage ?: "",
@@ -356,154 +354,94 @@ private fun StatsCardHelpBottomSheet(
     }
 }
 
-/** Brief API 호출용 기간 파라미터 */
-private data class BriefPeriodParams(
-    val cacheKey: String,
-    val startMs: Long,
-    val endMs: Long,
-    val periodLabel: String,
-    val divideByDays: Int,
-)
-
-/** Brief 카드 탭별 기본 제목 (API 실패 시 폴백, 본문은 Claude API로 생성) */
-private val BriefContentByTab = mapOf(
-    StatisticsData.Tab.WEEKLY to Triple(
-        "지난주와 비슷한 한 주예요",
-        "",
-        "연속 달성일" to "56일",
-    ),
-    StatisticsData.Tab.MONTHLY to Triple(
-        "지난달과 비슷한 한 달이에요",
-        "",
-        "연속 달성주" to "8주",
-    ),
-    StatisticsData.Tab.YEARLY to Triple(
-        "지난해와 비슷한 한 해예요",
-        "",
-        "연속 달성달" to "6달",
-    ),
-)
-
 /**
- * Figma 926:8043 Brief 카드
+ * Figma 926:8043 Daily Brief 카드 (탭 공통 영역)
+ * - 탭 선택과 완전히 독립적으로 동작
+ * - 데이터 기준: 어제 00:00 ~ 23:59:59 (BriefDailyWorker와 동일한 캐시 키)
+ * - [refreshGeneration]이 증가하면 캐시를 지우고 AI 재생성 (pull-to-refresh)
  * - 카드: 흰 배경, primary-300 테두리
- * - 상단: Brief + 제목 (gap 2dp), 본문 (gap 12dp)
- * - Claude API로 총평 생성 (주간/월간/연간), 캐시 키: 주간=yyyyMMdd, 월간=yyyyMM, 연간=yyyy
+ * - 상단: Daily Brief + 제목 (gap 2dp), 본문 (gap 12dp)
  */
 @Composable
-private fun StatsInsightCard(
-    tabEnum: StatisticsData.Tab = StatisticsData.Tab.WEEKLY,
-    weekOffset: Int = 0,
-    monthOffset: Int = 0,
-    yearOffset: Int = 0,
+private fun DailyBriefCard(
+    refreshGeneration: Int = 0,
+    onRegenerateComplete: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val content = BriefContentByTab[tabEnum] ?: BriefContentByTab[StatisticsData.Tab.WEEKLY]!!
-    val (defaultTitle, _, statPair) = content
-    val (stat1Label, stat1Value) = statPair
-    val effectiveStat1Value = when {
-        tabEnum == StatisticsData.Tab.WEEKLY && DebugTestSettings.debugWeeklyChallengeDays != null ->
-            "${DebugTestSettings.debugWeeklyChallengeDays}일"
-        else -> stat1Value
-    }
 
     var briefTitle by remember { mutableStateOf<String?>(null) }
     var briefBody by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(tabEnum, weekOffset, monthOffset, yearOffset) {
-        val (cacheKey, startMs, endMs, periodLabel, divideByDays) = when (tabEnum) {
-            StatisticsData.Tab.WEEKLY -> {
-                val usedOffset = -1 // 지난주 고정
-                val (s, e, _) = StatisticsData.getWeekRange(usedOffset)
-                BriefPeriodParams(UsageStatsLocalRepository.msToYyyyMmDd(s), s, e, "주간", 0)
-            }
-            StatisticsData.Tab.MONTHLY -> {
-                val (s, e, _) = StatisticsData.getSingleMonthRange(monthOffset)
-                val cal = java.util.Calendar.getInstance().apply { timeInMillis = s }
-                val yyyyMM = "%04d%02d".format(cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1)
-                BriefPeriodParams(yyyyMM, s, e, "월간", 30)
-            }
-            StatisticsData.Tab.YEARLY -> {
-                val (s, e, _) = StatisticsData.getYearRange(yearOffset)
-                val cal = java.util.Calendar.getInstance().apply { timeInMillis = s }
-                val yyyy = cal.get(java.util.Calendar.YEAR).toString()
-                BriefPeriodParams(yyyy, s, e, "연간", 365)
-            }
-            else -> {
+    LaunchedEffect(refreshGeneration) {
+        val (startMs, endMs, _) = StatisticsData.getYesterdayRange()
+        val cacheKey = "WEEKLY_DAILY_${UsageStatsLocalRepository.msToYyyyMmDd(startMs)}"
+        try {
+            if (refreshGeneration == 0) {
+                BriefSummaryCache.get(context, cacheKey)?.let { entry ->
+                    briefTitle = entry.title
+                    briefBody = entry.body
+                    return@LaunchedEffect
+                }
+
+                briefBody = "분석 중..."
+                val cacheHitAfterWait = BriefSummaryPreloader.waitForPreloadIfNeeded(context, cacheKey, 30_000L)
+                if (cacheHitAfterWait) {
+                    BriefSummaryCache.get(context, cacheKey)?.let { entry ->
+                        briefTitle = entry.title
+                        briefBody = entry.body
+                        return@LaunchedEffect
+                    }
+                }
+            } else {
+                BriefSummaryCache.remove(context, cacheKey)
                 briefTitle = null
-                briefBody = null
-                return@LaunchedEffect
+                briefBody = "분석 중..."
             }
-        }
-        val fullCacheKey = "${tabEnum.name}_$cacheKey"
-        BriefSummaryCache.get(context, fullCacheKey)?.let { entry ->
-            briefTitle = entry.title
-            briefBody = entry.body
-            return@LaunchedEffect
-        }
-        briefBody = "분석 중..."
-        val cacheHitAfterWait = BriefSummaryPreloader.waitForPreloadIfNeeded(context, fullCacheKey, 30_000L)
-        if (cacheHitAfterWait) {
-            BriefSummaryCache.get(context, fullCacheKey)?.let { entry ->
-                briefTitle = entry.title
-                briefBody = entry.body
-                return@LaunchedEffect
+
+            val result = withContext(Dispatchers.IO) {
+                val dm = StatisticsData.loadDayOfWeekMinutes(context, startMs, endMs)
+                val appList = StatisticsData.loadAppUsageForAllowedCategories(context, startMs, endMs)
+                val usageByCategory = appList
+                    .filter { it.categoryTag != null }
+                    .groupBy { it.categoryTag!! }
+                    .mapValues { (_, apps) -> apps.sumOf { it.usageMs } }
+                val total = usageByCategory.values.sum()
+                val segments = if (total > 0L) {
+                    usageByCategory
+                        .toList()
+                        .sortedByDescending { it.second }
+                        .map { (cat, ms) -> cat to (ms.toFloat() / total * 100) }
+                } else emptyList()
+                val timeSlotMinutes = StatisticsData.loadTimeSlot12Minutes(context, startMs, endMs, 0)
+                ClaudeRepository().generateBriefSummaryWithTitle(
+                    periodLabel = "일간",
+                    dateMinutes = dm,
+                    dateLabels = listOf("월", "화", "수", "목", "금", "토", "일"),
+                    segments = segments,
+                    timeSlotMinutes = timeSlotMinutes,
+                )
             }
-        }
-        val result = withContext(Dispatchers.IO) {
-            val (dateMinutes, dateLabels) = when (tabEnum) {
-                StatisticsData.Tab.WEEKLY -> {
-                    val dm = StatisticsData.loadDayOfWeekMinutes(context, startMs, endMs)
-                    dm to listOf("월", "화", "수", "목", "금", "토", "일")
-                }
-                StatisticsData.Tab.MONTHLY -> {
-                    val dm = StatisticsData.loadDayOfMonthMinutes(context, startMs, endMs)
-                    dm to dm.indices.map { "${it + 1}일" }
-                }
-                StatisticsData.Tab.YEARLY -> {
-                    val (ranges, labels) = StatisticsData.getYearRanges(yearOffset)
-                    val dm = StatisticsData.loadYearsMinutes(context, ranges)
-                    dm to labels
-                }
-                else -> emptyList<Long>() to emptyList()
-            }
-            val appList = StatisticsData.loadAppUsageForAllowedCategories(context, startMs, endMs)
-            val usageByCategory = appList
-                .filter { it.categoryTag != null }
-                .groupBy { it.categoryTag!! }
-                .mapValues { (_, apps) -> apps.sumOf { it.usageMs } }
-            val total = usageByCategory.values.sum()
-            val segments = if (total > 0L) {
-                usageByCategory
-                    .toList()
-                    .sortedByDescending { it.second }
-                    .map { (cat, ms) -> cat to (ms.toFloat() / total * 100) }
-            } else emptyList()
-            val timeSlotMinutes = StatisticsData.loadTimeSlot12Minutes(context, startMs, endMs, divideByDays)
-            ClaudeRepository().generateBriefSummaryWithTitle(
-                periodLabel = periodLabel,
-                dateMinutes = dateMinutes,
-                dateLabels = dateLabels,
-                segments = segments,
-                timeSlotMinutes = timeSlotMinutes,
+            result.fold(
+                onSuccess = { (title, body) ->
+                    BriefSummaryCache.put(context, cacheKey, BriefSummaryCache.Entry(title, body))
+                    briefTitle = title
+                    briefBody = body
+                },
+                onFailure = {
+                    briefTitle = null
+                    briefBody = null
+                },
             )
+        } finally {
+            if (refreshGeneration > 0) {
+                onRegenerateComplete()
+            }
         }
-        result.fold(
-            onSuccess = { (title, body) ->
-                BriefSummaryCache.put(context, fullCacheKey, BriefSummaryCache.Entry(title, body))
-                briefTitle = title
-                briefBody = body
-            },
-            onFailure = {
-                briefTitle = null
-                briefBody = null
-            },
-        )
     }
 
-    val displayTitle = briefTitle ?: defaultTitle
-    val showBody = briefBody != null
+    val displayTitle = briefTitle ?: "어제는 어떤 하루였나요?"
+    val showBody = briefBody != null && briefBody != "분석 중..."
 
     Column(
         modifier = modifier
@@ -521,7 +459,7 @@ private fun StatsInsightCard(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = "Brief",
+                    text = "Daily Brief",
                     style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
                 )
                 Text(
@@ -536,10 +474,13 @@ private fun StatsInsightCard(
                     contentPaddingHorizontal = 16.dp,
                     contentPaddingVertical = 18.dp,
                 )
+            } else if (briefBody == "분석 중...") {
+                Text(
+                    text = "분석 중...",
+                    style = AppTypography.BodyMedium.copy(color = AppColors.TextCaption),
+                )
             }
         }
-        // StatsInsightStatBox(연속 달성일~달성율~유지율) 일단 숨김
-        // StatsInsightStatBox(stat1Label = stat1Label, stat1Value = effectiveStat1Value)
     }
 }
 
@@ -637,8 +578,11 @@ private fun StatsDateChartSection(
                 }
                 StatisticsData.Tab.YEARLY -> {
                     val (ranges, labels) = StatisticsData.getYearRanges(yearOffset)
-                    yearLabels = labels
-                    yearMinutes = StatisticsData.loadYearsMinutes(context, ranges)
+                    val minutes = StatisticsData.loadYearsMinutes(context, ranges)
+                    val n = minOf(minutes.size, labels.size)
+                    val nonZeroYears = minutes.take(n).zip(labels.take(n)).filter { it.first > 0 }
+                    yearMinutes = nonZeroYears.map { it.first }
+                    yearLabels = nonZeroYears.map { it.second }
                 }
                 else -> {}
             }
@@ -685,16 +629,11 @@ private fun StatsDateChartSection(
                 values = dayOfMonthMinutes,
                 isCurrentMonth = monthOffset == 0,
             )
-            StatisticsData.Tab.YEARLY -> {
-                val minSize = minOf(yearMinutes.size, yearLabels.size)
-                val safeMinutes = yearMinutes.take(minSize)
-                val safeYearLabels = yearLabels.take(minSize)
-                YearBarChart(
-                    values = safeMinutes,
-                    labels = safeYearLabels,
-                    isCurrentYear = yearOffset == 0,
-                )
-            }
+            StatisticsData.Tab.YEARLY -> YearBarChart(
+                values = yearMinutes,
+                labels = yearLabels,
+                isCurrentYear = yearOffset == 0,
+            )
             else -> {}
         }
         // 보라색 텍스트 박스 숨김
@@ -962,7 +901,7 @@ private val ChartToXLabelsGap = 10.dp
 private val TimeSlotChartToLabelsGap = 12.dp
 /** Figma Caption1: 12sp Medium, lineHeight 19sp, TextCaption (#4d4d4d) */
 private val ChartAxisTextStyle = AppTypography.Caption1.copy(color = AppColors.TextCaption)
-/** Y축 틱 라벨을 각 그리드 라인과 수직 중앙 정렬하여 표시 (주간/월간/연간 동일) */
+/** Y축 틱 라벨을 각 그리드 라인(y = i/(n-1) × 차트 높이)과 수직 중앙 정렬 (주간/월간/연간 동일) */
 @Composable
 private fun ChartYAxisLabels(
     yTicks: List<Long>,
@@ -970,19 +909,27 @@ private fun ChartYAxisLabels(
 ) {
     val ticks = yTicks.asReversed()
     if (ticks.size < 2) return
-    Column(
+    val density = LocalDensity.current
+    val halfLabelDp = with(density) {
+        (ChartAxisTextStyle.lineHeight.toPx() / 2f).toDp()
+    }
+    val denom = ticks.lastIndex.coerceAtLeast(1)
+    Box(
         modifier = modifier
             .width(ChartYAxisWidth)
             .height(TotalChartHeight)
             .padding(start = 2.dp)
             .alpha(0.8f)
             .padding(vertical = ChartVerticalPadding),
-        verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        ticks.forEach { tick ->
+        ticks.forEachIndexed { index, tick ->
+            val fraction = index / denom.toFloat()
             Text(
                 text = formatChartYLabel(tick),
                 style = ChartAxisTextStyle,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(y = BarChartHeight * fraction - halfLabelDp),
             )
         }
     }

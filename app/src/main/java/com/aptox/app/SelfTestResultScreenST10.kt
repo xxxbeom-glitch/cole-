@@ -99,9 +99,10 @@ fun SelfTestResultScreenST10(
     onBackClick: () -> Unit,
     rawScore: Int,
     userName: String = "장원영",
+    answerCount: Int = 7,
     modifier: Modifier = Modifier,
 ) {
-    val displayScore = rawScoreToDisplayScore(rawScore)
+    val displayScore = rawScoreToDisplayScore(rawScore, answerCount)
     val habits = habitItemsST10(resultType)
     val mainMsg = mainMessageST10(resultType)
 

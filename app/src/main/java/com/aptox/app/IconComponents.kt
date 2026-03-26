@@ -71,6 +71,29 @@ fun rememberAppIconPainter(packageName: String?): Painter {
 }
 
 /**
+ * [rememberAppIconPainter]와 동일하게 로드하되, 패키지 미설치·로드 실패 시 null (플레이스홀더 drawable 사용 안 함).
+ */
+@Composable
+fun rememberAppIconPainterOrNull(packageName: String?): Painter? {
+    val context = LocalContext.current
+    return remember(packageName) {
+        if (packageName.isNullOrBlank()) return@remember null
+        try {
+            val drawable = context.packageManager.getApplicationIcon(packageName)
+            val w = drawable.intrinsicWidth.coerceAtLeast(1)
+            val h = drawable.intrinsicHeight.coerceAtLeast(1)
+            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, w, h)
+            drawable.draw(canvas)
+            BitmapPainter(bitmap.asImageBitmap())
+        } catch (_: Exception) {
+            null
+        }
+    }
+}
+
+/**
  * 폰에 설치된 앱 아이콘 (기기 기본 쉐이프 적용).
  * AdaptiveIcon은 시스템 마스크가 적용된 상태로 반환.
  */
@@ -332,6 +355,45 @@ fun RestrictedAppIconBox(
                 .padding(end = 4.dp, bottom = 4.dp)
                 .size(20.dp),
         )
+    }
+}
+
+/**
+ * 설치된 앱이면 [AppIconBox]와 동일하게 아이콘 표시, 아이콘을 가져올 수 없으면 [AppColors.Grey200] 배경만 표시.
+ * (앱 사용제한 기록 등 미설치 앱 행용)
+ */
+@Composable
+fun AppIconBoxOrGreyIfUninstalled(
+    packageName: String?,
+    modifier: Modifier = Modifier,
+    size: Dp = 56.dp,
+    force6dpClip: Boolean = false,
+) {
+    val painter = rememberAppIconPainterOrNull(packageName)
+    val maskShape = if (force6dpClip) AppIconShape else rememberDeviceIconMaskShape()
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(maskShape)
+            .border(AppIconBorderWidth, AppIconBorderColor, maskShape),
+    ) {
+        if (painter != null) {
+            Icon(
+                painter = painter,
+                contentDescription = null,
+                tint = Color.Unspecified,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(if (force6dpClip) Modifier.clip(AppIconShape) else Modifier),
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(if (force6dpClip) Modifier.clip(AppIconShape) else Modifier)
+                    .background(AppColors.Grey200),
+            )
+        }
     }
 }
 
