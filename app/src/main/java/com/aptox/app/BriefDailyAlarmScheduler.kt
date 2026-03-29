@@ -9,7 +9,7 @@ import android.util.Log
 import java.util.Calendar
 
 /**
- * 매일 오전 6시에 주간 Brief AI 요약을 갱신하는 알람 스케줄러.
+ * 매일 자정(다음날 00:00)에 Daily Brief 템플릿 캐시 워밍업을 돌리는 알람 스케줄러.
  * 데이터 기준: 어제 00:00 ~ 23:59:59
  */
 object BriefDailyAlarmScheduler {
@@ -19,7 +19,7 @@ object BriefDailyAlarmScheduler {
 
     fun schedule(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-        val triggerMs = next6amMillis()
+        val triggerMs = nextMidnightMillis()
         val pi = pendingIntent(context)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -33,7 +33,7 @@ object BriefDailyAlarmScheduler {
             } else {
                 alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerMs, pi)
             }
-            Log.d(TAG, "주간 Brief 갱신 알람 예약: 내일 06:00")
+            Log.d(TAG, "Daily Brief 캐시 알람 예약: 다음 자정")
         } catch (e: SecurityException) {
             Log.w(TAG, "정확 알람 권한 없음, setAndAllowWhileIdle 폴백", e)
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pi)
@@ -43,7 +43,7 @@ object BriefDailyAlarmScheduler {
     fun cancel(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         alarmManager.cancel(pendingIntent(context))
-        Log.d(TAG, "주간 Brief 갱신 알람 취소")
+        Log.d(TAG, "Daily Brief 알람 취소")
     }
 
     private fun pendingIntent(context: Context): PendingIntent {
@@ -54,10 +54,10 @@ object BriefDailyAlarmScheduler {
         )
     }
 
-    /** 다음 오전 6시 (이미 지났으면 내일 오전 6시) */
-    private fun next6amMillis(): Long {
+    /** 다음 자정(오늘 0시가 아직이면 오늘 0시, 지났으면 내일 0시) */
+    private fun nextMidnightMillis(): Long {
         val cal = Calendar.getInstance()
-        cal.set(Calendar.HOUR_OF_DAY, 6)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
         cal.set(Calendar.MINUTE, 0)
         cal.set(Calendar.SECOND, 0)
         cal.set(Calendar.MILLISECOND, 0)

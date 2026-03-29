@@ -37,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,6 +70,10 @@ fun ChallengeScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
     var selectedBadgeId by remember { mutableStateOf<String?>(null) }
+
+    BackHandler(enabled = selectedBadgeId != null) {
+        selectedBadgeId = null
+    }
 
     val challengeBadgeItems by produceState(
         initialValue = buildChallengeBadgeItems(emptyMap()),

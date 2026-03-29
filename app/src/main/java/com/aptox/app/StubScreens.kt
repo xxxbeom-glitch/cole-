@@ -592,6 +592,10 @@ private fun MainHomeDataEmptyCard(
     // 바텀시트에서 선택 후 전달할 앱 정보 (null = 하단 "사용제한 앱 추가" 버튼 경로)
     var pendingAppInfo by remember { mutableStateOf<com.aptox.app.model.SelectedAppInfo?>(null) }
 
+    BackHandler(enabled = showRestrictionTypeSheet) {
+        showRestrictionTypeSheet = false
+    }
+
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -999,6 +1003,7 @@ private fun MainAddictionCard(
 
 private sealed class SettingsDetail(val title: String) {
     data object AccountManage : SettingsDetail("계정관리")
+    data object AppCategoryEdit : SettingsDetail("앱 카테고리 수정")
     data object AppRestrictionHistory : SettingsDetail("앱 사용제한 기록")
     data class AppRestrictionHistoryDetail(val packageName: String, val appName: String) : SettingsDetail(appName)
     data object Subscription : SettingsDetail("구독관리")
@@ -1124,6 +1129,10 @@ internal fun MainScreenMA01(
             )
         } else if (restrictionItems.isNotEmpty()) {
             var showRestrictionTypeSheet by remember { mutableStateOf(false) }
+
+            BackHandler(enabled = showRestrictionTypeSheet) {
+                showRestrictionTypeSheet = false
+            }
 
             MainCommentSection(
                 comment = "최근 인스타그램의 사용시간이\n늘어나고 있어요!",
@@ -1572,6 +1581,52 @@ fun MainFlowHost(
         showPauseProposalSheet = true
     }
 
+    BackHandler {
+        when {
+            showSubscriptionGuide -> showSubscriptionGuide = false
+            showNotificationOverlay -> {
+                if (firebaseAuthUid != null) {
+                    NotificationRepository(context).markAsChecked(firebaseAuthUid, System.currentTimeMillis())
+                }
+                showNotificationOverlay = false
+            }
+            showTermsSheet -> showTermsSheet = false
+            showPrivacySheet -> showPrivacySheet = false
+            showPauseCompleteSheet -> {
+                showPauseCompleteSheet = false
+                selectedAppForPause = null
+                onPauseFlowConsumed()
+            }
+            showPauseConfirmSheet -> {
+                showPauseConfirmSheet = false
+                selectedAppForPause = null
+                onPauseFlowConsumed()
+            }
+            showPauseProposalSheet -> {
+                showPauseProposalSheet = false
+                selectedAppForPause = null
+                onPauseFlowConsumed()
+            }
+            showAppLimitInfoSheet -> {
+                showAppLimitInfoSheet = false
+                selectedAppForDetail = null
+            }
+            showRequiredPermissionDialog -> showRequiredPermissionDialog = false
+            settingsDetail != null -> {
+                settingsDetail = when (val d = settingsDetail) {
+                    SettingsDetail.Withdraw -> SettingsDetail.AccountManage
+                    is SettingsDetail.AppRestrictionHistoryDetail -> SettingsDetail.AppRestrictionHistory
+                    else -> null
+                }
+            }
+            navIndex != 0 -> {
+                navIndex = 0
+                settingsDetail = null
+            }
+            else -> context.findActivity()?.moveTaskToBack(true)
+        }
+    }
+
     val navDestinations = listOf(
         NavDestination("홈", R.drawable.ic_nav_home_inactive, R.drawable.ic_nav_home_active),
         NavDestination("챌린지", R.drawable.ic_nav_challenge_inactive, R.drawable.ic_nav_challenge_active),
@@ -1725,6 +1780,9 @@ fun MainFlowHost(
                     3 -> {
                         Column(modifier = Modifier.weight(1f).fillMaxWidth().nestedScroll(scrollToHideConnection)) {
                             when (settingsDetail) {
+                                SettingsDetail.AppCategoryEdit -> AppCategoryEditScreen(
+                                    onBack = { settingsDetail = null },
+                                )
                                 SettingsDetail.AccountManage -> AccountManageScreen(
                                     onBack = { settingsDetail = null },
                                     currentUserInfo = currentUserInfo,
@@ -1776,17 +1834,15 @@ fun MainFlowHost(
                                     userId = firebaseAuthUid,
                                     onBack = { settingsDetail = SettingsDetail.AppRestrictionHistory },
                                 )
-                                // 구독 관리 — 유료 구독 플랜 없으므로 비활성화
-                                // SettingsDetail.Subscription -> SubscriptionManageScreen(
-                                //     onBack = { settingsDetail = null },
-                                //     onCancelSubscription = {
-                                //         val uri = Uri.parse("https://play.google.com/store/account/subscriptions")
-                                //         context.startActivity(Intent(Intent.ACTION_VIEW, uri).apply {
-                                //             setPackage("com.android.vending")
-                                //         })
-                                //     },
-                                // )
-                                SettingsDetail.Subscription -> { settingsDetail = null }
+                                SettingsDetail.Subscription -> SubscriptionManageScreen(
+                                    onBack = { settingsDetail = null },
+                                    onCancelSubscription = {
+                                        val uri = Uri.parse("https://play.google.com/store/account/subscriptions")
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, uri).apply {
+                                            setPackage("com.android.vending")
+                                        })
+                                    },
+                                )
                                 SettingsDetail.Notification -> NotificationSettingsScreen(
                                     onBack = { settingsDetail = null },
                                 )
@@ -1862,8 +1918,9 @@ fun MainFlowHost(
                                 )
                                 null -> MyPageScreen(
                                     onAccountManageClick = { settingsDetail = SettingsDetail.AccountManage },
+                                    onAppCategoryEditClick = { settingsDetail = SettingsDetail.AppCategoryEdit },
                                     onAppRestrictionHistoryClick = { settingsDetail = SettingsDetail.AppRestrictionHistory },
-                                    onSubscriptionManageClick = { /* 구독 관리 비활성화 */ },
+                                    onSubscriptionManageClick = { settingsDetail = SettingsDetail.Subscription },
                                     onNotificationClick = { settingsDetail = SettingsDetail.Notification },
                                     onPermissionClick = { settingsDetail = SettingsDetail.Permission },
                                     onBugReportClick = { settingsDetail = SettingsDetail.BugReport },

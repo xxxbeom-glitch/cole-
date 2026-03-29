@@ -56,7 +56,9 @@ fun rememberAppIconPainter(packageName: String?): Painter {
     return remember(packageName) {
         if (packageName.isNullOrBlank()) return@remember fallback
         try {
-            val drawable = context.packageManager.getApplicationIcon(packageName)
+            // 공유 ConstantState drawable을 비트맵으로 그릴 때 mutate() 없으면
+            // 다른 패키지 아이콘을 그릴 때 상태가 덮여 동일 픽셀이 여러 앱에 보일 수 있음.
+            val drawable = context.packageManager.getApplicationIcon(packageName).mutate()
             val w = drawable.intrinsicWidth.coerceAtLeast(1)
             val h = drawable.intrinsicHeight.coerceAtLeast(1)
             val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -79,7 +81,7 @@ fun rememberAppIconPainterOrNull(packageName: String?): Painter? {
     return remember(packageName) {
         if (packageName.isNullOrBlank()) return@remember null
         try {
-            val drawable = context.packageManager.getApplicationIcon(packageName)
+            val drawable = context.packageManager.getApplicationIcon(packageName).mutate()
             val w = drawable.intrinsicWidth.coerceAtLeast(1)
             val h = drawable.intrinsicHeight.coerceAtLeast(1)
             val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -103,7 +105,7 @@ fun rememberDefaultAppIconPainter(): Painter {
     val fallback = painterResource(R.drawable.ic_app_placeholder)
     return remember {
         try {
-            val drawable = context.packageManager.getApplicationIcon(DEFAULT_APP_PACKAGE)
+            val drawable = context.packageManager.getApplicationIcon(DEFAULT_APP_PACKAGE).mutate()
             val w = drawable.intrinsicWidth.coerceAtLeast(1)
             val h = drawable.intrinsicHeight.coerceAtLeast(1)
             val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)

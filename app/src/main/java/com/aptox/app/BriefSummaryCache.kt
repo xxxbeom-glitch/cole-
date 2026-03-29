@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.first
 /**
  * Brief AI 요약 캐시 (DataStore 영속 저장)
  * - 앱 재시작 후에도 유지
- * - 키: WEEKLY_yyyyMMdd, MONTHLY_yyyyMM, YEARLY_yyyy
+ * - 키: DAILY_yyyyMMdd (Daily Brief 템플릿)
  */
 private val Context.briefSummaryDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "brief_summary_cache",

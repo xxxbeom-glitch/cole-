@@ -1110,17 +1110,18 @@ object StatisticsData {
 
     /**
      * 6개 허용 카테고리(SNS, OTT, 게임, 쇼핑, 웹툰, 주식·코인) 앱만 필터링하여 사용량 반환.
-     * DataStore 캐시에 없거나 기타인 앱 제외.
+     * 수동 오버라이드 → AI 캐시 우선순위로 카테고리 결정.
      */
     suspend fun loadAppUsageForAllowedCategories(context: Context, startMs: Long, endMs: Long): List<StatsAppItem> =
         withContext(Dispatchers.IO) {
-            val cache = AppCategoryCacheRepository(context).getCache()
-            val allowedPkgs = cache.filterValues { it in AI_CATEGORIES }.keys.toSet()
+            val categoryRepo = AppCategoryRepository(context)
+            val allCategories = categoryRepo.getAllCategories()
+            val allowedPkgs = allCategories.filterValues { it in AI_CATEGORIES }.keys.toSet()
             if (allowedPkgs.isEmpty()) return@withContext emptyList()
             val raw = loadAppUsage(context, startMs, endMs)
             raw
                 .filter { it.packageName in allowedPkgs }
-                .map { it.copy(categoryTag = cache[it.packageName]) }
+                .map { it.copy(categoryTag = allCategories[it.packageName]) }
                 .filter { it.usageMs >= 10 * 60_000L }
         }
 

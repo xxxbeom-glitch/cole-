@@ -33,13 +33,15 @@ import androidx.compose.ui.unit.dp
 
 /**
  * 마이 페이지 화면 (Figma MY-01, node 628-3863)
- * - 내 계정: 계정 관리, 구독 관리
+ * - 내 계정: 계정 관리
+ * - 제한 앱 관리: 앱 카테고리 수정, 앱 사용제한 기록
  * - 시스템: 알림, 권한 설정
  * - 하단: 버전 1.0
  */
 @Composable
 fun MyPageScreen(
     onAccountManageClick: () -> Unit = {},
+    onAppCategoryEditClick: () -> Unit = {},
     onAppRestrictionHistoryClick: () -> Unit = {},
     onSubscriptionManageClick: () -> Unit = {},
     onNotificationClick: () -> Unit = {},
@@ -67,17 +69,25 @@ fun MyPageScreen(
                 )
                 MyPageDivider()
                 MyPageRowItem(
+                    iconResId = R.drawable.ic_settings_subscription_manage,
+                    label = "구독관리",
+                    onClick = onSubscriptionManageClick,
+                )
+            }
+
+            // 제한 앱 관리
+            MyPageSection(title = "제한 앱 관리") {
+                MyPageRowItem(
+                    iconResId = R.drawable.ic_settings_app_category,
+                    label = "앱 카테고리 수정",
+                    onClick = onAppCategoryEditClick,
+                )
+                MyPageDivider()
+                MyPageRowItem(
                     iconResId = R.drawable.ic_app_restriction_history,
                     label = "앱 사용제한 기록",
                     onClick = onAppRestrictionHistoryClick,
                 )
-                // 구독 관리 — 유료 구독 플랜 없으므로 비활성화
-                // MyPageDivider()
-                // MyPageRowItem(
-                //     iconResId = R.drawable.ic_managesubs,
-                //     label = "구독 관리",
-                //     onClick = onSubscriptionManageClick,
-                // )
             }
 
             // 시스템

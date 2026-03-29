@@ -47,6 +47,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
@@ -64,8 +66,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.painterResource
+import androidx.activity.compose.BackHandler
 import com.aptox.app.ui.components.AptoxToast
-import com.aptox.app.usage.UsageStatsLocalRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -149,7 +151,7 @@ private val StatsCardListItemSpacing = 12.dp
  * - 날짜 범위 선택 + 요일별 막대 차트
  * - 스택 바 (카테고리 비율) + 최다 앱 리스트
  * - 그룹 막대 차트 (전주 vs 이번주)
- * - 아래로 당기면 Daily Brief만 재생성 (탭 차트 데이터는 그대로)
+ * - 아래로 당기면 Daily Brief 캐시만 갱신 (탭 차트 데이터는 그대로)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -191,6 +193,9 @@ fun StatisticsScreen(
         return
     }
 
+    val statisticsViewModel: StatisticsViewModel = viewModel(factory = StatisticsViewModel.Factory(context))
+    val selectedAppDetail by statisticsViewModel.selectedAppDetail.collectAsState()
+
     var selectedTab by remember { mutableIntStateOf(0) } // 기본 주간
     val tabLabels = listOf("주간", "월간", "연간")
     val tabEnum = when (selectedTab) {
@@ -219,6 +224,13 @@ fun StatisticsScreen(
 
     var showHelpSheet by remember { mutableStateOf<StatsHelpType?>(null) }
     var toastMessage by remember { mutableStateOf<String?>(null) }
+
+    BackHandler(enabled = selectedAppDetail != null || showHelpSheet != null) {
+        when {
+            selectedAppDetail != null -> statisticsViewModel.onBottomSheetDismiss()
+            showHelpSheet != null -> showHelpSheet = null
+        }
+    }
 
     var briefRefreshGeneration by remember { mutableIntStateOf(0) }
     var isBriefPullRefreshing by remember { mutableStateOf(false) }
@@ -274,6 +286,7 @@ fun StatisticsScreen(
                     yearOffset = yearOffsetCategory,
                     onYearChange = { yearOffsetCategory = it },
                     onInfoClick = { showHelpSheet = StatsHelpType.CATEGORY },
+                    statisticsViewModel = statisticsViewModel,
                 )
                 StatsTimeSlotSection(
                     tabEnum = tabEnum,
@@ -304,6 +317,13 @@ fun StatisticsScreen(
             onDismiss = { showHelpSheet = null },
         )
     }
+
+    selectedAppDetail?.let { detail ->
+        AppDetailBottomSheet(
+            state = detail,
+            onDismiss = { statisticsViewModel.onBottomSheetDismiss() },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -329,16 +349,18 @@ private fun StatsCardHelpBottomSheet(
                 .padding(horizontal = 16.dp)
                 .windowInsetsPadding(WindowInsets.navigationBars),
         ) {
-            Spacer(modifier = Modifier.height(40.dp))
-            Text(
-                text = title,
-                style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = body,
-                style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
-            )
+            // Figma 932-8989 등: BaseBottomSheet 헤더와 동일 — 제목~본문 8dp, 상단은 시트 상단 과대 여백 방지로 24dp
+            Spacer(modifier = Modifier.height(24.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = title,
+                    style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
+                )
+                Text(
+                    text = body,
+                    style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+                )
+            }
             Spacer(modifier = Modifier.height(36.dp))
             AptoxPrimaryButton(
                 text = "확인",
@@ -357,8 +379,8 @@ private fun StatsCardHelpBottomSheet(
 /**
  * Figma 926:8043 Daily Brief 카드 (탭 공통 영역)
  * - 탭 선택과 완전히 독립적으로 동작
- * - 데이터 기준: 어제 00:00 ~ 23:59:59 (BriefDailyWorker와 동일한 캐시 키)
- * - [refreshGeneration]이 증가하면 캐시를 지우고 AI 재생성 (pull-to-refresh)
+ * - 데이터 기준: 어제 00:00 ~ 23:59:59, 캐시 키 DAILY_yyyyMMdd
+ * - [refreshGeneration]이 증가하면 캐시를 지우고 템플릿 재생성 (pull-to-refresh)
  * - 카드: 흰 배경, primary-300 테두리
  * - 상단: Daily Brief + 제목 (gap 2dp), 본문 (gap 12dp)
  */
@@ -374,8 +396,8 @@ private fun DailyBriefCard(
     var briefBody by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(refreshGeneration) {
-        val (startMs, endMs, _) = StatisticsData.getYesterdayRange()
-        val cacheKey = "WEEKLY_DAILY_${UsageStatsLocalRepository.msToYyyyMmDd(startMs)}"
+        val (startMs, _, _) = StatisticsData.getYesterdayRange()
+        val cacheKey = DailyBriefGenerator.cacheKey(startMs)
         try {
             if (refreshGeneration == 0) {
                 BriefSummaryCache.get(context, cacheKey)?.let { entry ->
@@ -383,56 +405,23 @@ private fun DailyBriefCard(
                     briefBody = entry.body
                     return@LaunchedEffect
                 }
-
-                briefBody = "분석 중..."
-                val cacheHitAfterWait = BriefSummaryPreloader.waitForPreloadIfNeeded(context, cacheKey, 30_000L)
-                if (cacheHitAfterWait) {
-                    BriefSummaryCache.get(context, cacheKey)?.let { entry ->
-                        briefTitle = entry.title
-                        briefBody = entry.body
-                        return@LaunchedEffect
-                    }
-                }
+                briefBody = "불러오는 중..."
             } else {
                 BriefSummaryCache.remove(context, cacheKey)
                 briefTitle = null
-                briefBody = "분석 중..."
+                briefBody = "불러오는 중..."
             }
 
-            val result = withContext(Dispatchers.IO) {
-                val dm = StatisticsData.loadDayOfWeekMinutes(context, startMs, endMs)
-                val appList = StatisticsData.loadAppUsageForAllowedCategories(context, startMs, endMs)
-                val usageByCategory = appList
-                    .filter { it.categoryTag != null }
-                    .groupBy { it.categoryTag!! }
-                    .mapValues { (_, apps) -> apps.sumOf { it.usageMs } }
-                val total = usageByCategory.values.sum()
-                val segments = if (total > 0L) {
-                    usageByCategory
-                        .toList()
-                        .sortedByDescending { it.second }
-                        .map { (cat, ms) -> cat to (ms.toFloat() / total * 100) }
-                } else emptyList()
-                val timeSlotMinutes = StatisticsData.loadTimeSlot12Minutes(context, startMs, endMs, 0)
-                ClaudeRepository().generateBriefSummaryWithTitle(
-                    periodLabel = "일간",
-                    dateMinutes = dm,
-                    dateLabels = listOf("월", "화", "수", "목", "금", "토", "일"),
-                    segments = segments,
-                    timeSlotMinutes = timeSlotMinutes,
-                )
-            }
-            result.fold(
-                onSuccess = { (title, body) ->
+            runCatching { DailyBriefGenerator.generate(context) }
+                .onSuccess { (title, body) ->
                     BriefSummaryCache.put(context, cacheKey, BriefSummaryCache.Entry(title, body))
                     briefTitle = title
                     briefBody = body
-                },
-                onFailure = {
+                }
+                .onFailure {
                     briefTitle = null
                     briefBody = null
-                },
-            )
+                }
         } finally {
             if (refreshGeneration > 0) {
                 onRegenerateComplete()
@@ -441,7 +430,7 @@ private fun DailyBriefCard(
     }
 
     val displayTitle = briefTitle ?: "어제는 어떤 하루였나요?"
-    val showBody = briefBody != null && briefBody != "분석 중..."
+    val showBody = briefBody != null && briefBody != "불러오는 중..."
 
     Column(
         modifier = modifier
@@ -474,9 +463,9 @@ private fun DailyBriefCard(
                     contentPaddingHorizontal = 16.dp,
                     contentPaddingVertical = 18.dp,
                 )
-            } else if (briefBody == "분석 중...") {
+            } else if (briefBody == "불러오는 중...") {
                 Text(
-                    text = "분석 중...",
+                    text = "불러오는 중...",
                     style = AppTypography.BodyMedium.copy(color = AppColors.TextCaption),
                 )
             }
@@ -1244,6 +1233,7 @@ private fun YearBarChart(
     val normalized = padded.map { (it.toFloat() / PeriodChartFixedMaxMinutes).coerceIn(0f, 1f) }
     val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
     val highlightIdx = displayLabels.indexOfFirst { it.toIntOrNull() == currentYear }.takeIf { it >= 0 } ?: -1
+    val useWideYearBars = count < 3
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -1252,7 +1242,10 @@ private fun YearBarChart(
         ) {
             ChartYAxisLabels(yTicks = PeriodChartFixedYTicks)
             Spacer(modifier = Modifier.width(ChartYAxisToChartGap))
-            Box(modifier = Modifier.weight(1f).height(TotalChartHeight).padding(vertical = ChartVerticalPadding)) {
+            BoxWithConstraints(
+                modifier = Modifier.weight(1f).height(TotalChartHeight).padding(vertical = ChartVerticalPadding),
+            ) {
+                val yearBarWidth = if (useWideYearBars) maxWidth * 0.45f else BarWidth
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val pathEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 12f), 0f)
                     for (i in 0..4) {
@@ -1282,7 +1275,7 @@ private fun YearBarChart(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .width(BarWidth)
+                                        .width(yearBarWidth)
                                         .fillMaxHeight(value)
                                         .clip(RoundedCornerShape(BarCornerRadius))
                                         .background(
@@ -1338,6 +1331,7 @@ private fun StatsStackedBarAndAppList(
     yearOffset: Int,
     onYearChange: (Int) -> Unit,
     onInfoClick: (() -> Unit)? = null,
+    statisticsViewModel: StatisticsViewModel,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -1361,6 +1355,7 @@ private fun StatsStackedBarAndAppList(
             StatisticsData.Tab.YEARLY -> StatisticsData.getYearRange(yearOffset).let { it.first to it.second }
             else -> 0L to 0L
         }
+        statisticsViewModel.syncCategoryStatsPeriod(tabEnum, weekOffset, monthOffset, yearOffset)
         appList = withContext(Dispatchers.IO) {
             StatisticsData.loadAppUsageForAllowedCategories(context, startMs, endMs)
         }
@@ -1524,6 +1519,7 @@ private fun StatsStackedBarAndAppList(
                     name = app.name,
                     usageMinutes = app.usageMinutes,
                     categoryTag = app.categoryTag,
+                    onClick = { statisticsViewModel.onAppItemClick(app.packageName) },
                 )
             }
         }
@@ -1549,11 +1545,19 @@ private fun StatsAppRow(
     name: String,
     usageMinutes: String,
     categoryTag: String?,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val appIcon = rememberAppIconPainter(packageName)
     Row(
-        modifier = modifier.fillMaxWidth().height(56.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .clickable(
+                interactionSource = remember(packageName) { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {

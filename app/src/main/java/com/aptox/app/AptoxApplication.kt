@@ -35,6 +35,11 @@ class AptoxApplication : Application() {
         NotificationPreferences.migrateIfNeeded(this)
         BriefDailyAlarmScheduler.schedule(this)
         scheduleUsageStatsSync()
+        applicationScope.launch {
+            if (StatisticsData.hasUsageAccess(this@AptoxApplication)) {
+                DailyBriefCacheWarmup.ensureCached(this@AptoxApplication)
+            }
+        }
         // 미로그인 상태에서 제한만 저장한 뒤 로그인하면 badge_001 등 Firestore 배지를 줄 수 있게 함
         FirebaseAuth.getInstance().addAuthStateListener { auth ->
             if (auth.currentUser != null) {
@@ -46,10 +51,6 @@ class AptoxApplication : Application() {
                 // 로컬 DB 비어있으면 Firestore에서 일별 사용량 복원 (재설치 시나리오)
                 applicationScope.launch {
                     DailyUsageFirestoreRepository().restoreIfLocalEmpty(this@AptoxApplication)
-                }
-                // Brief 주기별 AI 요약 사전 생성 (월요일/1일/1월1일)
-                applicationScope.launch {
-                    BriefSummaryPreloader.tryPreloadScheduled(this@AptoxApplication)
                 }
                 // 로그인 성공 직후 즉시 1회 Firestore 백업
                 if (StatisticsData.hasUsageAccess(this)) {
@@ -79,7 +80,7 @@ class AptoxApplication : Application() {
         fun startAppMonitorIfNeeded(context: android.content.Context, clearForegroundPkg: Boolean = false) {
             try {
                 (context.applicationContext as? AptoxApplication)?.applicationScope?.launch {
-                    BriefSummaryPreloader.tryPreloadScheduled(context.applicationContext)
+                    DailyBriefCacheWarmup.ensureCached(context.applicationContext)
                 }
                 ManualTimerRepository(context).ensureMidnightResetIfNeeded()
                 DailyUsageMidnightResetScheduler.scheduleNextMidnight(context)

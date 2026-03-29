@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.app.ActivityCompat
@@ -281,6 +282,13 @@ fun SignUpFlowHost(
     val firstRunRepo = remember { FirstRunFlowRepository(context) }
     val firebaseAnalytics = remember {
         FirebaseAnalytics.getInstance(context.applicationContext)
+    }
+
+    BackHandler(
+        enabled = step == SignUpStep.ADD_APP || step == SignUpStep.TIME_SPECIFIED,
+    ) {
+        prefilledApp = null
+        step = SignUpStep.MAIN
     }
 
     // 현재 화면 렌더링

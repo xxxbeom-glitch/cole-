@@ -8,13 +8,13 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 
 /**
- * 매일 오전 6시 발동.
- * 어제 데이터 기반 주간 Brief AI 요약 갱신 후 다음날 06:00 재예약.
+ * 매일 자정(00:00) 발동.
+ * 어제 기준 Daily Brief 템플릿 캐시 워밍업 후 다음 자정 재예약.
  */
 class BriefDailyAlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent?) {
-        Log.d(TAG, "주간 Brief 갱신 알람 수신")
+        Log.d(TAG, "Daily Brief 캐시 알람 수신")
         val request = OneTimeWorkRequestBuilder<BriefDailyWorker>().build()
         WorkManager.getInstance(context).enqueueUniqueWork(
             "brief_daily_refresh",
