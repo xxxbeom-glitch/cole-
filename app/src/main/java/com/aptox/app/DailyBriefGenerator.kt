@@ -9,7 +9,7 @@ import kotlin.math.abs
 import kotlin.math.roundToLong
 
 /**
- * 통계 화면 상단 Daily Brief — 어제 하루 기준 템플릿 문구 (Claude 미사용).
+ * 통계 화면 상단 Daily Brief — 어제 하루 기준 템플릿 문구, 친근한 ~했어요 톤 (Claude 미사용).
  */
 object DailyBriefGenerator {
 
@@ -94,7 +94,7 @@ object DailyBriefGenerator {
     }
 
     private fun emptyBrief(): Pair<String, String> =
-        "어제 사용 기록을 확인하지 못했습니다" to "사용 통계 접근 권한이 없어 Brief를 생성하지 못했습니다."
+        "어제 하루는 아직 살펴보지 못했어요" to "사용 통계 권한이 없어서 어제 이야기를 꺼내지 못했어요. 설정에서 허용해 주시면 바로 채워드릴게요."
 
     /** [rangeStart]~[rangeEnd] 구간에서 연속 [dayCount]일 각각의 일합계(분) 합산 */
     private fun sumEachCalendarDayMinutes(
@@ -133,13 +133,13 @@ object DailyBriefGenerator {
         avg7Min: Long,
     ): String {
         if (topApp != null) {
-            return "어제는 ${topApp.name}에서 가장 많은 시간을 보냈습니다"
+            return "어제는 ${topApp.name}에 꽤 마음이 갔던 하루였어요"
         }
         val diff = abs(yesterdayTotalMin - avg7Min)
         return if (yesterdayTotalMin > avg7Min) {
-            "어제 사용시간이 평소보다 ${diff}분 더 많았습니다"
+            "어제는 평소보다 스마트폰을 ${diff}분 더 붙잡고 있었어요"
         } else {
-            "어제 사용시간이 평소보다 ${diff}분 적었습니다"
+            "어제는 평소보다 스마트폰을 ${diff}분 덜 보셨어요"
         }
     }
 
@@ -153,25 +153,25 @@ object DailyBriefGenerator {
         timeSlotMinutes: List<Long>,
     ): String {
         val diffVsAvg = yesterdayTotalMin - avg7Min
-        val comparePhrase = if (diffVsAvg > 0) {
-            "${diffVsAvg}분 많았습니다"
-        } else {
-            "${abs(diffVsAvg)}분 적었습니다"
+        val comparePhrase = when {
+            diffVsAvg > 0 -> "최근 일주일 평균보다 ${diffVsAvg}분 더 썼어요"
+            diffVsAvg < 0 -> "최근 일주일 평균보다 ${abs(diffVsAvg)}분 덜 썼어요"
+            else -> "최근 일주일 평균이랑 비슷했어요"
         }
         val s1 =
-            "어제 총 사용시간은 ${formatDurationKo(yesterdayTotalMin)}으로, 최근 7일 평균 대비 $comparePhrase."
+            "스마트폰은 총 ${formatDurationKo(yesterdayTotalMin)} 썼고, $comparePhrase."
 
         val s2 = if (topSegment != null && repApp != null) {
             val pctStr = "%.1f".format(topSegment.second).trimEnd('0').trimEnd('.')
-            "${topSegment.first}가 전체의 ${pctStr}%를 차지했으며, ${repApp.name}이 주를 이뤘습니다."
+            "그중에서도 ${topSegment.first}가 하루의 ${pctStr}%를 차지했어요. ${repApp.name}에서 시간이 특히 길었네요."
         } else {
-            "허용 카테고리에 해당하는 앱에서 측정된 사용 비율이 없었습니다."
+            "카테고리별로 보면 눈에 띄게 몰린 앱은 없었어요."
         }
 
         val s3 = if (timeSlotMinutes.all { it == 0L }) {
-            "시간대별 사용량에서 두드러진 구간이 없었습니다."
+            "시간대로 쪼개 보면 특별히 튀는 구간은 없었어요."
         } else {
-            "${peakLabel} 사용이 ${peakMin}분으로 하루 중 가장 집중된 구간이었습니다."
+            "${peakLabel}에 ${peakMin}분 모여 있었어요. 하루 중 가장 붐볐던 때였어요."
         }
 
         return listOf(s1, s2, s3).joinToString(separator = "")

@@ -61,6 +61,7 @@ fun AppLimitSetupTimeBottomSheet(
         onDismissRequest = onDismissRequest,
         onPrimaryClick = { onPrimaryClick(selectedIndex, steps[selectedIndex]) },
         primaryButtonText = primaryButtonText,
+        allowGestureDismiss = false,
         modifier = modifier,
     ) {
         // Figma 304-1760, node 1164:4824 — flex, width 328px, align-items center, gap 12dp

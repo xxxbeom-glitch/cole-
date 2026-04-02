@@ -388,77 +388,55 @@ private fun SocialAccountCard(
 }
 
 @Composable
-fun SubscriptionManageScreen(
-    onBack: () -> Unit,
-    onCancelSubscription: () -> Unit = {},
-) {
-    Box(
+fun SubscriptionManageScreen() {
+    Column(
         modifier = Modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.navigationBars),
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 56.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // 구독 플랜 카드
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 140.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .clip(RoundedCornerShape(12.dp))
+                .background(AppColors.SurfaceBackgroundCard)
+                .padding(horizontal = 18.dp, vertical = 22.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // 구독 플랜 카드
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(AppColors.SurfaceBackgroundCard)
-                    .padding(horizontal = 18.dp, vertical = 22.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            Text(
+                text = "연간 구독",
+                style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
+                modifier = Modifier.weight(1f),
+            )
+            Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = "연간 구독",
+                    text = "₩46,800",
                     style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
-                    modifier = Modifier.weight(1f),
                 )
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "₩46,800",
-                        style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
-                    )
-                    Text(
-                        text = "월 환산 ₩3,900",
-                        style = AppTypography.Caption2.copy(color = AppColors.TextSecondary),
-                    )
-                }
-            }
-
-            // 갱신 안내 텍스트
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.padding(horizontal = 2.dp),
-            ) {
-                IcoDisclaimerInfo(size = 14.dp, tint = AppColors.TextCaption)
                 Text(
-                    text = "2027년 2월 3일 오후 3시 21분에 갱신됩니다",
-                    style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
+                    text = "월 환산 ₩3,900",
+                    style = AppTypography.Caption2.copy(color = AppColors.TextSecondary),
                 )
             }
         }
 
-        // 하단 버튼 영역 (AptoxTwoLineButton 가이드 적용)
-        AptoxTwoLineButton(
-            primaryText = "구독 해지",
-            ghostText = "돌아가기",
-            onPrimaryClick = onCancelSubscription,
-            onGhostClick = onBack,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 24.dp),
-        )
+        // 갱신 안내 텍스트
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(horizontal = 2.dp),
+        ) {
+            IcoDisclaimerInfo(size = 14.dp, tint = AppColors.TextCaption)
+            Text(
+                text = "2027년 2월 3일 오후 3시 21분에 갱신됩니다",
+                style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
+            )
+        }
     }
 }
 

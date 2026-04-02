@@ -211,7 +211,8 @@ object StatisticsData {
     }
 
     /**
-     * [startMs, endMs] 구간에서 min(오늘, endMs)까지의 달력 일수(양 끝 당일 포함), 일평균용.
+     * [startMs, endMs] 구간에서 `min(현재 시각, endMs)`가 속한 달력 일까지의 **포함 일수** (미사용 일 포함).
+     * 시간대별 차트 일평균 분모로 사용. `min(현재 시각, endMs)`가 시작일보다 앞서면 `coerceAtLeast(startMs)`로 맞추며, 결과는 항상 최소 1.
      */
     fun daysInclusiveCappedAtNow(startMs: Long, endMs: Long): Int {
         val now = System.currentTimeMillis()
@@ -233,7 +234,12 @@ object StatisticsData {
     }
 
     /** 요일별(월~일) 사용량 분. DB 우선, 오늘은 queryEvents 사용 */
-    fun loadDayOfWeekMinutes(context: Context, startMs: Long, endMs: Long): List<Long> {
+    fun loadDayOfWeekMinutes(
+        context: Context,
+        startMs: Long,
+        endMs: Long,
+        allowedPackages: Set<String>? = null,
+    ): List<Long> {
         if (USE_DUMMY_FULL) {
             val dayMinutes = LongArray(7)
             val cal = Calendar.getInstance()
@@ -281,9 +287,18 @@ object StatisticsData {
             val dayEnd = cal.timeInMillis
 
             val mins = if (dateStr == todayStr) {
-                aggregateOneDayFromEvents(context, dayStart, minOf(dayEnd, System.currentTimeMillis())) / 60_000
+                aggregateOneDayFromEvents(
+                    context,
+                    dayStart,
+                    minOf(dayEnd, System.currentTimeMillis()),
+                    allowedPackages,
+                ) / 60_000
             } else {
-                repo.getDayTotalsForDatesBlocking(listOf(dateStr))[dateStr] ?: 0L
+                when {
+                    allowedPackages == null -> repo.getDayTotalsForDatesBlocking(listOf(dateStr))[dateStr] ?: 0L
+                    allowedPackages.isEmpty() -> 0L
+                    else -> repo.getFilteredDayTotalsForDatesBlocking(listOf(dateStr), allowedPackages)[dateStr] ?: 0L
+                }
             }
             dayMinutes[idx] += mins
             cal.timeInMillis = t
@@ -298,7 +313,12 @@ object StatisticsData {
     }
 
     /** 일별(1~31일) 사용량 분. 선택한 한 달 범위. DB 우선, 오늘은 queryEvents 사용 */
-    fun loadDayOfMonthMinutes(context: Context, startMs: Long, endMs: Long): List<Long> {
+    fun loadDayOfMonthMinutes(
+        context: Context,
+        startMs: Long,
+        endMs: Long,
+        allowedPackages: Set<String>? = null,
+    ): List<Long> {
         val cal = Calendar.getInstance().apply { timeInMillis = startMs }
         val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
         if (USE_DUMMY_FULL) {
@@ -336,9 +356,18 @@ object StatisticsData {
             cal.set(Calendar.MILLISECOND, 999)
             val dayEnd = cal.timeInMillis
             val mins = if (dateStr == todayStr) {
-                aggregateOneDayFromEvents(context, dayStart, minOf(dayEnd, System.currentTimeMillis())) / 60_000
+                aggregateOneDayFromEvents(
+                    context,
+                    dayStart,
+                    minOf(dayEnd, System.currentTimeMillis()),
+                    allowedPackages,
+                ) / 60_000
             } else {
-                repo.getDayTotalsForDatesBlocking(listOf(dateStr))[dateStr] ?: 0L
+                when {
+                    allowedPackages == null -> repo.getDayTotalsForDatesBlocking(listOf(dateStr))[dateStr] ?: 0L
+                    allowedPackages.isEmpty() -> 0L
+                    else -> repo.getFilteredDayTotalsForDatesBlocking(listOf(dateStr), allowedPackages)[dateStr] ?: 0L
+                }
             }
             dayMinutes[d] = mins
             cal.timeInMillis = t
@@ -361,7 +390,12 @@ object StatisticsData {
     }
 
     /** 하루 구간의 총 사용량(ms). queryEvents 기반 */
-    private fun aggregateOneDayFromEvents(context: Context, startMs: Long, endMs: Long): Long {
+    private fun aggregateOneDayFromEvents(
+        context: Context,
+        startMs: Long,
+        endMs: Long,
+        allowedPackages: Set<String>? = null,
+    ): Long {
         val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return 0L
         val events = usm.queryEvents(startMs, endMs) ?: return 0L
         var total = 0L
@@ -369,6 +403,7 @@ object StatisticsData {
         val event = UsageEvents.Event()
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
+            if (allowedPackages != null && event.packageName !in allowedPackages) continue
             when (event.eventType) {
                 UsageEvents.Event.MOVE_TO_FOREGROUND ->
                     sessionStarts[event.packageName + ":" + event.className] = event.timeStamp
@@ -604,7 +639,11 @@ object StatisticsData {
     }
 
     /** 연도별 사용량 분. DB 우선, 범위에 오늘 포함 시 queryEvents로 추가 */
-    fun loadYearsMinutes(context: Context, yearRanges: List<Pair<Long, Long>>): List<Long> {
+    fun loadYearsMinutes(
+        context: Context,
+        yearRanges: List<Pair<Long, Long>>,
+        allowedPackages: Set<String>? = null,
+    ): List<Long> {
         if (USE_DUMMY_FULL) {
             return yearRanges.map { (startMs, endMs) ->
                 val cal = Calendar.getInstance()
@@ -630,14 +669,23 @@ object StatisticsData {
         return yearRanges.map { (startMs, endMs) ->
             val startDate = UsageStatsLocalRepository.msToYyyyMmDd(startMs)
             val endDate = UsageStatsLocalRepository.msToYyyyMmDd(endMs)
-            var total = repo.getTotalForDateRangeBlocking(startDate, endDate)
+            var total = when {
+                allowedPackages == null -> repo.getTotalForDateRangeBlocking(startDate, endDate)
+                allowedPackages.isEmpty() -> 0L
+                else -> repo.getFilteredTotalForDateRangeBlocking(startDate, endDate, allowedPackages)
+            }
             if (endDate >= todayStr && startDate <= todayStr) {
                 val cal = Calendar.getInstance()
                 cal.set(Calendar.HOUR_OF_DAY, 0)
                 cal.set(Calendar.MINUTE, 0)
                 cal.set(Calendar.SECOND, 0)
                 cal.set(Calendar.MILLISECOND, 0)
-                val todayMs = aggregateOneDayFromEvents(context, cal.timeInMillis, System.currentTimeMillis())
+                val todayMs = aggregateOneDayFromEvents(
+                    context,
+                    cal.timeInMillis,
+                    System.currentTimeMillis(),
+                    allowedPackages,
+                )
                 total += todayMs / 60_000
             }
             total
@@ -926,9 +974,17 @@ object StatisticsData {
 
     /**
      * 12개 2시간 슬롯 (0~2,2~4,4~6, 6~8,8~10,10~12, 12~14,14~16,16~18, 18~20,20~22,22~24).
-     * @param divideByDays 주간=0(합산), 월·연>0이면 해당 기간 일수로 나눈 일평균(분)
+     * @param divideByDays `0`이면 슬롯별 **합계(분)**. `>0`이면 합계를 일수로 나눈 **일평균(분)**;
+     *   통계 화면 시간대별 카드는 [daysInclusiveCappedAtNow]로 구한 실제 포함 일수를 넘김. `>0`일 때 분모는 최소 1.
+     * @param allowedPackages null이면 전체 앱; 비어 있으면 0만 반환
      */
-    fun loadTimeSlot12Minutes(context: Context, startMs: Long, endMs: Long, divideByDays: Int = 0): List<Long> {
+    fun loadTimeSlot12Minutes(
+        context: Context,
+        startMs: Long,
+        endMs: Long,
+        divideByDays: Int = 0,
+        allowedPackages: Set<String>? = null,
+    ): List<Long> {
         if (!hasUsageAccess(context)) return List(12) { 0L }
         val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return List(12) { 0L }
         val events = usm.queryEvents(startMs, endMs) ?: return List(12) { 0L }
@@ -937,6 +993,7 @@ object StatisticsData {
         val sessionStarts = mutableMapOf<String, Long>()
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
+            if (allowedPackages != null && event.packageName !in allowedPackages) continue
             when (event.eventType) {
                 UsageEvents.Event.MOVE_TO_FOREGROUND ->
                     sessionStarts[event.packageName + ":" + event.className] = event.timeStamp
@@ -949,7 +1006,12 @@ object StatisticsData {
             }
         }
         val list = slotMinutes.toList()
-        return if (divideByDays > 0) list.map { it / divideByDays } else list
+        return if (divideByDays > 0) {
+            val d = divideByDays.coerceAtLeast(1)
+            list.map { it / d }
+        } else {
+            list
+        }
     }
 
     /** @deprecated loadTimeSlot12Minutes 사용 */

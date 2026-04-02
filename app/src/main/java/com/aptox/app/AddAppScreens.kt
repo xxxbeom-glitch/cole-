@@ -323,6 +323,29 @@ fun AddAppSelectBottomSheet(
         val items = withContext(Dispatchers.Default) {
             runCatching {
                 val pm = context.packageManager
+                val endTime = System.currentTimeMillis()
+                val start7d = endTime - 7L * 24 * 60 * 60 * 1000L
+                val start30d = endTime - 30L * 24 * 60 * 60 * 1000L
+                val usageStatsManager =
+                    context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+
+                fun usageForegroundMs(startMs: Long, endMs: Long): Map<String, Long> =
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        usageStatsManager
+                            .queryAndAggregateUsageStats(startMs, endMs)
+                            .mapValues { (_, u) -> u.totalTimeInForeground }
+                    } else {
+                        @Suppress("DEPRECATION")
+                        val stats = usageStatsManager.queryUsageStats(
+                            UsageStatsManager.INTERVAL_BEST,
+                            startMs,
+                            endMs,
+                        ) ?: emptyList()
+                        stats
+                            .groupBy { it.packageName }
+                            .mapValues { (_, list) -> list.sumOf { it.totalTimeInForeground } }
+                    }
+
                 val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
                 val resolves = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                     pm.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong()))
@@ -330,11 +353,21 @@ fun AddAppSelectBottomSheet(
                     @Suppress("DEPRECATION")
                     pm.queryIntentActivities(intent, PackageManager.MATCH_ALL)
                 }
-                resolves
-                    .mapNotNull { ri ->
+                val launcherPackages = resolves
+                    .mapNotNull { runCatching { it.activityInfo.packageName }.getOrNull() }
+                    .filter { it != selfPackageName }
+                    .toSet()
+
+                val usage30d = usageForegroundMs(start30d, endTime)
+                val min30dForegroundMs = 60_000L
+                val eligiblePackages = launcherPackages.filter { pkg ->
+                    (usage30d[pkg] ?: 0L) >= min30dForegroundMs
+                }
+
+                val usage7d = usageForegroundMs(start7d, endTime)
+                eligiblePackages
+                    .mapNotNull { pkg ->
                         runCatching {
-                            val pkg = ri.activityInfo.packageName
-                            if (pkg == selfPackageName) return@mapNotNull null
                             val appInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                                 pm.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(0L))
                             } else {
@@ -342,39 +375,14 @@ fun AddAppSelectBottomSheet(
                                 pm.getApplicationInfo(pkg, 0)
                             }
                             val label = (pm.getApplicationLabel(appInfo) as? String)?.takeIf { it.isNotBlank() }
-                            label?.let { AppSelectItem(it, pkg) }
+                            AppSelectItem(name = label ?: pkg, packageName = pkg)
                         }.getOrNull()
                     }
-                    .distinctBy { it.name }
-                    .let { rows ->
-                        val endTime = System.currentTimeMillis()
-                        val startTime = endTime - 7 * 24 * 60 * 60 * 1000L
-                        val usageStatsManager =
-                            context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-                        val usageMap: Map<String, Long> =
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                                usageStatsManager
-                                    .queryAndAggregateUsageStats(startTime, endTime)
-                                    .mapValues { (_, u) -> u.totalTimeInForeground }
-                            } else {
-                                @Suppress("DEPRECATION")
-                                val stats = usageStatsManager.queryUsageStats(
-                                    UsageStatsManager.INTERVAL_BEST,
-                                    startTime,
-                                    endTime,
-                                ) ?: emptyList()
-                                stats
-                                    .groupBy { it.packageName }
-                                    .mapValues { (_, list) -> list.sumOf { it.totalTimeInForeground } }
-                            }
-                        rows.sortedByDescending { item ->
-                            usageMap[item.packageName] ?: 0L
-                        }
-                    }
-                    .takeIf { it.isNotEmpty() }
-            }.getOrNull()
+                    .distinctBy { it.packageName }
+                    .sortedByDescending { item -> usage7d[item.packageName] ?: 0L }
+            }.getOrElse { emptyList() }
         }
-        if (items != null) appList = items
+        appList = items
         isLoadingApps = false
     }
 
@@ -1389,47 +1397,17 @@ fun AddAppFlowHost(
             }
             if (showDailyTimeSheet) {
                 val dailySteps = getDailyTimeSteps()
-                val dailyFeedback = if (BuildConfig.EXCLUDE_3MIN_OPTION) {
-                    listOf(
-                        "3시간 제한도 훌륭한 출발이에요. 조금씩 줄여봐요!",
-                        "넉넉하지만 그래도 제한하는 당신, 대단해요",
-                        "하루 2시간, 일상과 디지털의 균형점이에요",
-                        "딱 필요한 만큼만, 현명한 선택이에요",
-                        "하루 1시간 제한, 자기관리가 시작됐어요",
-                        "하루 30분, 스마트폰과 거리두기의 첫걸음이에요",
-                    )
-                } else if (DebugTestSettings.debugShow3MinDailyOption) {
-                    listOf(
-                        "미리 써보기·테스트용으로 3분도 괜찮아요",
-                        "3시간 제한도 훌륭한 출발이에요. 조금씩 줄여봐요!",
-                        "넉넉하지만 그래도 제한하는 당신, 대단해요",
-                        "하루 2시간, 일상과 디지털의 균형점이에요",
-                        "딱 필요한 만큼만, 현명한 선택이에요",
-                        "하루 1시간 제한, 자기관리가 시작됐어요",
-                        "하루 30분, 스마트폰과 거리두기의 첫걸음이에요",
-                    )
-                } else {
-                    listOf(
-                        "3시간 제한도 훌륭한 출발이에요. 조금씩 줄여봐요!",
-                        "넉넉하지만 그래도 제한하는 당신, 대단해요",
-                        "하루 2시간, 일상과 디지털의 균형점이에요",
-                        "딱 필요한 만큼만, 현명한 선택이에요",
-                        "하루 1시간 제한, 자기관리가 시작됐어요",
-                        "하루 30분, 스마트폰과 거리두기의 첫걸음이에요",
-                    )
-                }
-                AppLimitSetupTimeBottomSheet(
+                DrumrollDurationPickerBottomSheet(
+                    items = dailySteps,
+                    initialIndex = dailyLimitMinutes?.let { dailySteps.indexOf(it) }?.takeIf { it >= 0 } ?: 0,
                     title = "하루 사용량을 지정해주세요",
                     subtitle = "사용 시간을 너무 짧게 시작하면 역효과가 생겨요",
-                    steps = dailySteps,
-                    feedbackMessages = dailyFeedback,
-                    initialIndex = dailyLimitMinutes?.let { dailySteps.indexOf(it) }?.takeIf { it >= 0 } ?: 0,
+                    confirmButtonText = "다음",
                     onDismissRequest = { showDailyTimeSheet = false },
-                    onPrimaryClick = { _, mins ->
+                    onConfirm = { _, mins ->
                         dailyLimitMinutes = mins
                         showDailyTimeSheet = false
                     },
-                    primaryButtonText = "다음",
                 )
             }
         }

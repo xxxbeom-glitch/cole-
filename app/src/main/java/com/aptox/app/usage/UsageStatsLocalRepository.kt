@@ -25,6 +25,17 @@ class UsageStatsLocalRepository(private val context: Context) {
         }
     }
 
+    /** [getDayTotalsForDatesBlocking]과 동일하되 지정 패키지만 합산 */
+    fun getFilteredDayTotalsForDatesBlocking(dates: List<String>, allowedPackages: Set<String>): Map<String, Long> {
+        if (dates.isEmpty()) return emptyMap()
+        val start = dates.minOrNull()!!
+        val end = dates.maxOrNull()!!
+        val list = db.getByDateRange(start, end).filter { it.packageName in allowedPackages }
+        return list.groupBy { it.date }.mapValues { (_, entities) ->
+            entities.sumOf { it.usageMs } / 60_000
+        }
+    }
+
     fun getMonthTotalsForYearBlocking(year: Int): List<Long> {
         val startDate = "${year}0101"
         val endDate = "${year}1231"
@@ -39,6 +50,9 @@ class UsageStatsLocalRepository(private val context: Context) {
 
     fun getTotalForDateRangeBlocking(startDate: String, endDate: String): Long =
         db.getByDateRange(startDate, endDate).sumOf { it.usageMs } / 60_000
+
+    fun getFilteredTotalForDateRangeBlocking(startDate: String, endDate: String, allowedPackages: Set<String>): Long =
+        db.getByDateRange(startDate, endDate).filter { it.packageName in allowedPackages }.sumOf { it.usageMs } / 60_000
 
     fun getAppUsageForRangeBlocking(startDate: String, endDate: String): Map<String, Pair<Long, Int>> {
         val list = db.getByDateRange(startDate, endDate)

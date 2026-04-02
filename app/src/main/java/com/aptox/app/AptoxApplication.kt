@@ -100,7 +100,7 @@ class AptoxApplication : Application() {
     private fun scheduleUsageStatsSync() {
         val workManager = WorkManager.getInstance(this)
         // 6시간 주기. 최초 실행은 6시간 후 (즉시 1회 동기화와 중복 방지)
-        val periodicRequest = PeriodicWorkRequestBuilder<UsageStatsSyncWorker>(6, TimeUnit.HOURS)
+        val periodicRequest = PeriodicWorkRequestBuilder<UsageStatsSyncWorker>(1, TimeUnit.HOURS)
             .setInitialDelay(6, TimeUnit.HOURS)
             .build()
         workManager.enqueueUniquePeriodicWork(

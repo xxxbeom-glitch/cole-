@@ -154,10 +154,13 @@ fun computeSelfTestResultType(answers: Map<Int, Int>): SelfTestResultType {
     return selfTestResultTypeFromRawScore(rawScore, 8)
 }
 
-/** 홈 화면 제한 앱 영역 상태 (items + top3Apps 동시 로드로 플래시 방지) */
+/** 메인 탭(홈·설정 등) 본문과 바텀 네비 사이 추가 여백 */
+private val MainTabContentBottomExtra = 32.dp
+
+/** 홈 화면 제한 앱 영역 상태 (items + top3 동시 로드로 플래시 방지) */
 private data class HomeRestrictionState(
     val items: List<MainAppRestrictionItem>,
-    /** AI 분류 카테고리 중 가장 많이 쓴 앱 상위 3개 (제한 진행 중인 앱 없을 때 표시) */
+    /** 주간 Top3 — 제한 앱 유무와 관계없이 로드, 상단 카드에 표시 */
     val top3Apps: List<StatisticsData.StatsAppItem>,
 )
 
@@ -494,7 +497,7 @@ private fun MainPermissionRequiredContent(
  * - 오늘 00:00~현재 실시간 기기 사용량 반영, 매일 자정 리셋
  */
 @Composable
-private fun TodaySmartphoneUsageCard(
+internal fun TodaySmartphoneUsageCard(
     usageMs: Long,
     modifier: Modifier = Modifier,
 ) {
@@ -543,7 +546,7 @@ private fun TodaySmartphoneUsageCard(
 
 /** MA-01: 코멘트 + 서브텍스트 + > 통계 이동 (Figma 932:9099, 662:2907) */
 @Composable
-private fun MainCommentSection(
+internal fun MainCommentSection(
     comment: String,
     subtext: String,
     onClick: () -> Unit,
@@ -575,7 +578,7 @@ private fun MainCommentSection(
     }
 }
 
-/** 홈 데이터 없을 때: 지난 일주일 top3 앱 카드 (Figma 662:2907) */
+/** 홈 데이터 없을 때: 디버그 2카드 레이아웃 — 주간 Top3 카드 + 제한 탭 카드(빈 목록) */
 @Composable
 private fun MainHomeDataEmptyCard(
     greetingTitle: String,
@@ -587,9 +590,7 @@ private fun MainHomeDataEmptyCard(
     modifier: Modifier = Modifier,
     contentBetweenGreetingAndTop3: @Composable () -> Unit = {},
 ) {
-    // 제한 방식 선택 바텀시트 상태
     var showRestrictionTypeSheet by remember { mutableStateOf(false) }
-    // 바텀시트에서 선택 후 전달할 앱 정보 (null = 하단 "사용제한 앱 추가" 버튼 경로)
     var pendingAppInfo by remember { mutableStateOf<com.aptox.app.model.SelectedAppInfo?>(null) }
 
     BackHandler(enabled = showRestrictionTypeSheet) {
@@ -598,7 +599,7 @@ private fun MainHomeDataEmptyCard(
 
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         MainCommentSection(
             comment = greetingTitle,
@@ -606,70 +607,26 @@ private fun MainHomeDataEmptyCard(
             onClick = onStatisticsClick,
         )
         contentBetweenGreetingAndTop3()
-        // 카드 내부: 타이틀↔서브 12dp, 서브↔앱리스트 18dp, 앱행 간 12dp, 앱리스트↔버튼 18dp
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .shadow(6.dp, MainCardShape, false, MainCardShadowColor, MainCardShadowColor)
-                .clip(MainCardShape)
-                .background(AppColors.SurfaceBackgroundCard)
-                .padding(start = 16.dp, top = 26.dp, end = 16.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp), // 앱리스트 ↔ 버튼
-        ) {
-            if (top3Apps.isNotEmpty()) {
-                Column {
-                    Text(
-                        text = "최근 7일 동안 가장 많은 시간을 사용한 앱 순으로 정렬했어요",
-                        style = AppTypography.HeadingH2.copy(color = AppColors.TextPrimary),
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "이 앱들이 하루 중 꽤 많은 시간을 차지하고 있어요",
-                        style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
-                    )
-                    Spacer(modifier = Modifier.height(18.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        top3Apps.forEach { app ->
-                            MainHomeTopAppRow(
-                                app = app,
-                                onAddRestrictionClick = {
-                                    pendingAppInfo = com.aptox.app.model.SelectedAppInfo(
-                                        appName = app.name,
-                                        packageName = app.packageName,
-                                    )
-                                    showRestrictionTypeSheet = true
-                                },
-                            )
-                        }
-                    }
-                }
-            } else {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = "일주일간 사용 데이터를 확인해보세요",
-                        style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
-            AptoxAddAppButton(
-                text = "사용제한 앱 추가",
-                icon = painterResource(R.drawable.ic_add_circle),
-                onClick = {
-                    pendingAppInfo = null
-                    showRestrictionTypeSheet = true
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(6.dp),
-            )
-        }
+        MainHomeWeeklyTopAppsCard(
+            top3Apps = top3Apps,
+            onAddRestrictionClick = { app ->
+                pendingAppInfo = com.aptox.app.model.SelectedAppInfo(
+                    appName = app.name,
+                    packageName = app.packageName,
+                )
+                showRestrictionTypeSheet = true
+            },
+        )
+        MainAppRestrictionCard(
+            apps = emptyList(),
+            onAddAppClick = {
+                pendingAppInfo = null
+                showRestrictionTypeSheet = true
+            },
+            onDetailClick = {},
+        )
     }
 
-    // 제한 방식 선택 바텀시트
     if (showRestrictionTypeSheet) {
         RestrictionTypeSelectBottomSheet(
             onDailyLimitClick = {
@@ -687,7 +644,7 @@ private fun MainHomeDataEmptyCard(
 
 /** 지난 일주일 top3 앱 행 (Figma 1397:4494 — 앱명 + 하루 평균 사용, 우측 제한 앱 추가) */
 @Composable
-private fun MainHomeTopAppRow(
+internal fun MainHomeTopAppRow(
     app: StatisticsData.StatsAppItem,
     onAddRestrictionClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -739,8 +696,90 @@ private fun MainHomeTopAppRow(
     }
 }
 
+/** 디버그 홈 2카드와 동일 — 제한 유형 탭 칩 (120×30 영역 안에서 사용) */
 @Composable
-private fun MainAppRestrictionRow(
+internal fun HomeRestrictionTabChip(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val bg = if (selected) AppColors.Primary50 else AppColors.SurfaceBackgroundCard
+    val fg = if (selected) AppColors.Primary300 else AppColors.TextSecondary
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(bg)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            style = AppTypography.ButtonSmall.copy(color = fg),
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** Figma 1520 — 카드1: 일주일간 최다 사용 앱 (하단 큰 추가 버튼 없음) */
+@Composable
+private fun MainHomeWeeklyTopAppsCard(
+    top3Apps: List<StatisticsData.StatsAppItem>,
+    onAddRestrictionClick: (StatisticsData.StatsAppItem) -> Unit,
+    modifier: Modifier = Modifier,
+    isLoading: Boolean = false,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(6.dp, MainCardShape, false, MainCardShadowColor, MainCardShadowColor)
+            .clip(MainCardShape)
+            .background(AppColors.SurfaceBackgroundCard)
+            .padding(start = 16.dp, top = 22.dp, end = 16.dp, bottom = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(
+            text = "일주일간 최대 사용시간 앱",
+            style = AppTypography.HeadingH2.copy(color = AppColors.TextPrimary),
+        )
+        when {
+            isLoading -> {
+                Text(
+                    text = "불러오는 중…",
+                    style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
+                )
+            }
+            top3Apps.isEmpty() -> {
+                Text(
+                    text = "일주일간 사용 데이터를 확인해보세요",
+                    style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            else -> {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    top3Apps.forEach { app ->
+                        MainHomeTopAppRow(
+                            app = app,
+                            onAddRestrictionClick = { onAddRestrictionClick(app) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun MainAppRestrictionRow(
     item: MainAppRestrictionItem,
     modifier: Modifier = Modifier,
     onDetailClick: () -> Unit = {},
@@ -794,44 +833,93 @@ private fun MainAppRestrictionRow(
     }
 }
 
+/** 카드2: 제한 중인 앱 — 시간 지정 / 일일 사용량 탭 + 목록 + 사용량 제한 앱 추가 (디버그 2카드 스펙) */
 @Composable
 private fun MainAppRestrictionCard(
     apps: List<MainAppRestrictionItem>,
     onAddAppClick: () -> Unit,
     onDetailClick: (MainAppRestrictionItem) -> Unit = {},
     modifier: Modifier = Modifier,
-    addButtonText: String = "사용제한 앱 추가",
+    addButtonText: String = "사용량 제한 앱 추가",
 ) {
+    var restrictionTab by remember { mutableIntStateOf(0) }
+    val filteredRestrictions = remember(restrictionTab, apps) {
+        when (restrictionTab) {
+            0 -> apps.filter { it.restrictionType == RestrictionType.TIME_SPECIFIED }
+            else -> apps.filter { it.restrictionType == RestrictionType.DAILY_USAGE }
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
             .shadow(6.dp, MainCardShape, false, MainCardShadowColor, MainCardShadowColor)
             .clip(MainCardShape)
             .background(AppColors.SurfaceBackgroundCard)
-            .padding(start = 16.dp, top = 28.dp, end = 16.dp, bottom = 22.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+            .padding(start = 16.dp, top = 22.dp, end = 16.dp, bottom = 18.dp),
     ) {
         Text(
-            text = "진행 중인 앱",
-            style = AppTypography.HeadingH2.copy(color = AppColors.TextSecondary),
+            text = "제한 중인 앱",
+            style = AppTypography.HeadingH2.copy(color = AppColors.TextPrimary),
         )
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            apps.forEach { item ->
-                MainAppRestrictionRow(item = item, onDetailClick = { onDetailClick(item) })
+        Spacer(modifier = Modifier.height(16.dp))
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(
+                modifier = Modifier
+                    .width(244.dp)
+                    .height(30.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                HomeRestrictionTabChip(
+                    text = "시간 지정 제한",
+                    selected = restrictionTab == 0,
+                    onClick = { restrictionTab = 0 },
+                    modifier = Modifier
+                        .width(120.dp)
+                        .fillMaxHeight(),
+                )
+                HomeRestrictionTabChip(
+                    text = "일일 사용량 제한",
+                    selected = restrictionTab == 1,
+                    onClick = { restrictionTab = 1 },
+                    modifier = Modifier
+                        .width(120.dp)
+                        .fillMaxHeight(),
+                )
             }
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            AptoxAddAppButton(
-                text = addButtonText,
-                icon = painterResource(R.drawable.ic_add_circle),
-                onClick = onAddAppClick,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(6.dp),
-            )
+        Spacer(modifier = Modifier.height(24.dp))
+        when {
+            filteredRestrictions.isEmpty() -> {
+                Text(
+                    text = "이 카테고리에 표시할 앱이 없어요",
+                    style = AppTypography.BodyMedium.copy(color = AppColors.TextSecondary),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                )
+            }
+            else -> {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    filteredRestrictions.forEach { item ->
+                        MainAppRestrictionRow(item = item, onDetailClick = { onDetailClick(item) })
+                    }
+                }
+            }
         }
+        Spacer(modifier = Modifier.height(22.dp))
+        AptoxAddAppButton(
+            text = addButtonText,
+            icon = painterResource(R.drawable.ic_add_circle),
+            onClick = onAddAppClick,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(6.dp),
+        )
     }
 }
 
@@ -1076,11 +1164,9 @@ internal fun MainScreenMA01(
                 val items = withContext(Dispatchers.Default) {
                     loadRestrictionItems(context)
                 }
-                val top3 = if (items.isEmpty()) {
-                    withContext(Dispatchers.IO) {
-                        StatisticsData.loadTop3AppsFromAiCategories(context)
-                    }
-                } else emptyList()
+                val top3 = withContext(Dispatchers.IO) {
+                    StatisticsData.loadTop3AppsFromAiCategories(context)
+                }
                 value = HomeRestrictionState(items, top3)
             }.onFailure { e ->
                 Log.w("MainScreenMA01", "loadRestrictionItems 실패", e)
@@ -1109,8 +1195,8 @@ internal fun MainScreenMA01(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
-            .padding(top = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+            .padding(top = 8.dp, bottom = 48.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         if (!hasAllRequiredPermissions) {
             MainPermissionRequiredContent(
@@ -1129,33 +1215,46 @@ internal fun MainScreenMA01(
             )
         } else if (restrictionItems.isNotEmpty()) {
             var showRestrictionTypeSheet by remember { mutableStateOf(false) }
+            var pendingAppInfo by remember { mutableStateOf<com.aptox.app.model.SelectedAppInfo?>(null) }
 
             BackHandler(enabled = showRestrictionTypeSheet) {
                 showRestrictionTypeSheet = false
             }
 
             MainCommentSection(
-                comment = "최근 인스타그램의 사용시간이\n늘어나고 있어요!",
-                subtext = "약간의 제한이 필요해요",
+                comment = greeting.title,
+                subtext = greeting.subtext,
                 onClick = onStatisticsClick,
             )
             TodaySmartphoneUsageCard(usageMs = todayUsageMs)
+            MainHomeWeeklyTopAppsCard(
+                top3Apps = top3Apps,
+                onAddRestrictionClick = { app ->
+                    pendingAppInfo = com.aptox.app.model.SelectedAppInfo(
+                        appName = app.name,
+                        packageName = app.packageName,
+                    )
+                    showRestrictionTypeSheet = true
+                },
+            )
             MainAppRestrictionCard(
                 apps = restrictionItems,
-                onAddAppClick = { showRestrictionTypeSheet = true },
+                onAddAppClick = {
+                    pendingAppInfo = null
+                    showRestrictionTypeSheet = true
+                },
                 onDetailClick = onDetailClick,
-                addButtonText = "사용제한 앱 추가",
             )
 
             if (showRestrictionTypeSheet) {
                 RestrictionTypeSelectBottomSheet(
                     onDailyLimitClick = {
                         showRestrictionTypeSheet = false
-                        onAddAppClick(null)
+                        onAddAppClick(pendingAppInfo)
                     },
                     onTimeSpecifiedClick = {
                         showRestrictionTypeSheet = false
-                        onTimeSpecifiedClick(null)
+                        onTimeSpecifiedClick(pendingAppInfo)
                     },
                     onDismissRequest = { showRestrictionTypeSheet = false },
                 )
@@ -1169,7 +1268,7 @@ internal fun MainScreenMA01(
             TodaySmartphoneUsageCard(usageMs = todayUsageMs)
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -1275,7 +1374,7 @@ private fun isTodayOnlyExpired(baselineTimeMs: Long): Boolean {
     return baselineTimeMs < cal.timeInMillis
 }
 
-private fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem> {
+internal fun loadRestrictionItems(context: Context): List<MainAppRestrictionItem> {
     val repo = AppRestrictionRepository(context)
     val restrictions = repo.getAll()
     if (restrictions.isEmpty()) return emptyList()
@@ -1438,7 +1537,7 @@ fun MainScreenMA02(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
-            .padding(top = 24.dp),
+            .padding(top = 24.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         MainCommentSection(
@@ -1447,7 +1546,7 @@ fun MainScreenMA02(
             onClick = onStatisticsClick,
         )
         MainAppRestrictionCardEmpty(onAddAppClick = onAddAppClick)
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -1667,10 +1766,10 @@ fun MainFlowHost(
         }
     }
 
-    // 바텀바 하단 패딩 (앱바 높이 또는 기본값)
+    // 바텀바 높이 + 본문·네비 사이 숨 쉴 여백 (홈 긴 목록·설정 스크롤 끝이 답답하지 않게)
     val contentBottomPadding = when {
-        bottomBarHeightDp > 0.dp -> bottomBarHeightDp
-        else -> 122.dp
+        bottomBarHeightDp > 0.dp -> bottomBarHeightDp + MainTabContentBottomExtra
+        else -> 122.dp + MainTabContentBottomExtra
     }
 
     CompositionLocalProvider(LocalBottomBarHeight provides bottomBarHeightDp) {
@@ -1834,15 +1933,7 @@ fun MainFlowHost(
                                     userId = firebaseAuthUid,
                                     onBack = { settingsDetail = SettingsDetail.AppRestrictionHistory },
                                 )
-                                SettingsDetail.Subscription -> SubscriptionManageScreen(
-                                    onBack = { settingsDetail = null },
-                                    onCancelSubscription = {
-                                        val uri = Uri.parse("https://play.google.com/store/account/subscriptions")
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, uri).apply {
-                                            setPackage("com.android.vending")
-                                        })
-                                    },
-                                )
+                                SettingsDetail.Subscription -> SubscriptionManageScreen()
                                 SettingsDetail.Notification -> NotificationSettingsScreen(
                                     onBack = { settingsDetail = null },
                                 )

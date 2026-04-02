@@ -531,6 +531,93 @@ private fun RowScope.StatsInsightStatItem(label: String, value: String, modifier
     }
 }
 
+/** 기간별 사용량 카드 상단 카테고리 탭 — API/수동 라벨 `주식·코인` 등과 매칭 */
+private const val DateChartTabStock = "STOCK"
+
+private fun matchesDateChartCategoryFilter(filterKey: String?, category: String): Boolean {
+    if (filterKey == null) return true
+    if (filterKey == DateChartTabStock) {
+        return category == "주식,코인" || category == "주식·코인" || category == "주식/코인" || category == "주식&코인"
+    }
+    return category == filterKey
+}
+
+private data class DateChartCategoryTab(val label: String, val filterKey: String?)
+
+private val DateChartCategoryTabs = listOf(
+    DateChartCategoryTab("전체", null),
+    DateChartCategoryTab("OTT", "OTT"),
+    DateChartCategoryTab("SNS", "SNS"),
+    DateChartCategoryTab("게임", "게임"),
+    DateChartCategoryTab("웹툰", "웹툰"),
+    DateChartCategoryTab("쇼핑", "쇼핑"),
+    DateChartCategoryTab("주식 · 코인", DateChartTabStock),
+)
+
+/** 기간별 사용량 카테고리 탭 — 칩당 너비(디버그 제한 카드 120dp보다 좁게) */
+private val StatsRestrictionStyleTabWidth = 70.dp
+private val StatsRestrictionStyleTabHeight = 30.dp
+
+@Composable
+private fun StatsDateChartCategoryTabChip(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val bg = if (selected) AppColors.Primary50 else AppColors.SurfaceBackgroundCard
+    val fg = if (selected) AppColors.Primary300 else AppColors.TextSecondary
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(bg)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            style = AppTypography.ButtonSmall.copy(color = fg),
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** 기간별·시간대별 사용량 카드 공통 — 칩 70×30dp, 가로 스크롤·좌측 정렬 */
+@Composable
+private fun StatsDateChartCategoryTabRow(
+    selectedFilterKey: String?,
+    onSelectFilterKey: (String?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scroll = rememberScrollState()
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(StatsRestrictionStyleTabHeight)
+            .horizontalScroll(scroll),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        DateChartCategoryTabs.forEach { tab ->
+            StatsDateChartCategoryTabChip(
+                text = tab.label,
+                selected = tab.filterKey == selectedFilterKey,
+                onClick = { onSelectFilterKey(tab.filterKey) },
+                modifier = Modifier
+                    .width(StatsRestrictionStyleTabWidth)
+                    .fillMaxHeight(),
+            )
+        }
+    }
+}
+
 /**
  * Figma 919:3520 / 919:3764 / 919:3830 — 기간별 사용량 카드
  * 주간: 요일별(월~일). 월간: 1일~31일(가로스크롤). 연간: 최대 6년(좌측정렬)
@@ -548,26 +635,36 @@ private fun StatsDateChartSection(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    var dateChartCategoryFilterKey by remember { mutableStateOf<String?>(null) }
 
     var dayMinutes by remember { mutableStateOf<List<Long>>(List(7) { 0L }) }
     var dayOfMonthMinutes by remember { mutableStateOf<List<Long>>(emptyList()) }
     var yearMinutes by remember { mutableStateOf<List<Long>>(emptyList()) }
     var yearLabels by remember { mutableStateOf<List<String>>(emptyList()) }
 
-    LaunchedEffect(tabEnum, weekOffset, monthOffset, yearOffset) {
+    LaunchedEffect(tabEnum, weekOffset, monthOffset, yearOffset, dateChartCategoryFilterKey) {
         withContext(Dispatchers.IO) {
+            val categoryRepo = AppCategoryRepository(context)
+            val allCategories = categoryRepo.getAllCategories()
+            val allowedPackages: Set<String>? = if (dateChartCategoryFilterKey == null) {
+                null
+            } else {
+                allCategories.filter { (_, cat) ->
+                    matchesDateChartCategoryFilter(dateChartCategoryFilterKey, cat)
+                }.keys.toSet()
+            }
             when (tabEnum) {
                 StatisticsData.Tab.WEEKLY -> {
                     val (s, e, _) = StatisticsData.getWeekRange(weekOffset)
-                    dayMinutes = StatisticsData.loadDayOfWeekMinutes(context, s, e)
+                    dayMinutes = StatisticsData.loadDayOfWeekMinutes(context, s, e, allowedPackages)
                 }
                 StatisticsData.Tab.MONTHLY -> {
                     val (s, e, _) = StatisticsData.getSingleMonthRange(monthOffset)
-                    dayOfMonthMinutes = StatisticsData.loadDayOfMonthMinutes(context, s, e)
+                    dayOfMonthMinutes = StatisticsData.loadDayOfMonthMinutes(context, s, e, allowedPackages)
                 }
                 StatisticsData.Tab.YEARLY -> {
                     val (ranges, labels) = StatisticsData.getYearRanges(yearOffset)
-                    val minutes = StatisticsData.loadYearsMinutes(context, ranges)
+                    val minutes = StatisticsData.loadYearsMinutes(context, ranges, allowedPackages)
                     val n = minOf(minutes.size, labels.size)
                     val nonZeroYears = minutes.take(n).zip(labels.take(n)).filter { it.first > 0 }
                     yearMinutes = nonZeroYears.map { it.first }
@@ -589,18 +686,19 @@ private fun StatsDateChartSection(
         }
     }
 
+    // 패딩·타이틀~탭·탭~차트 간격: 디버그 홈「제한 중인 앱」카드와 동일 (상 22, 좌우 16, 타이틀–탭 16, 탭–본문 24)
     Column(
         modifier = modifier
             .fillMaxWidth()
             .shadow(6.dp, RoundedCornerShape(12.dp), false, Color.Black.copy(alpha = 0.06f), Color.Black.copy(alpha = 0.06f))
             .clip(RoundedCornerShape(12.dp))
             .background(AppColors.SurfaceBackgroundCard)
-            .padding(horizontal = 16.dp, vertical = 26.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
+            .padding(start = 16.dp, top = 22.dp, end = 16.dp, bottom = 26.dp),
     ) {
         StatsCardTitleRow(
             title = "기간별 사용량",
             titleIconSpacing = 4.dp,
+            titleColor = AppColors.TextPrimary,
             dateRangeText = nav.text,
             canGoPrev = nav.canPrev,
             canGoNext = nav.canNext,
@@ -609,6 +707,12 @@ private fun StatsDateChartSection(
             onInfoClick = onInfoClick,
             showPeriodSelector = tabEnum != StatisticsData.Tab.YEARLY,
         )
+        Spacer(modifier = Modifier.height(16.dp))
+        StatsDateChartCategoryTabRow(
+            selectedFilterKey = dateChartCategoryFilterKey,
+            onSelectFilterKey = { dateChartCategoryFilterKey = it },
+        )
+        Spacer(modifier = Modifier.height(24.dp))
         when (tabEnum) {
             StatisticsData.Tab.WEEKLY -> DayOfWeekBarChart(
                 values = dayMinutes,
@@ -773,6 +877,7 @@ private fun StatsCardTitleRow(
     onPrevClick: () -> Unit,
     onNextClick: () -> Unit,
     titleIconSpacing: Dp = 2.dp,
+    titleColor: Color = AppColors.TextSecondary,
     onInfoClick: (() -> Unit)? = null,
     showPeriodSelector: Boolean = true,
     modifier: Modifier = Modifier,
@@ -788,7 +893,7 @@ private fun StatsCardTitleRow(
         ) {
             Text(
                 text = title,
-                style = AppTypography.HeadingH2.copy(color = AppColors.TextSecondary),
+                style = AppTypography.HeadingH2.copy(color = titleColor),
             )
             Box(
                 contentAlignment = Alignment.Center,
@@ -1320,6 +1425,59 @@ private val CategoryColors = mapOf(
     "기타" to Color(0xFFBDBDBD),
 )
 
+@Composable
+private fun CategoryStatsLegendRow(
+    label: String,
+    pct: Float,
+    isLeftColumn: Boolean,
+    selectedCategory: String?,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember(label) { MutableInteractionSource() }
+    var isPressed by remember { mutableStateOf(false) }
+    LaunchedEffect(interactionSource) {
+        interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is PressInteraction.Press -> isPressed = true
+                is PressInteraction.Release, is PressInteraction.Cancel -> isPressed = false
+                else -> {}
+            }
+        }
+    }
+    val baseColor = CategoryColors[label] ?: Color.Gray
+    val displayColor = if (isPressed) lerp(baseColor, Color.Black, 0.08f) else baseColor
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = if (isLeftColumn) 8.dp else 22.dp, end = if (isLeftColumn) 22.dp else 8.dp)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(displayColor),
+            )
+            Text(
+                text = label,
+                style = AppTypography.Caption2.copy(
+                    color = if (selectedCategory == label) AppColors.TextHighlight else AppColors.TextCaption,
+                ),
+            )
+        }
+        Text(
+            text = "${pct.toInt()}%",
+            style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
+        )
+    }
+}
+
 /** Figma 925:7299 — 카테고리 통계. 그래프/범례 클릭 시 해당 카테고리 앱 필터. 기본 전체 */
 @Composable
 private fun StatsStackedBarAndAppList(
@@ -1376,6 +1534,10 @@ private fun StatsStackedBarAndAppList(
         }
     }
 
+    val displaySegments = remember(segments) {
+        segments.filter { it.second.toInt() > 0 }
+    }
+
     val filteredApps = remember(appList, selectedCategory) {
         if (selectedCategory == null) appList
         else appList.filter { it.categoryTag == selectedCategory }
@@ -1413,7 +1575,7 @@ private fun StatsStackedBarAndAppList(
                     .fillMaxSize()
                     .clip(RoundedCornerShape(6.dp)),
             ) {
-                segments.forEach { (label, pct) ->
+                displaySegments.forEach { (label, pct) ->
                     val interactionSource = remember(label) { MutableInteractionSource() }
                     var isPressed by remember { mutableStateOf(false) }
                     LaunchedEffect(interactionSource) {
@@ -1442,57 +1604,34 @@ private fun StatsStackedBarAndAppList(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(0.dp),
         ) {
-                segments.chunked(3).forEachIndexed { columnIndex, chunk ->
-                val isLeft = columnIndex == 0
-                Column(
-                    modifier = Modifier.width(148.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    chunk.forEach { (label, pct) ->
-                        val interactionSource = remember(label) { MutableInteractionSource() }
-                        var isPressed by remember { mutableStateOf(false) }
-                        LaunchedEffect(interactionSource) {
-                            interactionSource.interactions.collect { interaction ->
-                                when (interaction) {
-                                    is PressInteraction.Press -> isPressed = true
-                                    is PressInteraction.Release, is PressInteraction.Cancel -> isPressed = false
-                                    else -> {}
-                                }
-                            }
-                        }
-                        val baseColor = CategoryColors[label] ?: Color.Gray
-                        val displayColor = if (isPressed) lerp(baseColor, Color.Black, 0.08f) else baseColor
-                        Row(
-                            modifier = Modifier
-                                .width(148.dp)
-                                .padding(start = if (isLeft) 8.dp else 22.dp, end = if (isLeft) 22.dp else 8.dp)
-                                .clickable(interactionSource = interactionSource, indication = null) { selectedCategory = if (selectedCategory == label) null else label },
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(RoundedCornerShape(3.dp))
-                                        .background(displayColor),
-                                )
-                                Text(
-                                    text = label,
-                                    style = AppTypography.Caption2.copy(
-                                        color = if (selectedCategory == label) AppColors.TextHighlight else AppColors.TextCaption,
-                                    ),
-                                )
-                            }
-                            Text(
-                                text = "${pct.toInt()}%",
-                                style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
-                            )
-                        }
-                    }
+            val leftLegend = displaySegments.filterIndexed { index, _ -> index % 2 == 0 }
+            val rightLegend = displaySegments.filterIndexed { index, _ -> index % 2 == 1 }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                leftLegend.forEach { (label, pct) ->
+                    CategoryStatsLegendRow(
+                        label = label,
+                        pct = pct,
+                        isLeftColumn = true,
+                        selectedCategory = selectedCategory,
+                        onClick = { selectedCategory = if (selectedCategory == label) null else label },
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                rightLegend.forEach { (label, pct) ->
+                    CategoryStatsLegendRow(
+                        label = label,
+                        pct = pct,
+                        isLeftColumn = false,
+                        selectedCategory = selectedCategory,
+                        onClick = { selectedCategory = if (selectedCategory == label) null else label },
+                    )
                 }
             }
         }
@@ -1597,7 +1736,7 @@ private fun StatsAppRow(
     }
 }
 
-/** 시간대별 사용량 카드 (Figma 925-7593). 기간별/카테고리 카드와 동일 카드 패딩(상하 26dp) */
+/** 시간대별 사용량 카드 (Figma 925-7593). 기간별 사용량 카드와 동일 패딩·카테고리 탭 */
 @Composable
 private fun StatsTimeSlotSection(
     tabEnum: StatisticsData.Tab,
@@ -1611,6 +1750,7 @@ private fun StatsTimeSlotSection(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    var timeSlotCategoryFilterKey by remember { mutableStateOf<String?>(null) }
     val olderHasData = rememberOlderPeriodHasUsageTimeSlot(tabEnum, weekOffset, monthOffset, yearOffset)
     val nav = remember(tabEnum, weekOffset, monthOffset, yearOffset, olderHasData) {
         val label = when (tabEnum) {
@@ -1637,27 +1777,47 @@ private fun StatsTimeSlotSection(
     }
 
     var timeSlotMinutes by remember { mutableStateOf<List<Long>>(List(12) { 0L }) }
-    LaunchedEffect(tabEnum, weekOffset, monthOffset, yearOffset) {
+    LaunchedEffect(tabEnum, weekOffset, monthOffset, yearOffset, timeSlotCategoryFilterKey) {
         withContext(Dispatchers.IO) {
-            val (startMs, endMs, divideByDays) = when (tabEnum) {
+            val categoryRepo = AppCategoryRepository(context)
+            val allCategories = categoryRepo.getAllCategories()
+            val allowedPackages: Set<String>? = if (timeSlotCategoryFilterKey == null) {
+                null
+            } else {
+                allCategories.filter { (_, cat) ->
+                    matchesDateChartCategoryFilter(timeSlotCategoryFilterKey, cat)
+                }.keys.toSet()
+            }
+            val (startMs, endMs) = when (tabEnum) {
                 StatisticsData.Tab.WEEKLY -> {
                     val (s, e, _) = StatisticsData.getWeekRange(weekOffset)
-                    Triple(s, e, 0)
+                    s to e
                 }
                 StatisticsData.Tab.MONTHLY -> {
                     val (s, e, _) = StatisticsData.getLastNDaysRange(30, monthOffset)
-                    Triple(s, e, 30)
+                    s to e
                 }
                 StatisticsData.Tab.YEARLY -> {
                     val (s, e, _) = StatisticsData.getLastNDaysRange(365, yearOffset)
-                    Triple(s, e, 365)
+                    s to e
                 }
                 else -> {
                     val (s, e, _) = StatisticsData.getLastNDaysRange(7, 0)
-                    Triple(s, e, 0)
+                    s to e
                 }
             }
-            timeSlotMinutes = StatisticsData.loadTimeSlot12Minutes(context, startMs, endMs, divideByDays)
+            val divideByDays = when (tabEnum) {
+                StatisticsData.Tab.MONTHLY,
+                StatisticsData.Tab.YEARLY -> StatisticsData.daysInclusiveCappedAtNow(startMs, endMs)
+                else -> 0
+            }
+            timeSlotMinutes = StatisticsData.loadTimeSlot12Minutes(
+                context,
+                startMs,
+                endMs,
+                divideByDays,
+                allowedPackages,
+            )
         }
     }
 
@@ -1673,12 +1833,12 @@ private fun StatsTimeSlotSection(
             .shadow(6.dp, RoundedCornerShape(12.dp), false, Color.Black.copy(alpha = 0.06f), Color.Black.copy(alpha = 0.06f))
             .clip(RoundedCornerShape(12.dp))
             .background(AppColors.SurfaceBackgroundCard)
-            .padding(horizontal = 16.dp, vertical = 26.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
+            .padding(start = 16.dp, top = 22.dp, end = 16.dp, bottom = 26.dp),
     ) {
         StatsCardTitleRow(
             title = "시간대별 사용량",
             titleIconSpacing = 4.dp,
+            titleColor = AppColors.TextPrimary,
             dateRangeText = nav.text,
             canGoPrev = nav.canPrev,
             canGoNext = nav.canNext,
@@ -1687,7 +1847,12 @@ private fun StatsTimeSlotSection(
             onInfoClick = onInfoClick,
             showPeriodSelector = true,
         )
-
+        Spacer(modifier = Modifier.height(16.dp))
+        StatsDateChartCategoryTabRow(
+            selectedFilterKey = timeSlotCategoryFilterKey,
+            onSelectFilterKey = { timeSlotCategoryFilterKey = it },
+        )
+        Spacer(modifier = Modifier.height(24.dp))
         TimeSlotBarChartComponent(
             values = normalized,
             maxValueIdx = maxIdx,

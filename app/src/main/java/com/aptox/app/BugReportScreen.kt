@@ -235,8 +235,8 @@ fun BugReportScreen(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .background(AppColors.SurfaceBackgroundBackground)
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .windowInsetsPadding(WindowInsets.navigationBars),
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(horizontal = 16.dp, vertical = 16.dp),
         ) {
             if (isSubmitting) {
                 Box(

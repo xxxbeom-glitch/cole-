@@ -358,3 +358,88 @@ private fun DrumrollColumn(
         }
     }
 }
+
+/**
+ * 단일 목록(예: "30분", "60분")을 드럼롤로 선택하는 바텀시트.
+ * [DrumrollTimePickerBottomSheet]와 동일한 셀 높이·스냅·중앙 하이라이트 스타일.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DrumrollDurationPickerBottomSheet(
+    items: List<String>,
+    initialIndex: Int = 0,
+    title: String,
+    subtitle: String? = null,
+    confirmButtonText: String = "다음",
+    onDismissRequest: () -> Unit,
+    onConfirm: (index: Int, value: String) -> Unit,
+) {
+    if (items.isEmpty()) return
+
+    val safeIndex = initialIndex.coerceIn(0, items.lastIndex)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val cellHeightPx = with(density) { CELL_HEIGHT.toPx() }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = safeIndex)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState,
+        dragHandle = null,
+        containerColor = AppColors.SurfaceBackgroundBackground,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        scrimColor = Color.Black.copy(alpha = 0.7f),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .windowInsetsPadding(WindowInsets.navigationBars),
+        ) {
+            Spacer(modifier = Modifier.height(56.dp))
+
+            Text(
+                text = title,
+                style = AppTypography.HeadingH1.copy(color = AppColors.TextPrimary),
+            )
+
+            if (subtitle != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = subtitle,
+                    style = AppTypography.BodyMedium.copy(color = AppColors.TextBody),
+                )
+            }
+
+            Spacer(modifier = Modifier.height(22.dp))
+
+            DrumrollColumn(
+                listState = listState,
+                items = items,
+                cellHeightPx = cellHeightPx,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Spacer(modifier = Modifier.height(46.dp))
+
+            AptoxPrimaryButton(
+                text = confirmButtonText,
+                onClick = {
+                    scope.launch {
+                        val idx = snapColumnToNearestAndResolveIndex(
+                            listState,
+                            cellHeightPx,
+                            paddedItemCount(items.size),
+                            itemsSize = items.size,
+                        )
+                        onConfirm(idx, items[idx])
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Spacer(modifier = Modifier.height(36.dp))
+        }
+    }
+}

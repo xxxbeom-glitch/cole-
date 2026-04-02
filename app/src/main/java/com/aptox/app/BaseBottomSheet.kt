@@ -13,10 +13,17 @@ import androidx.compose.material3.TextButton
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetDefaults
+import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.Text
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -46,10 +53,26 @@ fun BaseBottomSheet(
     dismissOnPrimaryClick: Boolean = true,
     tertiaryButtonText: String? = null,
     onTertiaryClick: (() -> Unit)? = null,
+    /**
+     * false이면 스와이프/드래그·스크림 탭·시스템 백으로는 닫히지 않으며,
+     * [sheetState.hide]를 호출하는 본문 버튼(Primary/Tertiary)으로만 시트가 내려갈 수 있음.
+     */
+    allowGestureDismiss: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var allowHideTransition by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { target ->
+            if (!allowGestureDismiss && target == SheetValue.Hidden) allowHideTransition else true
+        },
+    )
     val scope = rememberCoroutineScope()
+    val sheetProperties = if (allowGestureDismiss) {
+        ModalBottomSheetDefaults.properties
+    } else {
+        ModalBottomSheetProperties(shouldDismissOnBackPress = false)
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -59,6 +82,7 @@ fun BaseBottomSheet(
         containerColor = AppColors.SurfaceBackgroundBackground,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         scrimColor = Color.Black.copy(alpha = 0.6f),
+        properties = sheetProperties,
     ) {
         Column(
             modifier = Modifier
@@ -102,7 +126,9 @@ fun BaseBottomSheet(
                     enabled = primaryButtonEnabled,
                     onClick = {
                         if (dismissOnPrimaryClick) {
+                            allowHideTransition = true
                             scope.launch { sheetState.hide() }.invokeOnCompletion {
+                                allowHideTransition = false
                                 if (!sheetState.isVisible) onPrimaryClick()
                             }
                         } else {
@@ -123,7 +149,9 @@ fun BaseBottomSheet(
                 if (tertiaryButtonText != null && onTertiaryClick != null) {
                     TextButton(
                         onClick = {
+                            allowHideTransition = true
                             scope.launch { sheetState.hide() }.invokeOnCompletion {
+                                allowHideTransition = false
                                 if (!sheetState.isVisible) onTertiaryClick()
                             }
                         },

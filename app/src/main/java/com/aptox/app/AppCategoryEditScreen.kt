@@ -1,6 +1,8 @@
 package com.aptox.app
 
-import android.content.pm.ApplicationInfo
+import android.app.usage.UsageStatsManager
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -115,24 +117,57 @@ fun AppCategoryEditScreen(onBack: () -> Unit) {
             val pm = context.packageManager
             val selfPkg = context.packageName
             val categoryRepo = AppCategoryRepository(context)
+            val endTime = System.currentTimeMillis()
+            val start30d = endTime - 30L * 24 * 60 * 60 * 1000L
+            val usageStatsManager =
+                context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
 
-            val installedApps = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                pm.getInstalledApplications(PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA.toLong()))
+            fun usageForegroundMs(startMs: Long, endMs: Long): Map<String, Long> =
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    usageStatsManager
+                        .queryAndAggregateUsageStats(startMs, endMs)
+                        .mapValues { (_, u) -> u.totalTimeInForeground }
+                } else {
+                    @Suppress("DEPRECATION")
+                    val stats = usageStatsManager.queryUsageStats(
+                        UsageStatsManager.INTERVAL_BEST,
+                        startMs,
+                        endMs,
+                    ) ?: emptyList()
+                    stats
+                        .groupBy { it.packageName }
+                        .mapValues { (_, list) -> list.sumOf { it.totalTimeInForeground } }
+                }
+
+            val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+            val resolves = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                pm.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong()))
             } else {
                 @Suppress("DEPRECATION")
-                pm.getInstalledApplications(PackageManager.GET_META_DATA)
-            } ?: emptyList()
+                pm.queryIntentActivities(intent, PackageManager.MATCH_ALL)
+            }
+            val launcherPackages = resolves
+                .mapNotNull { runCatching { it.activityInfo.packageName }.getOrNull() }
+                .filter { it != selfPkg }
+                .toSet()
 
-            val userApps = installedApps
-                .filter { info ->
-                    val flags = info.flags
-                    info.packageName != selfPkg &&
-                        (flags and ApplicationInfo.FLAG_SYSTEM) == 0 &&
-                        (flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0
-                }
-                .mapNotNull { info ->
-                    val name = (pm.getApplicationLabel(info) as? String)?.takeIf { it.isNotBlank() }
-                    name?.let { info.packageName to it }
+            val usage30d = usageForegroundMs(start30d, endTime)
+            val eligiblePackages = launcherPackages.filter { pkg ->
+                (usage30d[pkg] ?: 0L) >= 60_000L
+            }
+
+            val userApps = eligiblePackages
+                .mapNotNull { pkg ->
+                    runCatching {
+                        val appInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                            pm.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(0L))
+                        } else {
+                            @Suppress("DEPRECATION")
+                            pm.getApplicationInfo(pkg, 0)
+                        }
+                        val label = (pm.getApplicationLabel(appInfo) as? String)?.takeIf { it.isNotBlank() }
+                        pkg to (label ?: pkg)
+                    }.getOrNull()
                 }
                 .distinctBy { it.first }
                 .map { (pkg, name) ->
@@ -195,7 +230,7 @@ fun AppCategoryEditScreen(onBack: () -> Unit) {
                             .weight(1f)
                             .padding(horizontal = 16.dp)
                             .windowInsetsPadding(WindowInsets.navigationBars),
-                        contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp),
+                        contentPadding = PaddingValues(top = 24.dp, bottom = 56.dp),
                         verticalArrangement = Arrangement.spacedBy(0.dp),
                     ) {
                         item {

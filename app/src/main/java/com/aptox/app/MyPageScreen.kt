@@ -28,7 +28,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 /**
@@ -36,7 +35,6 @@ import androidx.compose.ui.unit.dp
  * - 내 계정: 계정 관리
  * - 제한 앱 관리: 앱 카테고리 수정, 앱 사용제한 기록
  * - 시스템: 알림, 권한 설정
- * - 하단: 버전 1.0
  */
 @Composable
 fun MyPageScreen(
@@ -50,16 +48,15 @@ fun MyPageScreen(
     onTermsClick: () -> Unit = {},
     onPrivacyClick: () -> Unit = {},
 ) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .padding(top = 24.dp)
-                .padding(bottom = 52.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-        ) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+            .padding(top = 24.dp)
+            .padding(bottom = 48.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
+    ) {
             // 내 계정
             MyPageSection(title = "내 계정") {
                 MyPageRowItem(
@@ -125,18 +122,6 @@ fun MyPageScreen(
                     onClick = onBugReportClick,
                 )
             }
-        }
-
-        // 버전 (하단 고정, 마지막 메뉴와 16dp 간격)
-        Text(
-            text = "V1.0",
-            style = AppTypography.Caption1.copy(color = AppColors.TextSecondary),
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            textAlign = TextAlign.Center,
-        )
     }
 }
 

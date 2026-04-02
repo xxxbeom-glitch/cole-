@@ -84,7 +84,9 @@ fun DebugFlowHost(
                 screen = selectedScreen!!,
                 onBack = { selectedScreen = null; addAppReturnTo = null },
                 onNavigateToScreen = { target ->
-                    if (target == DebugScreen.AddAppFlowHost) addAppReturnTo = DebugScreen.MainFlow
+                    if (target == DebugScreen.AddAppFlowHost) {
+                        addAppReturnTo = selectedScreen
+                    }
                     selectedScreen = target
                 },
                 onAddAppComplete = {
@@ -138,6 +140,8 @@ sealed class DebugScreen(val category: String, val label: String) {
 
     // 메인
     data object MainFlow : DebugScreen("메인", "메인 (홈/챌린지/통계/설정)")
+    /** 실제 메인 탭 미적용 — Figma 2카드 홈 레이아웃만 디버그 메뉴에서 확인 */
+    data object HomeTwoCardLayoutPreview : DebugScreen("메인", "홈 2카드 레이아웃 (디버그)")
 
     // 테스트
     data object SpacingTest : DebugScreen("테스트", "간격테스트 (헤더~콘텐츠 38/36/32/28/26dp)")
@@ -268,6 +272,11 @@ private fun DebugScreenPreview(
             onAutoOpenConsumed = onOpenBottomSheetConsumed,
             initialNavIndex = pendingNavIndex,
             onNavIndexConsumed = onNavIndexConsumed,
+        )
+        DebugScreen.HomeTwoCardLayoutPreview -> DebugHomeLayoutPreviewScreen(
+            onBack = onBack,
+            onNavigateToAddAppFlow = { onNavigateToScreen(DebugScreen.AddAppFlowHost) },
+            onNavigateToTimeSpecifiedFlow = { onNavigateToScreen(DebugScreen.TimeSpecifiedFlow) },
         )
         DebugScreen.SpacingTest -> DebugSpacingTestScreen(onBack = onBack)
         DebugScreen.GaugeTest -> DebugGaugeTestScreen(onBack = onBack)
@@ -758,7 +767,7 @@ private fun DebugScreenListSection(
 
         // 메인
         Text(text = "메인", style = AppTypography.Caption2.copy(color = AppColors.TextHighlight))
-        listOf(DebugScreen.MainFlow).forEach { screen ->
+        listOf(DebugScreen.MainFlow, DebugScreen.HomeTwoCardLayoutPreview).forEach { screen ->
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

@@ -36,7 +36,8 @@ class DailyUsageMidnightResetReceiver : BroadcastReceiver() {
             DailyUsageMidnightResetScheduler.scheduleNextMidnight(context)
             TimeSpecifiedRestrictionAlarmScheduler.scheduleAll(context)
 
-            tryShowMidnightForegroundRestrictedBlock(context.applicationContext)
+            // 자정에 포그라운드로 사용 중인 제한 앱: 차단 없이 카운트 자동 시작 + 노티 발송
+            tryHandleMidnightForegroundApp(context.applicationContext)
         } catch (e: Throwable) {
             Log.e(TAG, "자정 리셋 실패", e)
         }
@@ -61,14 +62,18 @@ class DailyUsageMidnightResetReceiver : BroadcastReceiver() {
         return foregroundMap.maxByOrNull { it.value }?.key
     }
 
-    private fun tryShowMidnightForegroundRestrictedBlock(context: Context) {
+    private fun tryHandleMidnightForegroundApp(context: Context) {
         val pkg = foregroundPackageFromRecentUsageEvents(context) ?: return
         val restriction = AppRestrictionRepository(context).getAll().find { it.packageName == pkg } ?: return
+        // 시간 지정 제한 앱은 제외 (일일 사용량 제한 앱만 처리)
         if (restriction.blockUntilMs > 0L) return
         if (PauseRepository(context).isPaused(pkg)) return
 
+        // 카운트 자동 시작 (알림 권한 여부와 무관하게 항상)
         ManualTimerRepository(context).startSession(pkg)
+        Log.d(TAG, "자정 포그라운드 일일제한앱 카운트 자동 시작: $pkg")
 
+        // 노티바 알림
         ensureDailyUsageLimitChannel(context)
         val nm = NotificationManagerCompat.from(context)
         if (!nm.areNotificationsEnabled()) return
@@ -81,8 +86,7 @@ class DailyUsageMidnightResetReceiver : BroadcastReceiver() {
             launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val body =
-            "현재 사용이 진행 중이므로 카운트가 자동으로 시작되었습니다. 원하지 않으시면 앱 종료 후 카운트 중지를 눌러주세요."
+        val body = "현재 사용이 진행 중이므로 카운트가 자동으로 시작되었습니다. 원하지 않으시면 앱 종료 후 카운트 중지를 눌러주세요."
         val notification = NotificationCompat.Builder(context, CHANNEL_DAILY_USAGE_LIMIT_ID)
             .setContentTitle("${restriction.appName}의 하루 사용량이 초기화되었습니다")
             .setContentText(body)
@@ -96,7 +100,6 @@ class DailyUsageMidnightResetReceiver : BroadcastReceiver() {
         Log.d(TAG, "자정 포그라운드 일일제한앱 노티: $pkg")
     }
 
-    /** [DailyUsageNotificationHelper] 와 동일 채널 id — 이미 있으면 무시 */
     private fun ensureDailyUsageLimitChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
@@ -112,12 +115,8 @@ class DailyUsageMidnightResetReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "DailyUsageMidnight"
         const val ACTION_MIDNIGHT_RESET = "com.aptox.app.MIDNIGHT_DAILY_USAGE_RESET"
-
-        /** [DailyUsageNotificationHelper] 채널 id 와 동일 (`daily_usage_limit`) */
         private const val CHANNEL_DAILY_USAGE_LIMIT_ID = "daily_usage_limit"
         private const val CHANNEL_DAILY_USAGE_LIMIT_NAME = "하루 사용량 알림"
-
-        /** AppMonitor 1001/1002, PauseTimer 1003, DailyUsage 해시 id와 겹치지 않게 고정 */
         private const val NOTIFICATION_ID_MIDNIGHT_FG_USAGE_RESET = 2405
     }
 }
