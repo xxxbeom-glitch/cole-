@@ -3,6 +3,8 @@ package com.aptox.app
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
+import com.aptox.app.usage.AppDatabaseProvider
+import com.aptox.app.usage.UsageStatsDateUtils
 import java.util.Calendar
 
 /**
@@ -12,6 +14,40 @@ import java.util.Calendar
 object AppDetailTimeSegmentRepository {
 
     const val TWO_HOUR_SLOT_COUNT = 12
+
+    /**
+     * 로컬 DB에 일별 12슬롯 백업이 구간 내 **모든 달력 일**에 있으면 그 합으로 일평균·톤 계산,
+     * 없으면 [computeRankTonesForPackage]와 동일하게 UsageEvents 사용.
+     */
+    fun computeRankTonesForPackageWithLocalFallback(
+        context: Context,
+        packageName: String,
+        startMs: Long,
+        endMs: Long,
+    ): List<AppDetailAverageTimeSlotBarTone>? {
+        computeRankTonesFromLocalDb(context, packageName, startMs, endMs)?.let { return it }
+        return computeRankTonesForPackage(context, packageName, startMs, endMs)
+    }
+
+    private fun computeRankTonesFromLocalDb(
+        context: Context,
+        packageName: String,
+        startMs: Long,
+        endMs: Long,
+    ): List<AppDetailAverageTimeSlotBarTone>? {
+        if (packageName.isBlank() || endMs <= startMs) return null
+        val days = UsageStatsDateUtils.enumerateYyyyMmDdDaysInRange(startMs, endMs)
+        if (days.isEmpty()) return null
+        val db = AppDatabaseProvider.get(context)
+        val totals = LongArray(TWO_HOUR_SLOT_COUNT)
+        for (d in days) {
+            val row = db.getTimeSegmentForDay(d, packageName) ?: return null
+            for (i in 0 until TWO_HOUR_SLOT_COUNT) totals[i] += row[i]
+        }
+        val daysCount = inclusiveLocalDayCount(startMs, endMs).coerceAtLeast(1)
+        val avgMs = LongArray(TWO_HOUR_SLOT_COUNT) { i -> totals[i] / daysCount }
+        return mapAveragesToRankTones(avgMs)
+    }
 
     /**
      * @return 권한 없음 → null, 그 외 항상 길이 12; 전 구간 0이면 전부 MUTED. [endMs] ≤ [startMs]이면 전부 MUTED.

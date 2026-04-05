@@ -71,6 +71,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.aptox.app.usage.UsageStatsLocalRepository
 
 /** 통계 카드 도움말 바텀시트 타입 (Figma 932-8989, 932-8868, 932-8974) */
 private enum class StatsHelpType(val title: String, val body: String) {
@@ -1493,6 +1494,7 @@ private fun StatsStackedBarAndAppList(
         }
     }
     var appList by remember { mutableStateOf<List<StatisticsData.StatsAppItem>>(emptyList()) }
+    var categoryTotalsFromDb by remember { mutableStateOf<Map<String, Long>?>(null) }
     var selectedCategory by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(tabEnum, weekOffset, monthOffset, yearOffset) {
@@ -1503,16 +1505,31 @@ private fun StatsStackedBarAndAppList(
             else -> 0L to 0L
         }
         statisticsViewModel.syncCategoryStatsPeriod(tabEnum, weekOffset, monthOffset, yearOffset)
+        val localRepo = UsageStatsLocalRepository(context)
+        val startDate = UsageStatsLocalRepository.msToYyyyMmDd(startMs)
+        val endDate = UsageStatsLocalRepository.msToYyyyMmDd(endMs)
+        categoryTotalsFromDb = withContext(Dispatchers.IO) {
+            if (localRepo.hasCategoryDataForDateRangeBlocking(startDate, endDate)) {
+                localRepo.getCategoryTotalsForDateRangeBlocking(startDate, endDate)
+            } else {
+                null
+            }
+        }
         appList = withContext(Dispatchers.IO) {
             StatisticsData.loadAppUsageForAllowedCategories(context, startMs, endMs)
         }
     }
 
-    val segments = remember(appList) {
-        val usageByCategory = appList
-            .filter { it.categoryTag != null }
-            .groupBy { it.categoryTag!! }
-            .mapValues { (_, apps) -> apps.sumOf { it.usageMs } }
+    val segments = remember(appList, categoryTotalsFromDb) {
+        val dbTotals = categoryTotalsFromDb
+        val usageByCategory = if (dbTotals != null && dbTotals.values.sum() > 0L) {
+            dbTotals
+        } else {
+            appList
+                .filter { it.categoryTag != null }
+                .groupBy { it.categoryTag!! }
+                .mapValues { (_, apps) -> apps.sumOf { it.usageMs } }
+        }
         val total = usageByCategory.values.sum()
         if (total == 0L) emptyList()
         else {

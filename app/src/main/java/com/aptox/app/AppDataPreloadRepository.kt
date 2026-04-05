@@ -5,12 +5,13 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import com.aptox.app.usage.AppDatabaseProvider
-import com.aptox.app.usage.DailyUsageEntity
 import com.aptox.app.usage.DailyUsageFirestoreRepository
+import com.aptox.app.usage.StatisticsBackupFirestoreRepository
+import com.aptox.app.usage.UsageStatsDateUtils
+import com.aptox.app.usage.UsageStatsDaySyncUtils
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.Calendar
 
 /**
  * 자가테스트 로딩 화면에서 실행하는 설치된 앱·스크린타임·AI 카테고리 캐싱.
@@ -64,18 +65,28 @@ class AppDataPreloadRepository(private val context: Context) {
         val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? android.app.usage.UsageStatsManager
             ?: return@withContext
         val db = AppDatabaseProvider.get(context)
-        val pm = context.packageManager
-        val userPackages = getUserInstalledPackages(pm)
+        val userPackages = UsageStatsDaySyncUtils.getUserInstalledPackages(context)
+        val uid = FirebaseAuth.getInstance().currentUser?.uid
+        val statsRepo = StatisticsBackupFirestoreRepository()
 
         for (daysAgo in 1..7) {
-            val dateStr = daysAgoToYyyyMmDd(daysAgo)
-            val (startMs, endMs) = yyyyMmDdToRange(dateStr)
-            val entities = aggregateFromEvents(usm, startMs, endMs, userPackages, dateStr)
-            if (entities.isNotEmpty()) {
-                db.insertAll(entities)
-                FirebaseAuth.getInstance().currentUser?.uid?.let { uid ->
-                    runCatching { DailyUsageFirestoreRepository().uploadDailyUsage(uid, entities) }
-                }
+            val dateStr = UsageStatsDateUtils.daysAgoToYyyyMmDd(daysAgo)
+            val (startMs, endMs) = UsageStatsDateUtils.yyyyMmDdToRange(dateStr)
+            val entities = UsageStatsDaySyncUtils.aggregateDailyUsageFromEvents(
+                usm, startMs, endMs, userPackages, dateStr,
+            )
+            if (entities.isEmpty()) continue
+            db.insertAll(entities)
+            val categoryRows = UsageStatsDaySyncUtils.buildCategoryStatsForDay(context, entities)
+            db.replaceCategoryStatsForDay(dateStr, categoryRows)
+            val segmentRows = UsageStatsDaySyncUtils.aggregateTimeSegmentSlotsFromEvents(
+                usm, startMs, endMs, userPackages, dateStr,
+            )
+            db.replaceTimeSegmentsForDay(dateStr, segmentRows)
+            uid?.let { userId ->
+                runCatching { DailyUsageFirestoreRepository().uploadDailyUsage(userId, entities) }
+                runCatching { statsRepo.uploadCategoryStatsForDay(userId, categoryRows) }
+                runCatching { statsRepo.uploadTimeSegmentsForDay(userId, segmentRows) }
             }
         }
     }
@@ -136,74 +147,4 @@ class AppDataPreloadRepository(private val context: Context) {
         return 1f
     }
 
-    private fun getUserInstalledPackages(pm: PackageManager): Set<String> {
-        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val resolves = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            pm.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong()))
-        } else {
-            @Suppress("DEPRECATION")
-            pm.queryIntentActivities(intent, PackageManager.MATCH_ALL)
-        }
-        return resolves.map { it.activityInfo.packageName }.toSet()
-    }
-
-    private fun aggregateFromEvents(
-        usm: android.app.usage.UsageStatsManager,
-        startMs: Long,
-        endMs: Long,
-        userPackages: Set<String>,
-        dateStr: String,
-    ): List<DailyUsageEntity> {
-        val events = usm.queryEvents(startMs, endMs) ?: return emptyList()
-        val usageMs = mutableMapOf<String, Long>()
-        val sessionCounts = mutableMapOf<String, Int>()
-        val sessionStarts = mutableMapOf<String, Long>()
-        val event = android.app.usage.UsageEvents.Event()
-        while (events.hasNextEvent()) {
-            events.getNextEvent(event)
-            if (event.packageName !in userPackages) continue
-            @Suppress("DEPRECATION")
-            when (event.eventType) {
-                android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND -> {
-                    sessionStarts[event.packageName] = event.timeStamp
-                    sessionCounts[event.packageName] = (sessionCounts[event.packageName] ?: 0) + 1
-                }
-                android.app.usage.UsageEvents.Event.MOVE_TO_BACKGROUND -> {
-                    val start = sessionStarts.remove(event.packageName) ?: continue
-                    val duration = (event.timeStamp - start).coerceAtLeast(0)
-                    usageMs[event.packageName] = (usageMs[event.packageName] ?: 0) + duration
-                }
-                else -> {}
-            }
-        }
-        return usageMs.map { (pkg, ms) ->
-            DailyUsageEntity(
-                date = dateStr,
-                packageName = pkg,
-                usageMs = ms,
-                sessionCount = sessionCounts[pkg] ?: 0,
-            )
-        }
-    }
-
-    private fun daysAgoToYyyyMmDd(daysAgo: Int): String {
-        val cal = Calendar.getInstance()
-        cal.add(Calendar.DAY_OF_YEAR, -daysAgo)
-        return String.format("%04d%02d%02d", cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH))
-    }
-
-    private fun yyyyMmDdToRange(dateStr: String): Pair<Long, Long> {
-        val cal = Calendar.getInstance()
-        val year = dateStr.substring(0, 4).toInt()
-        val month = dateStr.substring(4, 6).toInt() - 1
-        val day = dateStr.substring(6, 8).toInt()
-        cal.set(year, month, day, 0, 0, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        val startMs = cal.timeInMillis
-        cal.set(Calendar.HOUR_OF_DAY, 23)
-        cal.set(Calendar.MINUTE, 59)
-        cal.set(Calendar.SECOND, 59)
-        cal.set(Calendar.MILLISECOND, 999)
-        return Pair(startMs, cal.timeInMillis)
-    }
 }

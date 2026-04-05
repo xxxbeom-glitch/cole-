@@ -167,6 +167,36 @@ class AuthRepository(
         Log.d(TAG, "구글 Firebase 로그인 성공: uid=${user.uid}")
     }
 
+    /**
+     * 탈퇴 등 민감 작업 전 Firebase가 요구하는 최근 인증 충족용.
+     * 기존에 연결된 Google 계정으로 Credential Manager에서 ID 토큰을 다시 받아 [FirebaseUser.reauthenticate]만 수행한다.
+     */
+    suspend fun reauthenticateWithGoogle(context: Context): Result<Unit> = runCatching {
+        val user = auth.currentUser ?: throw IllegalStateException("로그인된 사용자가 없습니다")
+
+        val googleIdOption = GetGoogleIdOption.Builder()
+            .setFilterByAuthorizedAccounts(true)
+            .setServerClientId("200339538980-dcns3vafkransdp86o3sd74n1ontbb1j.apps.googleusercontent.com")
+            .build()
+
+        val request = GetCredentialRequest.Builder()
+            .addCredentialOption(googleIdOption)
+            .build()
+
+        val credentialManager = CredentialManager.create(context)
+        val credentialResponse = try {
+            credentialManager.getCredential(context = context, request = request)
+        } catch (e: GetCredentialCancellationException) {
+            throw IllegalStateException("구글 재인증이 취소되었습니다.", e)
+        }
+
+        val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credentialResponse.credential.data)
+        val idToken = googleIdTokenCredential.idToken
+        val firebaseCredential = GoogleAuthProvider.getCredential(idToken, null)
+        user.reauthenticate(firebaseCredential).await()
+        Log.d(TAG, "구글 재인증 성공: uid=${user.uid}")
+    }
+
     companion object {
         private const val TAG = "AuthRepository"
     }

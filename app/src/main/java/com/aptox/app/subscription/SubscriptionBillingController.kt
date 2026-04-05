@@ -1,8 +1,15 @@
 package com.aptox.app.subscription
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.app.Application
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import com.aptox.app.MainActivity
 import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
@@ -18,6 +25,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import java.lang.ref.WeakReference
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
@@ -42,10 +50,31 @@ object SubscriptionBillingController {
     @Volatile
     private var pendingLaunchBasePlanId: String? = null
 
+    /** 결제 플로우를 연 Activity — 완료 다이얼로그 표시용 */
+    private var billingFlowActivityRef: WeakReference<Activity>? = null
+
+    /** [launchSubscriptionFlow] 직후 true → Play 쿼리로 유효 구독 확인 후 완료 다이얼로그 1회 */
+    @Volatile
+    private var pendingShowSubscriptionCompleteDialog: Boolean = false
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     private val purchasesUpdatedListener = PurchasesUpdatedListener { result, purchases ->
         when (result.responseCode) {
-            BillingClient.BillingResponseCode.USER_CANCELED -> pendingLaunchBasePlanId = null
-            BillingClient.BillingResponseCode.OK -> purchases?.forEach { handlePurchase(it) }
+            BillingClient.BillingResponseCode.USER_CANCELED -> {
+                pendingLaunchBasePlanId = null
+                pendingShowSubscriptionCompleteDialog = false
+            }
+            BillingClient.BillingResponseCode.OK -> {
+                val premiumPurchased = purchases.orEmpty().filter {
+                    isPremiumPurchase(it) && it.purchaseState == Purchase.PurchaseState.PURCHASED
+                }
+                if (premiumPurchased.isEmpty()) {
+                    queryPurchasesFromPlayAndApply(showCompleteDialogIfPending = true)
+                } else {
+                    acknowledgePurchasesThenQueryFromPlay(premiumPurchased)
+                }
+            }
             else -> Log.w(TAG, "onPurchasesUpdated: ${result.responseCode} ${result.debugMessage}")
         }
     }
@@ -120,8 +149,16 @@ object SubscriptionBillingController {
             ?.offerToken
     }
 
-    /** 앱 시작·연결 후 활성 구독을 DataStore에 반영 */
+    /** 앱 시작·연결 후 Play 서버 조회로 활성 구독을 DataStore·[SubscriptionManager]에 반영 */
     fun syncPurchasesToPremiumFlag() {
+        queryPurchasesFromPlayAndApply(showCompleteDialogIfPending = false)
+    }
+
+    /**
+     * Google Play Billing `queryPurchasesAsync` 결과를 단일 진실로 삼아 로컬 프리미엄 상태를 갱신합니다.
+     * @param showCompleteDialogIfPending 결제 플로우 직후이면 유효 구독일 때 완료 다이얼로그 표시
+     */
+    private fun queryPurchasesFromPlayAndApply(showCompleteDialogIfPending: Boolean) {
         val client = clientOrNull() ?: return
         val params = QueryPurchasesParams.newBuilder()
             .setProductType(BillingClient.ProductType.SUBS)
@@ -129,22 +166,64 @@ object SubscriptionBillingController {
         client.queryPurchasesAsync(params) { result, purchases ->
             if (result.responseCode != BillingClient.BillingResponseCode.OK) {
                 Log.w(TAG, "queryPurchasesAsync: ${result.responseCode} ${result.debugMessage}")
+                if (showCompleteDialogIfPending) {
+                    mainHandler.post { maybeShowSubscriptionCompleteDialog(false) }
+                }
                 return@queryPurchasesAsync
             }
-            val premiumPurchases = purchases.filter { isPremiumPurchase(it) }
-            val active = premiumPurchases.isNotEmpty()
-            val primary = premiumPurchases.maxByOrNull { parseExpiryEpochMillis(it) }
-            appScope?.launch(Dispatchers.IO) {
-                PremiumStatusRepository.setSubscribed(appContext, active)
-                if (active && primary != null) {
-                    PremiumStatusRepository.setSubscriptionDetails(
-                        appContext,
-                        parseExpiryEpochMillis(primary),
-                        primary.isAutoRenewing,
-                        parseBasePlanId(primary),
-                    )
-                }
+            val list = purchases.orEmpty()
+            applyPremiumStateFromPlayPurchases(list)
+            if (showCompleteDialogIfPending) {
+                val active = list.any { isPremiumPurchase(it) }
+                mainHandler.post { maybeShowSubscriptionCompleteDialog(active) }
             }
+        }
+    }
+
+    private fun acknowledgePurchasesThenQueryFromPlay(purchases: List<Purchase>) {
+        val client = clientOrNull() ?: return
+        fun step(index: Int) {
+            if (index >= purchases.size) {
+                queryPurchasesFromPlayAndApply(showCompleteDialogIfPending = true)
+                return
+            }
+            val p = purchases[index]
+            if (!p.isAcknowledged) {
+                val acknowledgeParams = AcknowledgePurchaseParams.newBuilder()
+                    .setPurchaseToken(p.purchaseToken)
+                    .build()
+                client.acknowledgePurchase(acknowledgeParams) { ackResult ->
+                    if (ackResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                        step(index + 1)
+                    } else {
+                        Log.e(TAG, "acknowledgePurchase failed: ${ackResult.responseCode} ${ackResult.debugMessage}")
+                        pendingShowSubscriptionCompleteDialog = false
+                        queryPurchasesFromPlayAndApply(showCompleteDialogIfPending = false)
+                    }
+                }
+            } else {
+                step(index + 1)
+            }
+        }
+        step(0)
+    }
+
+    private fun applyPremiumStateFromPlayPurchases(purchases: List<Purchase>) {
+        val premiumPurchases = purchases.filter { isPremiumPurchase(it) }
+        val active = premiumPurchases.isNotEmpty()
+        val primary = premiumPurchases.maxByOrNull { parseExpiryEpochMillis(it) }
+        appScope?.launch(Dispatchers.IO) {
+            PremiumStatusRepository.setSubscribed(appContext, active)
+            if (active && primary != null) {
+                val plan = parseBasePlanId(primary) ?: basePlanIdToStoreForPurchase(primary)
+                PremiumStatusRepository.setSubscriptionDetails(
+                    appContext,
+                    parseExpiryEpochMillis(primary),
+                    primary.isAutoRenewing,
+                    plan,
+                )
+            }
+            SubscriptionManager.setSubscribedFromDataStore(active)
         }
     }
 
@@ -222,38 +301,34 @@ object SubscriptionBillingController {
         }
     }
 
-    private fun persistPremiumFromPurchase(purchase: Purchase) {
-        appScope?.launch(Dispatchers.IO) {
-            PremiumStatusRepository.setSubscribed(appContext, true)
-            PremiumStatusRepository.setSubscriptionDetails(
-                appContext,
-                parseExpiryEpochMillis(purchase),
-                purchase.isAutoRenewing,
-                basePlanIdToStoreForPurchase(purchase),
-            )
-        }
+    private fun maybeShowSubscriptionCompleteDialog(playReportsActiveSubscription: Boolean) {
+        if (!pendingShowSubscriptionCompleteDialog) return
+        pendingShowSubscriptionCompleteDialog = false
+        if (!playReportsActiveSubscription) return
+        val act = billingFlowActivityRef?.get() ?: return
+        AlertDialog.Builder(act)
+            .setTitle("구독이 완료되었습니다")
+            .setPositiveButton("확인") { _, _ ->
+                val intent = Intent(act, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                }
+                act.startActivity(intent)
+            }
+            .setCancelable(false)
+            .show()
     }
 
-    private fun handlePurchase(purchase: Purchase) {
-        if (!isPremiumPurchase(purchase)) return
-        if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) return
-
-        val client = clientOrNull() ?: return
-        if (!purchase.isAcknowledged) {
-            val acknowledgeParams = AcknowledgePurchaseParams.newBuilder()
-                .setPurchaseToken(purchase.purchaseToken)
-                .build()
-            client.acknowledgePurchase(acknowledgeParams) { result ->
-                if (result.responseCode == BillingClient.BillingResponseCode.OK) {
-                    persistPremiumFromPurchase(purchase)
-                    syncPurchasesToPremiumFlag()
-                } else {
-                    Log.e(TAG, "acknowledgePurchase failed: ${result.responseCode} ${result.debugMessage}")
-                }
-            }
-        } else {
-            persistPremiumFromPurchase(purchase)
+    /** Play 구독 관리(해지·결제수단) 화면 */
+    fun openPlaySubscriptionManagement(context: Context) {
+        val pkg = context.packageName
+        val uri = Uri.parse(
+            "https://play.google.com/store/account/subscriptions?package=$pkg&sku=$PRODUCT_ID",
+        )
+        val intent = Intent(Intent.ACTION_VIEW, uri)
+        if (context !is Activity) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
+        context.startActivity(intent)
     }
 
     fun launchSubscriptionFlow(activity: Activity, tier: SubscriptionPlanTier) {
@@ -305,7 +380,11 @@ object SubscriptionBillingController {
         val launchResult = client.launchBillingFlow(activity, flowParams)
         if (launchResult.responseCode != BillingClient.BillingResponseCode.OK) {
             pendingLaunchBasePlanId = null
+            pendingShowSubscriptionCompleteDialog = false
             Log.e(TAG, "launchBillingFlow failed: ${launchResult.responseCode} ${launchResult.debugMessage}")
+        } else {
+            billingFlowActivityRef = WeakReference(activity)
+            pendingShowSubscriptionCompleteDialog = true
         }
     }
 }

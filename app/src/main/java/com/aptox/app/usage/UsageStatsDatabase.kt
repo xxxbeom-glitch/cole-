@@ -4,32 +4,76 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
-import java.util.Calendar
 
 /**
- * 앱별 일별 사용량 저장. 기기 UsageStats ~7일 삭제 전 Worker가 저장.
+ * 앱별 일별 사용량 + 카테고리 일별 합산 + 앱별 12슬롯(2시간) 일별 합산.
  * Room 대신 SQLite 직접 사용 (KSP 호환 이슈 회피).
  */
 class UsageStatsDatabase(context: Context) : SQLiteOpenHelper(
     context,
     "aptox_usage.db",
     null,
-    1,
+    2,
 ) {
 
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("""
-            CREATE TABLE daily_usage (
+        createV1Tables(db)
+        createV2Tables(db)
+    }
+
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) {
+            createV2Tables(db)
+        }
+    }
+
+    private fun createV1Tables(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS daily_usage (
                 date TEXT NOT NULL,
                 packageName TEXT NOT NULL,
                 usageMs INTEGER NOT NULL,
                 sessionCount INTEGER NOT NULL,
                 PRIMARY KEY (date, packageName)
             )
-        """.trimIndent())
+            """.trimIndent(),
+        )
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+    private fun createV2Tables(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS category_daily (
+                date TEXT NOT NULL,
+                category TEXT NOT NULL,
+                usageMs INTEGER NOT NULL,
+                PRIMARY KEY (date, category)
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS time_segment_daily (
+                date TEXT NOT NULL,
+                packageName TEXT NOT NULL,
+                s0 INTEGER NOT NULL,
+                s1 INTEGER NOT NULL,
+                s2 INTEGER NOT NULL,
+                s3 INTEGER NOT NULL,
+                s4 INTEGER NOT NULL,
+                s5 INTEGER NOT NULL,
+                s6 INTEGER NOT NULL,
+                s7 INTEGER NOT NULL,
+                s8 INTEGER NOT NULL,
+                s9 INTEGER NOT NULL,
+                s10 INTEGER NOT NULL,
+                s11 INTEGER NOT NULL,
+                PRIMARY KEY (date, packageName)
+            )
+            """.trimIndent(),
+        )
+    }
 
     fun insertAll(entities: List<DailyUsageEntity>) {
         val db = writableDatabase
@@ -42,7 +86,7 @@ class UsageStatsDatabase(context: Context) : SQLiteOpenHelper(
                     put("usageMs", e.usageMs)
                     put("sessionCount", e.sessionCount)
                 }
-                db.insertWithOnConflict("daily_usage", null, cv, SQLiteDatabase.CONFLICT_REPLACE) // 같은 날짜·앱 중복 upsert 방지
+                db.insertWithOnConflict("daily_usage", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
             }
             db.setTransactionSuccessful()
         } finally {
@@ -70,7 +114,7 @@ class UsageStatsDatabase(context: Context) : SQLiteOpenHelper(
                         packageName = it.getString(1),
                         usageMs = it.getLong(2),
                         sessionCount = it.getInt(3),
-                    )
+                    ),
                 )
             }
         }
@@ -91,7 +135,6 @@ class UsageStatsDatabase(context: Context) : SQLiteOpenHelper(
         }
     }
 
-    /** 앱 첫 사용일(가장 오래된 레코드의 date). YYYYMMDD 형식, 데이터 없으면 null */
     fun getEarliestDate(): String? {
         return try {
             readableDatabase.rawQuery("SELECT MIN(date) FROM daily_usage", null).use { cursor ->
@@ -102,7 +145,6 @@ class UsageStatsDatabase(context: Context) : SQLiteOpenHelper(
         }
     }
 
-    /** 사용 기록이 존재하는 서로 다른 날짜 수 (연속 아님, 누적). 데이터 없으면 0 */
     fun getDistinctDateCount(): Int {
         return try {
             readableDatabase.rawQuery("SELECT COUNT(DISTINCT date) FROM daily_usage", null).use { cursor ->
@@ -111,5 +153,137 @@ class UsageStatsDatabase(context: Context) : SQLiteOpenHelper(
         } catch (e: Exception) {
             0
         }
+    }
+
+    fun replaceCategoryStatsForDay(date: String, rows: List<DailyCategoryStatEntity>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.delete("category_daily", "date = ?", arrayOf(date))
+            for (r in rows) {
+                val cv = ContentValues().apply {
+                    put("date", r.date)
+                    put("category", r.category)
+                    put("usageMs", r.usageMs)
+                }
+                db.insert("category_daily", null, cv)
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    fun replaceTimeSegmentsForDay(date: String, rows: List<DailyTimeSegmentEntity>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.delete("time_segment_daily", "date = ?", arrayOf(date))
+            for (r in rows) {
+                val cv = ContentValues().apply {
+                    put("date", r.date)
+                    put("packageName", r.packageName)
+                    for (i in 0 until SLOT_COUNT) {
+                        put("s$i", r.slotMs[i])
+                    }
+                }
+                db.insert("time_segment_daily", null, cv)
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** [startDate]~[endDate] inclusive, 카테고리별 usageMs 합계 */
+    fun getCategoryTotalsForDateRange(startDate: String, endDate: String): Map<String, Long> {
+        val db = readableDatabase
+        val q =
+            """
+            SELECT category, SUM(usageMs) FROM category_daily
+            WHERE date >= ? AND date <= ?
+            GROUP BY category
+            """.trimIndent()
+        db.rawQuery(q, arrayOf(startDate, endDate)).use { c ->
+            val m = mutableMapOf<String, Long>()
+            while (c.moveToNext()) {
+                m[c.getString(0)] = c.getLong(1)
+            }
+            return m
+        }
+    }
+
+    fun getTimeSegmentForDay(date: String, packageName: String): LongArray? {
+        readableDatabase.query(
+            "time_segment_daily",
+            arrayOf("s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11"),
+            "date = ? AND packageName = ?",
+            arrayOf(date, packageName),
+            null,
+            null,
+            null,
+        ).use { c ->
+            if (!c.moveToFirst()) return null
+            return LongArray(SLOT_COUNT) { i -> c.getLong(i) }
+        }
+    }
+
+    fun insertAllCategoryStats(rows: List<DailyCategoryStatEntity>) {
+        if (rows.isEmpty()) return
+        val byDate = rows.groupBy { it.date }
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for ((date, list) in byDate) {
+                db.delete("category_daily", "date = ?", arrayOf(date))
+                for (r in list) {
+                    val cv = ContentValues().apply {
+                        put("date", r.date)
+                        put("category", r.category)
+                        put("usageMs", r.usageMs)
+                    }
+                    db.insert("category_daily", null, cv)
+                }
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    fun insertAllTimeSegments(rows: List<DailyTimeSegmentEntity>) {
+        if (rows.isEmpty()) return
+        val byDate = rows.groupBy { it.date }
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for ((date, list) in byDate) {
+                db.delete("time_segment_daily", "date = ?", arrayOf(date))
+                for (r in list) {
+                    val cv = ContentValues().apply {
+                        put("date", r.date)
+                        put("packageName", r.packageName)
+                        for (i in 0 until SLOT_COUNT) {
+                            put("s$i", r.slotMs[i])
+                        }
+                    }
+                    db.insert("time_segment_daily", null, cv)
+                }
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    fun hasCategoryDataForDateRange(startDate: String, endDate: String): Boolean {
+        readableDatabase.rawQuery(
+            "SELECT 1 FROM category_daily WHERE date >= ? AND date <= ? LIMIT 1",
+            arrayOf(startDate, endDate),
+        ).use { return it.moveToFirst() }
+    }
+
+    companion object {
+        private const val SLOT_COUNT = 12
     }
 }

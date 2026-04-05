@@ -39,6 +39,13 @@ object SubscriptionManager {
     }
 
     /**
+     * 설정 > 구독관리 진입·해당 화면에서 "구독 중" UI를 쓸지.
+     * Play/DataStore에 구독 기록이 있으면 [PREMIUM_OFFERING_LIVE]와 무관하게 true (실결제 사용자는 관리 화면으로 보냄).
+     */
+    fun hasActiveSubscriptionForManagement(storePremium: Boolean, context: Context): Boolean =
+        storePremium || isSubscribedWithStore(storePremium, context)
+
+    /**
      * 현재 구독 상태 (기능 게이트)
      * - [PREMIUM_OFFERING_LIVE]가 false면 (디버그 강제 제외) 항상 미구독
      * - DEBUG + [debugForceSubscribed]: true

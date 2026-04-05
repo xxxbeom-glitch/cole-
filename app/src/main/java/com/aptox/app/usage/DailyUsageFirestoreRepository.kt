@@ -12,6 +12,9 @@ import kotlinx.coroutines.withContext
  * 일별 사용량 Firestore 백업/복원.
  * - users/{userId}/dailyUsage/{date} (date: yyyy-MM-dd)
  * - 문서 필드: items = [{ packageName, usageMs, sessionCount }, ...]
+ *
+ * [restoreIfLocalEmpty]는 이어서 [StatisticsBackupFirestoreRepository]로
+ * categoryStats·timeSegments 로컬 복원을 수행합니다.
  */
 class DailyUsageFirestoreRepository(
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
@@ -65,6 +68,9 @@ class DailyUsageFirestoreRepository(
         val db = AppDatabaseProvider.get(context)
         if (db.getEarliestDate() != null) return@withContext // 이미 데이터 있음
         restoreFromFirestore(uid, context)
+        val statsRepo = StatisticsBackupFirestoreRepository()
+        statsRepo.restoreCategoryStats(uid, context)
+        statsRepo.restoreTimeSegments(uid, context)
     }
 
     private fun yyyyMmDdToYyyyMmDd(yyyyMmDd: String): String {

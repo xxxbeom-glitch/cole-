@@ -642,3 +642,28 @@ exports.submitBugReport = functions.https.onCall(async (data, context) => {
 
   return { success: true, id: docRef.id };
 });
+
+/**
+ * 로그인한 사용자 본인 계정 삭제 (Admin SDK)
+ * 클라이언트는 이 호출 성공 후 Firestore users/{uid} 정리 및 로컬 초기화를 진행한다.
+ */
+exports.deleteAccount = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "로그인이 필요합니다.");
+  }
+  const uid = context.auth.uid;
+  try {
+    await admin.auth().deleteUser(uid);
+    return { success: true };
+  } catch (e) {
+    const code = e?.code || e?.errorInfo?.code || "";
+    if (code === "auth/user-not-found") {
+      return { success: true };
+    }
+    console.error("deleteAccount error:", code, e?.message || e);
+    throw new functions.https.HttpsError(
+      "internal",
+      "계정 삭제에 실패했습니다. 잠시 후 다시 시도해주세요."
+    );
+  }
+});

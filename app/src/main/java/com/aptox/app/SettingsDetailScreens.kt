@@ -471,8 +471,10 @@ fun SubscriptionManageScreen(
                 basePlanId = null,
             ),
         )
-    val subscribed =
-        SubscriptionManager.isSubscribedWithStore(premiumFromStore, context.applicationContext)
+    val showSubscribedPlan = SubscriptionManager.hasActiveSubscriptionForManagement(
+        premiumFromStore,
+        context.applicationContext,
+    )
 
     Column(
         modifier = Modifier
@@ -485,19 +487,19 @@ fun SubscriptionManageScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         when {
-            !SubscriptionManager.PREMIUM_OFFERING_LIVE -> {
-                SubscriptionManageFreePlanSection(
-                    onOpenPremiumOffer = onOpenPremiumOffer,
-                    preLaunchCopy = true,
-                )
-            }
-            subscribed -> {
+            showSubscribedPlan -> {
                 SubscriptionManageSubscribedPlanSection(
                     renewalOrExpiryLine = SubscriptionRenewalMessage.renewalOrExpiryLine(
                         premiumSnapshot.expiryEpochMillis,
                         premiumSnapshot.autoRenewing,
                     ),
                     basePlanId = premiumSnapshot.basePlanId,
+                )
+            }
+            !SubscriptionManager.PREMIUM_OFFERING_LIVE -> {
+                SubscriptionManageFreePlanSection(
+                    onOpenPremiumOffer = onOpenPremiumOffer,
+                    preLaunchCopy = true,
                 )
             }
             else -> {
@@ -556,49 +558,39 @@ private fun SubscriptionManageFreePlanSection(
     }
 }
 
-/** 유료 구독 중 — [SubscriptionManager.PREMIUM_OFFERING_LIVE]가 true일 때만 노출 */
+/**
+ * 유료 구독 중 — Figma 1629-5489(월간), 642-4630(연간) `04_3_1_설정_구독관리`
+ * 카드 px16·py26·12dp 라운드, 안내는 Disclaimer 13/20 + ic_disclaimer_info 18
+ */
 @Composable
 private fun SubscriptionManageSubscribedPlanSection(
     renewalOrExpiryLine: String,
     basePlanId: String?,
 ) {
     val isMonthly = basePlanId == SubscriptionBillingController.BASE_PLAN_MONTHLY
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (isMonthly) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(AppColors.SurfaceBackgroundCard)
-                    .padding(horizontal = 18.dp, vertical = 22.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(AppColors.SurfaceBackgroundCard)
+                .padding(horizontal = 16.dp, vertical = 26.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            if (isMonthly) {
                 Text(
                     text = "월간 구독",
                     style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary),
                 )
                 Text(
                     text = "₩3,900",
-                    style = AppTypography.HeadingH1.copy(
-                        fontSize = 24.sp,
-                        lineHeight = 32.sp,
-                        color = AppColors.TextPrimary,
-                    ),
+                    style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
                 )
-            }
-        } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(AppColors.SurfaceBackgroundCard)
-                    .padding(horizontal = 18.dp, vertical = 22.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            } else {
                 Text(
                     text = "연간 구독",
-                    style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
+                    style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary),
                     modifier = Modifier.weight(1f),
                 )
                 Column(horizontalAlignment = Alignment.End) {
@@ -608,20 +600,22 @@ private fun SubscriptionManageSubscribedPlanSection(
                     )
                     Text(
                         text = "월 환산 ₩3,900",
-                        style = AppTypography.Caption2.copy(color = AppColors.TextSecondary),
+                        style = AppTypography.Caption2.copy(color = AppColors.TextTertiary),
                     )
                 }
             }
         }
+        Spacer(modifier = Modifier.height(20.dp))
         Row(
-            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.padding(horizontal = 2.dp),
         ) {
-            IcoDisclaimerInfo(size = 14.dp, tint = AppColors.TextCaption)
+            IcoDisclaimerInfo(size = 18.dp, tint = AppColors.TextDisclaimer)
             Text(
                 text = renewalOrExpiryLine,
-                style = AppTypography.Caption2.copy(color = AppColors.TextCaption),
+                style = AppTypography.Disclaimer.copy(color = AppColors.TextDisclaimer),
+                modifier = Modifier.weight(1f),
             )
         }
     }

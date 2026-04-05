@@ -127,7 +127,7 @@ class StatisticsViewModel(
             0L
         }
 
-        val segmentTones = AppDetailTimeSegmentRepository.computeRankTonesForPackage(
+        val segmentTones = AppDetailTimeSegmentRepository.computeRankTonesForPackageWithLocalFallback(
             context = context,
             packageName = packageName,
             startMs = startMs,

@@ -1100,7 +1100,7 @@ private sealed class SettingsDetail(val title: String) {
     data object AppCategoryEdit : SettingsDetail("앱 카테고리 수정")
     data object AppRestrictionHistory : SettingsDetail("앱 사용제한 기록")
     data class AppRestrictionHistoryDetail(val packageName: String, val appName: String) : SettingsDetail(appName)
-    data object Subscription : SettingsDetail("구독관리")
+    data object Subscription : SettingsDetail("구독 관리")
     data object Notification : SettingsDetail("알림")
     data object Permission : SettingsDetail("권한설정")
     data object Withdraw : SettingsDetail("탈퇴하기")
@@ -1945,7 +1945,9 @@ fun MainFlowHost(
                                     userId = firebaseAuthUid,
                                     onBack = { settingsDetail = SettingsDetail.AppRestrictionHistory },
                                 )
-                                SettingsDetail.Subscription -> SubscriptionManageScreen()
+                                SettingsDetail.Subscription -> SubscriptionManageScreen(
+                                    onOpenPremiumOffer = { showSubscriptionBottomSheet = true },
+                                )
                                 SettingsDetail.Notification -> NotificationSettingsScreen(
                                     onBack = { settingsDetail = null },
                                 )
@@ -2013,18 +2015,22 @@ fun MainFlowHost(
                                         }
                                     },
                                 )
-                                SettingsDetail.Withdraw -> WithdrawConfirmScreen(
-                                    onConfirmWithdraw = {
-                                        settingsDetail = null
-                                        // TODO: 실제 탈퇴 API 호출 후 로그아웃 등 처리
-                                    },
-                                )
+                                SettingsDetail.Withdraw -> {
+                                    val withdrawActivity = context.findActivity() as? ComponentActivity
+                                    WithdrawConfirmScreen(
+                                        onConfirmWithdraw = {
+                                            withdrawActivity?.let {
+                                                AccountWithdrawalHelper.startWithdrawalFlow(it)
+                                            }
+                                        },
+                                    )
+                                }
                                 null -> MyPageScreen(
                                     onAccountManageClick = { settingsDetail = SettingsDetail.AccountManage },
                                     onAppCategoryEditClick = { settingsDetail = SettingsDetail.AppCategoryEdit },
                                     onAppRestrictionHistoryClick = { settingsDetail = SettingsDetail.AppRestrictionHistory },
                                     onSubscriptionManageClick = {
-                                        if (SubscriptionManager.isSubscribedWithStore(
+                                        if (SubscriptionManager.hasActiveSubscriptionForManagement(
                                                 premiumFromStore,
                                                 context.applicationContext,
                                             )

@@ -61,6 +61,13 @@ class UsageStatsLocalRepository(private val context: Context) {
         }
     }
 
+    /** 일별 백업된 카테고리 합산(ms). 통계 카드 도넛용. */
+    fun getCategoryTotalsForDateRangeBlocking(startDate: String, endDate: String): Map<String, Long> =
+        db.getCategoryTotalsForDateRange(startDate, endDate)
+
+    fun hasCategoryDataForDateRangeBlocking(startDate: String, endDate: String): Boolean =
+        db.hasCategoryDataForDateRange(startDate, endDate)
+
     fun hasDataForDateBlocking(date: String): Boolean = db.hasDataForDate(date)
 
     /** 사용 기록이 존재하는 서로 다른 날짜 수 (연속 아님, 누적). 7일치 주간통계 진입 조건용 */

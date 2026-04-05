@@ -416,7 +416,7 @@ fun AppIconBox(
         modifier = modifier
             .size(size)
             .clip(maskShape)
-            .border(AppIconBorderWidth, AppIconBorderColor, maskShape),
+            .then(if (!force6dpClip) Modifier.border(AppIconBorderWidth, AppIconBorderColor, maskShape) else Modifier),
     ) {
         Icon(
             painter = appIcon,
@@ -474,6 +474,11 @@ fun IcoAppLabel(
             .clip(RoundedCornerShape(6.dp))
             .background(AppColors.TextDisabled),
     ) {
+        LabelDanger(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(top = 4.dp, start = 4.dp),
+        )
         Icon(
             painter = painterResource(id = R.drawable.ic_lock_app),
             contentDescription = "잠금",

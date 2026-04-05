@@ -67,7 +67,7 @@ fun MyPageScreen(
                 MyPageDivider()
                 MyPageRowItem(
                     iconResId = R.drawable.ic_settings_subscription_manage,
-                    label = "구독관리",
+                    label = "구독 관리",
                     onClick = onSubscriptionManageClick,
                 )
             }
