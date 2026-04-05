@@ -89,8 +89,8 @@ fun DebugHomeLayoutPreviewScreen(
     val filteredRestrictions = remember(restrictionTab, homeData) {
         val items = homeData?.restrictions ?: emptyList()
         when (restrictionTab) {
-            0 -> items.filter { it.restrictionType == RestrictionType.TIME_SPECIFIED }
-            else -> items.filter { it.restrictionType == RestrictionType.DAILY_USAGE }
+            0 -> items.filter { it.restrictionType == RestrictionType.DAILY_USAGE }
+            else -> items.filter { it.restrictionType == RestrictionType.TIME_SPECIFIED }
         }
     }
 
@@ -209,7 +209,7 @@ fun DebugHomeLayoutPreviewScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         HomeRestrictionTabChip(
-                            text = "시간 지정 제한",
+                            text = "하루 사용량 제한",
                             selected = restrictionTab == 0,
                             onClick = { restrictionTab = 0 },
                             modifier = Modifier
@@ -217,7 +217,7 @@ fun DebugHomeLayoutPreviewScreen(
                                 .fillMaxHeight(),
                         )
                         HomeRestrictionTabChip(
-                            text = "일일 사용량 제한",
+                            text = "지정 시간 제한",
                             selected = restrictionTab == 1,
                             onClick = { restrictionTab = 1 },
                             modifier = Modifier

@@ -56,6 +56,7 @@ object TimeSpecifiedRestrictionNotificationHelper {
         } else {
             "$appName 사용 제한이 해제됐습니다"
         }
+        // 제목 한 줄만 두어 BigText/2줄 템플릿 확장 화살표 유발 최소화 (액션 없음)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(null)

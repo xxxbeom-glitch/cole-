@@ -176,6 +176,8 @@ class AuthRepository(
         val uid: String,
         val displayText: String,
         val providerLabel: String,
+        /** 구글 등 이메일 로그인 시 원본(설정·계정관리 표시용) */
+        val email: String? = null,
     )
 
     /** 현재 로그인된 사용자 정보 (Firestore users에서 provider, nickname, email 조회) */
@@ -184,7 +186,7 @@ class AuthRepository(
         val doc = runCatching { firestore.collection("users").document(user.uid).get().await() }.getOrNull()
         val provider = doc?.getString("provider") ?: "계정"
         val nickname = doc?.getString("nickname")?.takeIf { it.isNotBlank() }
-        val email = doc?.getString("email")?.takeIf { it.isNotBlank() } ?: user.email
+        val email = doc?.getString("email")?.takeIf { it.isNotBlank() } ?: user.email?.takeIf { it.isNotBlank() }
         val displayText = (nickname ?: email ?: user.displayName)?.takeIf { it.isNotBlank() } ?: "로그인됨"
         val providerLabel = when (provider) {
             "kakao" -> "카카오"
@@ -192,7 +194,7 @@ class AuthRepository(
             "google" -> "구글"
             else -> provider
         }
-        CurrentUserInfo(uid = user.uid, displayText = displayText, providerLabel = providerLabel)
+        CurrentUserInfo(uid = user.uid, displayText = displayText, providerLabel = providerLabel, email = email)
     }.getOrNull()
 
     /** 로그아웃 */

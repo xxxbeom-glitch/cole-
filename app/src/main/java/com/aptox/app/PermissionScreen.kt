@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import android.Manifest
 import android.os.Build
+import android.os.PowerManager
 
 /**
  * 앱 사용정보·접근성 필수 권한이 모두 허용되었는지 (알림 등 선택 권한 제외).
@@ -58,6 +59,13 @@ fun android.content.Context.areRequiredAppPermissionsGranted(): Boolean {
     val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: ""
     val accessibilityGranted = enabled.contains(packageName)
     return usageGranted && accessibilityGranted
+}
+
+/** API 23 미만이거나 이미 예외인 경우 true */
+fun android.content.Context.isIgnoringBatteryOptimizations(): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+    val pm = getSystemService(android.content.Context.POWER_SERVICE) as PowerManager
+    return pm.isIgnoringBatteryOptimizations(packageName)
 }
 
 /**
@@ -88,6 +96,7 @@ fun PermissionScreen(
         val enabled = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: ""
         enabled.contains(context.packageName)
     }
+    val batteryOptimizationExempt = remember(refresh) { context.isIgnoringBatteryOptimizations() }
     val requiredOk = remember(refresh) { context.areRequiredAppPermissionsGranted() }
     val notificationGranted = remember(refresh) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -126,24 +135,44 @@ fun PermissionScreen(
             
             Spacer(modifier = Modifier.height(36.dp))
 
-            // 필수 권한 카드
+            // 필수 권한 카드 (배터리 예외는 권장 — 재부팅 후 모니터링 안정화)
             PermissionCard(
-                items = listOf(
-                    PermissionItem(
-                        iconResId = R.drawable.ic_perm_usage,
-                        title = "앱 사용정보 접근 (필수)",
-                        description = "앱별 사용 시간 측정과 사용 제한 기능 작동에 필요한 권한입니다",
-                        onSettingsClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) },
-                        isGranted = usageGranted,
-                    ),
-                    PermissionItem(
-                        iconResId = R.drawable.ic_perm_accessibility,
-                        title = "접근성 서비스 (필수)",
-                        description = "제한 중인 앱으로 이동할 때 사용 제한 화면을 표시하기 위해 필요합니다",
-                        onSettingsClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
-                        isGranted = accessibilityGranted,
-                    ),
-                ),
+                items = buildList {
+                    add(
+                        PermissionItem(
+                            iconResId = R.drawable.ic_perm_usage,
+                            title = "앱 사용정보 접근 (필수)",
+                            description = "앱별 사용 시간 측정과 사용 제한 기능 작동에 필요한 권한입니다",
+                            onSettingsClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) },
+                            isGranted = usageGranted,
+                        ),
+                    )
+                    add(
+                        PermissionItem(
+                            iconResId = R.drawable.ic_perm_accessibility,
+                            title = "접근성 서비스 (필수)",
+                            description = "제한 중인 앱으로 이동할 때 사용 제한 화면을 표시하기 위해 필요합니다",
+                            onSettingsClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
+                            isGranted = accessibilityGranted,
+                        ),
+                    )
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        add(
+                            PermissionItem(
+                                iconResId = R.drawable.ic_perm_battery,
+                                title = "배터리 최적화 예외 (권장)",
+                                description = "재부팅 후에도 앱 모니터링과 알림이 끊기지 않도록 배터리 절전에서 제외해 주세요",
+                                onSettingsClick = {
+                                    val i = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                        data = Uri.parse("package:${context.packageName}")
+                                    }
+                                    context.startActivity(i)
+                                },
+                                isGranted = batteryOptimizationExempt,
+                            ),
+                        )
+                    }
+                },
             )
 
             Spacer(modifier = Modifier.height(16.dp))

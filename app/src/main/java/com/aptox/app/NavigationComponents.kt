@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,7 +47,7 @@ data class NavDestination(
 // Figma: App Bar - 1~4 On
 // 80dp 영역, 아이콘 24dp / Caption1 12sp, 선택 시 Primary300 / 비선택 Grey400
 // 상단 모서리 둥글게 (bottom nav이므로 화면 하단에서 위쪽 모서리가 둥글게)
-// 하단 프리미엄 배너 42dp, #2b2b2b
+// 하단 프리미엄 배너 42dp, #2B2B2B (Figma App Bar - 1 On, node 405:5640)
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -97,16 +99,33 @@ fun AptoxBottomNavBar(
             }
         }
 
-        // 구독 유도 배너 — 유료 구독 플랜 없으므로 비활성화
-        // if (showPremiumBanner) {
-        //     Row(
-        //         modifier = Modifier
-        //             .fillMaxWidth()
-        //             .height(42.dp)
-        //             .background(Color(0xFF2B2B2B))
-        //             ...
-        //     ) { ... }
-        // }
+        if (showPremiumBanner && onPremiumClick != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(42.dp)
+                    .background(Color(0xFF2B2B2B))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onPremiumClick,
+                    )
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = premiumBannerText,
+                    style = AppTypography.ButtonSmall.copy(color = AppColors.TextInvert),
+                )
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = AppColors.TextInvert,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
     }
 }
 

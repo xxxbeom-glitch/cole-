@@ -162,6 +162,7 @@ sealed class DebugScreen(val category: String, val label: String) {
     data object AppLimitInfoBottomSheetDaily : DebugScreen("바텀시트", "AppLimitInfoBottomSheetDaily (일일 사용량 제한)")
     data object AppLimitInfoBottomSheetPaused : DebugScreen("바텀시트", "AppLimitInfoBottomSheetPaused (일시 정지 중)")
     data object AddAppAppCategoryBottomSheet : DebugScreen("바텀시트", "AddAppAppCategoryBottomSheet (앱의 종류 지정)")
+    data object SubscriptionBottomSheet : DebugScreen("바텀시트", "SubscriptionBottomSheet (구독 결제 진입)")
 
     // 앱 제한 일시정지 (UL)
     data object AppLimitPauseProposal : DebugScreen("앱 제한 일시정지", "UL-01: 제안")
@@ -396,6 +397,11 @@ private fun DebugScreenPreview(
                 initialCategory = "게임",
                 onDismissRequest = onSheetDismiss,
                 onPrimaryClick = { onSheetDismiss() },
+            )
+        }
+        DebugScreen.SubscriptionBottomSheet -> DebugBottomSheetPreview(onBack = onBack) { onSheetDismiss ->
+            SubscriptionBottomSheet(
+                onDismissRequest = onSheetDismiss,
             )
         }
         DebugScreen.Permission -> PermissionScreen(
@@ -792,6 +798,7 @@ private fun DebugScreenListSection(
             DebugScreen.AppLimitInfoBottomSheetDaily,
             DebugScreen.AppLimitInfoBottomSheetPaused,
             DebugScreen.AddAppAppCategoryBottomSheet,
+            DebugScreen.SubscriptionBottomSheet,
         ).forEach { screen ->
             Box(
                 modifier = Modifier
@@ -1018,6 +1025,7 @@ private fun DebugBottomSheetsContent(onBack: () -> Unit) {
                 DebugScreen.AppLimitInfoBottomSheetDaily,
                 DebugScreen.AppLimitInfoBottomSheetPaused,
                 DebugScreen.AddAppAppCategoryBottomSheet,
+                DebugScreen.SubscriptionBottomSheet,
                 DebugScreen.AppLimitPauseProposal,
                 DebugScreen.AppLimitPauseConfirm,
                 DebugScreen.AppLimitPauseComplete,

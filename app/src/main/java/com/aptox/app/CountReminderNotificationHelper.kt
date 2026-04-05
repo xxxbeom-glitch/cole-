@@ -30,13 +30,23 @@ object CountReminderNotificationHelper {
             context, (packageName.hashCode() and 0x7FFF) + 5000, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        val stopAction = NotificationCompat.Action.Builder(
+            android.R.drawable.ic_menu_close_clear_cancel,
+            "카운트 중지",
+            pi,
+        ).build()
+        val shortText = "$appName 카운트가 아직 진행 중이에요. 중지해주세요"
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle("카운트가 진행 중이에요 ⏱")
-            .setContentText("$appName 카운트가 아직 진행 중이에요. 중지해주세요")
+            .setContentText(shortText)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setAutoCancel(true)
             .setContentIntent(pi)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .addAction(stopAction)
+            .setStyle(
+                androidx.media.app.NotificationCompat.MediaStyle().setShowActionsInCompactView(0),
+            )
             .build()
         NotificationManagerCompat.from(context).notify((packageName.hashCode() and 0x7FFF) + 5000, notification)
     }

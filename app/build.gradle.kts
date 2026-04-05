@@ -88,6 +88,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     implementation(libs.androidx.core.ktx)
+    // 알림 접힘 상태에서 addAction 노출(MediaStyle.setShowActionsInCompactView)
+    implementation("androidx.media:media:1.7.0")
     implementation("androidx.core:core-splashscreen:1.0.1")
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")

@@ -1,5 +1,6 @@
 package com.aptox.app
 
+import android.app.AlertDialog
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.layout.padding
@@ -35,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -50,6 +53,32 @@ import android.provider.Settings
 import com.aptox.app.StatisticsData
 import java.text.Collator
 import java.util.Locale
+
+/**
+ * 계정관리 구글 행 부제: Gmail/Googlemail 은 `@` 뒤 생략(로컬파트만), 그 외 도메인은 전체 이메일.
+ */
+internal fun formatGoogleAccountRowEmail(email: String?): String {
+    if (email.isNullOrBlank()) return ""
+    val trimmed = email.trim()
+    val at = trimmed.lastIndexOf('@')
+    if (at <= 0 || at >= trimmed.length - 1) return trimmed
+    val local = trimmed.substring(0, at)
+    val domain = trimmed.substring(at + 1).lowercase(Locale.getDefault())
+    return when (domain) {
+        "gmail.com", "googlemail.com" -> local
+        else -> trimmed
+    }
+}
+
+/** 구글 로그인 시 카드 메인 줄: 이메일(@gmail 등은 [formatGoogleAccountRowEmail] 규칙) 우선, 없으면 표시용 닉네임 등 */
+private fun googleAccountRowPrimaryText(info: AuthRepository.CurrentUserInfo?): String {
+    if (info == null) return ""
+    val fromEmail = formatGoogleAccountRowEmail(info.email)
+    if (fromEmail.isNotBlank()) return fromEmail
+    val fromDisplay = formatGoogleAccountRowEmail(info.displayText)
+    if (fromDisplay.isNotBlank()) return fromDisplay
+    return info.displayText.trim().ifBlank { "구글 계정" }
+}
 
 /**
  * 설정 메뉴 세부 화면 (Figma MY-02~07)
@@ -294,6 +323,14 @@ fun AccountManageScreen(
     onWithdrawClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
 ) {
+    val context = LocalContext.current
+    val isGoogleLoggedIn = currentUserInfo?.providerLabel == "구글"
+    val cardLabel = if (isGoogleLoggedIn) {
+        googleAccountRowPrimaryText(currentUserInfo)
+    } else {
+        "구글 계정 로그인"
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -311,9 +348,19 @@ fun AccountManageScreen(
 
             SocialAccountCard(
                 iconResId = R.drawable.ic_google,
-                label = "구글 계정 로그인",
-                rightLabel = if (currentUserInfo?.providerLabel == "구글") "로그아웃" else "로그인",
-                onClick = if (currentUserInfo?.providerLabel == "구글") onLogout else onGoogleClick,
+                label = cardLabel,
+                rightLabel = if (isGoogleLoggedIn) "로그아웃" else "로그인",
+                onClick = {
+                    if (isGoogleLoggedIn) {
+                        AlertDialog.Builder(context)
+                            .setMessage(R.string.account_logout_confirm_message)
+                            .setPositiveButton(R.string.dialog_yes) { _, _ -> onLogout() }
+                            .setNegativeButton(R.string.dialog_no, null)
+                            .show()
+                    } else {
+                        onGoogleClick()
+                    }
+                },
             )
         }
 
@@ -339,6 +386,7 @@ fun AccountManageScreen(
 private fun SocialAccountCard(
     iconResId: Int,
     label: String,
+    subtitle: String? = null,
     rightLabel: String = "로그인",
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -346,7 +394,7 @@ private fun SocialAccountCard(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(64.dp)
+            .heightIn(min = 64.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(AppColors.SurfaceBackgroundCard)
             .clickable(
@@ -354,7 +402,7 @@ private fun SocialAccountCard(
                 indication = null,
                 onClick = onClick,
             )
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Image(
@@ -364,11 +412,25 @@ private fun SocialAccountCard(
             modifier = Modifier.size(30.dp),
         )
         Spacer(modifier = Modifier.size(12.dp))
-        Text(
-            text = label,
-            style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
+        Column(
             modifier = Modifier.weight(1f),
-        )
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = label,
+                style = AppTypography.BodyBold.copy(color = AppColors.TextPrimary),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    text = subtitle,
+                    style = AppTypography.Caption2.copy(color = AppColors.TextSecondary),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp),

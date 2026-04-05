@@ -25,4 +25,9 @@
     <!-- Figma AA-01 Ghost 버튼 (홈으로 이동) -->
     <color name="block_overlay_ghost_bg">#FFF5F5F5</color>
     <color name="block_overlay_ghost_text">#FF333333</color>
+
+    <!-- 홈 위젯 (Figma 1551-4677 / 1551-4802 / 1614-5253 / 1614-5267) -->
+    <color name="widget_surface">#FFFFFFFF</color>
+    <color name="widget_text_primary">#FF262626</color>
+    <color name="widget_text_highlight">#FF6C54DD</color>
 </resources>

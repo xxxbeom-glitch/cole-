@@ -833,7 +833,7 @@ internal fun MainAppRestrictionRow(
     }
 }
 
-/** 카드2: 제한 중인 앱 — 지정 시간 / 일일 사용량 탭 + 목록 + 사용량 제한 앱 추가 (디버그 2카드 스펙) */
+/** 카드2: 제한 중인 앱 — 하루 사용량 / 지정 시간 탭 + 목록 + 사용량 제한 앱 추가 (디버그 2카드 스펙) */
 @Composable
 private fun MainAppRestrictionCard(
     apps: List<MainAppRestrictionItem>,
@@ -845,8 +845,8 @@ private fun MainAppRestrictionCard(
     var restrictionTab by remember { mutableIntStateOf(0) }
     val filteredRestrictions = remember(restrictionTab, apps) {
         when (restrictionTab) {
-            0 -> apps.filter { it.restrictionType == RestrictionType.TIME_SPECIFIED }
-            else -> apps.filter { it.restrictionType == RestrictionType.DAILY_USAGE }
+            0 -> apps.filter { it.restrictionType == RestrictionType.DAILY_USAGE }
+            else -> apps.filter { it.restrictionType == RestrictionType.TIME_SPECIFIED }
         }
     }
 
@@ -875,7 +875,7 @@ private fun MainAppRestrictionCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 HomeRestrictionTabChip(
-                    text = "지정 시간 제한",
+                    text = "하루 사용량 제한",
                     selected = restrictionTab == 0,
                     onClick = { restrictionTab = 0 },
                     modifier = Modifier
@@ -883,7 +883,7 @@ private fun MainAppRestrictionCard(
                         .fillMaxHeight(),
                 )
                 HomeRestrictionTabChip(
-                    text = "일일 사용량 제한",
+                    text = "지정 시간 제한",
                     selected = restrictionTab == 1,
                     onClick = { restrictionTab = 1 },
                     modifier = Modifier
@@ -1611,7 +1611,7 @@ fun MainFlowHost(
             hasUnreadNotifications = false
         }
     }
-    var showSubscriptionGuide by remember { mutableStateOf(false) }
+    var showSubscriptionBottomSheet by remember { mutableStateOf(false) }
     var showAppLimitInfoSheet by remember { mutableStateOf(false) }
     var selectedAppForDetail by remember { mutableStateOf<MainAppRestrictionItem?>(null) }
     var restrictionRefreshKey by remember { mutableIntStateOf(0) }
@@ -1682,7 +1682,7 @@ fun MainFlowHost(
 
     BackHandler {
         when {
-            showSubscriptionGuide -> showSubscriptionGuide = false
+            showSubscriptionBottomSheet -> showSubscriptionBottomSheet = false
             showNotificationOverlay -> {
                 if (firebaseAuthUid != null) {
                     NotificationRepository(context).markAsChecked(firebaseAuthUid, System.currentTimeMillis())
@@ -2098,7 +2098,7 @@ fun MainFlowHost(
                             }
                         },
                         showPremiumBanner = isFreeUser,
-                        onPremiumClick = { if (isFreeUser) showSubscriptionGuide = true },
+                        onPremiumClick = { if (isFreeUser) showSubscriptionBottomSheet = true },
                     )
                 }
 
@@ -2314,14 +2314,10 @@ fun MainFlowHost(
         PrivacyPolicyBottomSheet(onDismiss = { showPrivacySheet = false })
     }
 
-    // 구독 가이드 오버레이
-    if (showSubscriptionGuide) {
-        SubscriptionGuideScreen(
-            onClose = { showSubscriptionGuide = false },
-            onSubscribeClick = { isAnnual ->
-                showSubscriptionGuide = false
-            },
-            modifier = Modifier.fillMaxSize(),
+    if (showSubscriptionBottomSheet) {
+        SubscriptionBottomSheet(
+            onDismissRequest = { showSubscriptionBottomSheet = false },
+            onStartSubscriptionClick = { showSubscriptionBottomSheet = false },
         )
     }
 

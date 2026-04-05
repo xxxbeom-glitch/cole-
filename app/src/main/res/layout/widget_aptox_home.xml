@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 4×2 위젯 — Figma: 1551-4677 하루·목록 / 1551-4802 지정·목록 / 1614-5253 하루·빈 / 1614-5267 지정·빈 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_aptox_card_bg"
+    android:contentDescription="@string/widget_aptox_home_description"
+    android:orientation="vertical"
+    android:paddingHorizontal="16dp"
+    android:paddingTop="18dp"
+    android:paddingBottom="16dp">
+
+    <TextView
+        android:id="@+id/widget_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/suit_heading_h3"
+        android:includeFontPadding="false"
+        android:lineSpacingExtra="8sp"
+        android:text="@string/widget_title_daily_limit"
+        android:textColor="@color/widget_text_primary"
+        android:textSize="18sp" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="20dp"
+        android:layout_weight="1"
+        android:minHeight="48dp">
+
+        <LinearLayout
+            android:id="@+id/widget_rows_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top"
+            android:orientation="vertical"
+            android:visibility="visible">
+
+            <LinearLayout
+                android:id="@+id/widget_row1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/widget_row1_name"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/suit_widget_body_semibold"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="15sp"
+                    tools:text="Youtube" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/widget_row1_time"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/suit_caption2"
+                        android:includeFontPadding="false"
+                        android:textColor="@color/widget_text_highlight"
+                        android:textSize="13sp"
+                        tools:text="00:26:33" />
+
+                    <TextView
+                        android:id="@+id/widget_row1_suffix"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:fontFamily="@font/suit_caption2"
+                        android:includeFontPadding="false"
+                        android:text="@string/widget_suffix_remaining"
+                        android:textColor="@color/widget_text_primary"
+                        android:textSize="13sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/widget_row2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/widget_row2_name"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/suit_widget_body_semibold"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="15sp"
+                    tools:text="업비트" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/widget_row2_time"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/suit_caption2"
+                        android:includeFontPadding="false"
+                        android:textColor="@color/widget_text_highlight"
+                        android:textSize="13sp"
+                        tools:text="00:15:33" />
+
+                    <TextView
+                        android:id="@+id/widget_row2_suffix"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:fontFamily="@font/suit_caption2"
+                        android:includeFontPadding="false"
+                        android:text="@string/widget_suffix_remaining"
+                        android:textColor="@color/widget_text_primary"
+                        android:textSize="13sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/widget_empty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:fontFamily="@font/suit_body_medium"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:text="@string/widget_empty_message"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="15sp"
+            android:visibility="gone" />
+    </FrameLayout>
+</LinearLayout>

@@ -40,6 +40,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * 알림 내역 데이터 모델 (Figma 1068-3998)
@@ -72,6 +74,7 @@ private val NotificationCardShadowColor = Color.Black.copy(alpha = 0.06f)
 /**
  * 알림 내역 화면 (Figma 1068-3998, 1068-4394)
  * - Firestore users/{userId}/notifications 실시간 구독
+ * - 진입 시 7일 초과 알림 문서 Firestore에서 삭제 후 목록 구독
  * - 헤더: 뒤로가기 + "알림" + 알림 아이콘
  * - 리스트: 카드 형태, 18dp 간격, 탭 시 onItemClick 호출
  * - 빈 상태: "받은 알림 내역이 없어요" 중앙 표시
@@ -91,17 +94,25 @@ fun NotificationHistoryScreen(
 
     LaunchedEffect(userId) {
         if (userId != null) {
+            withContext(Dispatchers.IO) {
+                repo.deleteNotificationDocumentsOlderThanRetention(userId)
+            }
             repo.getNotificationsFlow(userId).collect { items = it }
         } else {
             items = emptyList()
         }
     }
 
-    // 알림 리스트 로드 시 읽음 처리
+    // 알림 리스트 로드 시 읽음 처리 (빈 목록이어도 시스템 알림 뱃지·미읽음 플래그 동기화)
     LaunchedEffect(items) {
-        if (userId != null && items != null && items!!.isNotEmpty()) {
+        if (userId != null && items != null) {
             val maxTs = items!!.maxOfOrNull { it.timestampMs } ?: 0L
-            repo.markAsChecked(userId, maxOf(System.currentTimeMillis(), maxTs))
+            val checkedAt = if (items!!.isNotEmpty()) {
+                maxOf(System.currentTimeMillis(), maxTs)
+            } else {
+                System.currentTimeMillis()
+            }
+            repo.markAsChecked(userId, checkedAt)
         }
     }
 
@@ -112,8 +123,13 @@ fun NotificationHistoryScreen(
     DisposableEffect(Unit) {
         onDispose {
             val uid = currentUserId ?: return@onDispose
-            val maxTs = currentItems?.maxOfOrNull { it.timestampMs } ?: 0L
-            currentRepo.markAsChecked(uid, maxOf(System.currentTimeMillis(), maxTs))
+            val list = currentItems
+            val checkedAt = when {
+                list == null -> System.currentTimeMillis()
+                list.isEmpty() -> System.currentTimeMillis()
+                else -> maxOf(System.currentTimeMillis(), list.maxOf { it.timestampMs })
+            }
+            currentRepo.markAsChecked(uid, checkedAt)
         }
     }
     Column(

@@ -15,8 +15,25 @@ import androidx.core.app.NotificationManagerCompat
  */
 object GoalAchievementNotificationHelper {
 
-    private const val CHANNEL_ID = "goal_achievement"
+    const val CHANNEL_ID = "goal_achievement"
     private const val CHANNEL_NAME = "목표 달성"
+
+    /**
+     * 알림 내역에서 읽음 처리했을 때 런처/상단바 뱃지가 남지 않도록,
+     * 이 채널로 표시된 시스템 알림만 취소한다 (API 26+).
+     */
+    fun cancelDisplayedNotificationsForChannel(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        val active = nm.activeNotifications ?: return
+        for (status in active) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (status.notification.channelId == CHANNEL_ID) {
+                    nm.cancel(status.tag, status.id)
+                }
+            }
+        }
+    }
 
     fun send(context: Context, badgeTitle: String) {
         if (!NotificationPreferences.isBadgeAcquiredEnabled(context)) return

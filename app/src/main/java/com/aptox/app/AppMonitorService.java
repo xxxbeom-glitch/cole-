@@ -222,8 +222,11 @@ public class AppMonitorService extends Service {
         return sdf.format(new java.util.Date(epochMs));
     }
 
+    private static final int PI_RC_OPEN_APP = 9101;
+    private static final int PI_RC_COUNT_STOP_BASE = 9200;
+
     private Notification buildDefaultNotification() {
-        PendingIntent pi = PendingIntent.getActivity(this, 0,
+        PendingIntent pi = PendingIntent.getActivity(this, PI_RC_OPEN_APP,
             getPackageManager().getLaunchIntentForPackage(getPackageName()),
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         return new NotificationCompat.Builder(this, CHANNEL_ID)
@@ -256,13 +259,14 @@ public class AppMonitorService extends Service {
     }
 
     private Notification buildCountingNotification(String appName, long remainingMs, String packageName) {
-        PendingIntent pi = PendingIntent.getActivity(this, 0,
+        PendingIntent pi = PendingIntent.getActivity(this, PI_RC_OPEN_APP,
             getPackageManager().getLaunchIntentForPackage(getPackageName()),
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Intent openSheetIntent = new Intent(this, MainActivity.class);
         openSheetIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         openSheetIntent.putExtra(EXTRA_OPEN_BOTTOM_SHEET, packageName);
-        PendingIntent endPi = PendingIntent.getActivity(this, 0, openSheetIntent,
+        int stopReq = PI_RC_COUNT_STOP_BASE + (packageName.hashCode() & 0x7FFF);
+        PendingIntent endPi = PendingIntent.getActivity(this, stopReq, openSheetIntent,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         String contentText = appName + " 사용 중 · " + formatElapsedHhMmSs(remainingMs) + " 남음";
         return new NotificationCompat.Builder(this, CHANNEL_ID)
@@ -276,12 +280,12 @@ public class AppMonitorService extends Service {
 
     /** 복수 세션용: "앱 N개 카운트 중" */
     private Notification buildCountingNotification(int activeCount) {
-        PendingIntent pi = PendingIntent.getActivity(this, 0,
+        PendingIntent pi = PendingIntent.getActivity(this, PI_RC_OPEN_APP,
             getPackageManager().getLaunchIntentForPackage(getPackageName()),
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Intent openIntent = new Intent(this, MainActivity.class);
         openIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        PendingIntent endPi = PendingIntent.getActivity(this, 0, openIntent,
+        PendingIntent endPi = PendingIntent.getActivity(this, PI_RC_COUNT_STOP_BASE + 1, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         String contentText = "앱 " + activeCount + "개 카운트 중";
         return new NotificationCompat.Builder(this, CHANNEL_ID)
@@ -293,30 +297,30 @@ public class AppMonitorService extends Service {
             .build();
     }
 
-    /** 시간 지정 제한 구간 중 — 단일 앱: "{이름} 제한 중 · HH:mm까지" (액션 버튼 없음; 카운트 중지는 일일 사용량 제한 전용) */
+    /** 시간 지정 제한 구간 중 — 단일 앱 (한 줄 요약 + 본문 비움: 확장 화살표 최소화, 액션 없음) */
     private Notification buildTimeSpecifiedNotification(String appName, long blockUntilMs) {
-        PendingIntent pi = PendingIntent.getActivity(this, 0,
+        PendingIntent pi = PendingIntent.getActivity(this, PI_RC_OPEN_APP,
             getPackageManager().getLaunchIntentForPackage(getPackageName()),
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         String endStr = formatRestrictionEndTimeHhMm(blockUntilMs);
-        String contentText = appName + " 제한 중 · " + endStr + "까지";
+        String oneLine = appName + " 제한 중 · " + endStr + "까지";
         return new NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("앱 사용 시간을 기록하고 있어요")
-            .setContentText(contentText)
+            .setContentTitle(oneLine)
+            .setContentText(null)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentIntent(pi)
             .build();
     }
 
-    /** 시간 지정 제한 구간 중 — 복수 앱 (액션 버튼 없음) */
+    /** 시간 지정 제한 구간 중 — 복수 앱 (한 줄, 액션 없음) */
     private Notification buildTimeSpecifiedNotification(int activeCount) {
-        PendingIntent pi = PendingIntent.getActivity(this, 0,
+        PendingIntent pi = PendingIntent.getActivity(this, PI_RC_OPEN_APP,
             getPackageManager().getLaunchIntentForPackage(getPackageName()),
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        String contentText = "앱 " + activeCount + "개 제한 중";
+        String oneLine = "앱 " + activeCount + "개 제한 중";
         return new NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("앱 사용 시간을 기록하고 있어요")
-            .setContentText(contentText)
+            .setContentTitle(oneLine)
+            .setContentText(null)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentIntent(pi)
             .build();

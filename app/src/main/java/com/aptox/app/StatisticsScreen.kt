@@ -1499,7 +1499,7 @@ private fun StatsStackedBarAndAppList(
         val (startMs, endMs) = when (tabEnum) {
             StatisticsData.Tab.WEEKLY -> StatisticsData.getWeekRange(weekOffset).let { it.first to it.second }
             StatisticsData.Tab.MONTHLY -> StatisticsData.getSingleMonthRange(monthOffset).let { it.first to it.second }
-            StatisticsData.Tab.YEARLY -> StatisticsData.getYearRange(yearOffset).let { it.first to it.second }
+            StatisticsData.Tab.YEARLY -> StatisticsData.getSingleYearRange(yearOffset).let { it.first to it.second }
             else -> 0L to 0L
         }
         statisticsViewModel.syncCategoryStatsPeriod(tabEnum, weekOffset, monthOffset, yearOffset)

@@ -86,15 +86,32 @@ class DailyUsageMidnightResetReceiver : BroadcastReceiver() {
             launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val body = "현재 사용이 진행 중이므로 카운트가 자동으로 시작되었습니다. 원하지 않으시면 앱 종료 후 카운트 중지를 눌러주세요."
+        val stopIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(AppMonitorService.EXTRA_OPEN_BOTTOM_SHEET, pkg)
+        }
+        val stopPi = PendingIntent.getActivity(
+            context,
+            NOTIFICATION_ID_MIDNIGHT_FG_USAGE_RESET + 77,
+            stopIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val shortText = "카운트가 자동으로 시작되었어요."
         val notification = NotificationCompat.Builder(context, CHANNEL_DAILY_USAGE_LIMIT_ID)
             .setContentTitle("${restriction.appName}의 하루 사용량이 초기화되었습니다")
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setContentText(shortText)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setAutoCancel(true)
             .setContentIntent(pi)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .addAction(
+                android.R.drawable.ic_menu_close_clear_cancel,
+                "카운트 중지",
+                stopPi,
+            )
+            .setStyle(
+                androidx.media.app.NotificationCompat.MediaStyle().setShowActionsInCompactView(0),
+            )
             .build()
         nm.notify(NOTIFICATION_ID_MIDNIGHT_FG_USAGE_RESET, notification)
         Log.d(TAG, "자정 포그라운드 일일제한앱 노티: $pkg")

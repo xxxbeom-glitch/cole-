@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 4×1: 한 줄 — 제목(하루/지정) + 첫 앱명 + 남은 시간 + 남음 / 빈 상태는 가운데 한 줄 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_aptox_card_bg"
+    android:contentDescription="@string/widget_aptox_home_4x1_description">
+
+    <LinearLayout
+        android:id="@+id/widget_4x1_filled"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="10dp">
+
+        <TextView
+            android:id="@+id/widget_4x1_headline"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="@font/suit_widget_body_semibold"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:maxWidth="118dp"
+            android:text="@string/widget_title_daily_limit"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/widget_4x1_app_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="@font/suit_widget_body_semibold"
+            android:gravity="end"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="13sp"
+            tools:text="Youtube" />
+
+        <TextView
+            android:id="@+id/widget_4x1_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:fontFamily="@font/suit_caption2"
+            android:includeFontPadding="false"
+            android:textColor="@color/widget_text_highlight"
+            android:textSize="13sp"
+            tools:text="00:26:33" />
+
+        <TextView
+            android:id="@+id/widget_4x1_suffix"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:fontFamily="@font/suit_caption2"
+            android:includeFontPadding="false"
+            android:text="@string/widget_suffix_remaining"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/widget_4x1_empty"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fontFamily="@font/suit_body_medium"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:paddingHorizontal="12dp"
+        android:text="@string/widget_empty_message"
+        android:textColor="@color/widget_text_primary"
+        android:textSize="13sp"
+        android:visibility="gone" />
+</FrameLayout>

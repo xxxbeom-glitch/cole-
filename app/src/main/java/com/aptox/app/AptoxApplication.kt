@@ -43,6 +43,10 @@ class AptoxApplication : Application() {
         // 미로그인 상태에서 제한만 저장한 뒤 로그인하면 badge_001 등 Firestore 배지를 줄 수 있게 함
         FirebaseAuth.getInstance().addAuthStateListener { auth ->
             if (auth.currentUser != null) {
+                val uid = auth.currentUser!!.uid
+                applicationScope.launch {
+                    NotificationRepository(this@AptoxApplication).deleteNotificationDocumentsOlderThanRetention(uid)
+                }
                 BadgeAutoGrant.syncPendingBadgesToFirestore(this)
                 applicationScope.launch {
                     AppLimitLogRepository.syncPendingLocalToFirestore(this@AptoxApplication)

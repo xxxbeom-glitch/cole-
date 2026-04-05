@@ -1,4 +1,16 @@
 <resources>
     <string name="app_name">aptox</string>
+    <string name="widget_aptox_home_description">하루 사용 제한·지정 시간 제한 현황을 보여줍니다.</string>
+    <string name="widget_aptox_home_4x2_label">aptox 제한 (4×2)</string>
+    <string name="widget_aptox_home_4x1_label">aptox 제한 (4×1)</string>
+    <string name="widget_aptox_home_4x2_description">하루·지정 시간 제한을 두 줄로 표시합니다.</string>
+    <string name="widget_aptox_home_4x1_description">하루·지정 시간 제한을 한 줄로 표시합니다.</string>
+    <string name="widget_title_daily_limit">하루 사용 제한</string>
+    <string name="widget_title_time_limit">지정 시간 제한</string>
+    <string name="widget_empty_message">현재 제한 중인 앱이 없습니다</string>
+    <string name="widget_suffix_remaining">남음</string>
+    <string name="account_logout_confirm_message">로그아웃 하시겠습니까?</string>
+    <string name="dialog_yes">예</string>
+    <string name="dialog_no">아니오</string>
     <string name="accessibility_service_description">aptox 앱 차단 기능을 위해 사용됩니다. 제한된 앱 사용을 감지하고 차단 화면을 표시합니다.</string>
 </resources>

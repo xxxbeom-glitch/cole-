@@ -18,6 +18,23 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToLong
 
+/**
+ * Figma 1465-4640 — 평균 사용 시간대 막대 12칸(각 2시간: 0~2 … 22~24시). 색 순위는 **사용이 있는** 슬롯끼리만.
+ * [AppDetailTimeSegmentRepository]가 채운다. null이면 사용 통계 권한 없음 등 → UI는 회색.
+ */
+enum class AppDetailAverageTimeSlotBarTone {
+    /** 구간 사용 0 — Grey350 */
+    MUTED,
+    /** 순위 4위 — #6C54DD 20% */
+    PRIMARY_20,
+    /** 순위 3위 — #6C54DD 40% */
+    PRIMARY_40,
+    /** 순위 2위 — #6C54DD 80% */
+    PRIMARY_80,
+    /** 순위 1위 — #6C54DD 100% */
+    PRIMARY_FULL,
+}
+
 data class AppDetailUiState(
     val packageName: String,
     val appName: String,
@@ -25,6 +42,8 @@ data class AppDetailUiState(
     val totalMinutes: Long,
     val launchCount: Int,
     val avgSessionMinutes: Long,
+    /** 길이 12 — 인덱스 i = i*2~(i*2+2)시 구간; 사용 없으면 MUTED */
+    val averageTimeSlotBarTones: List<AppDetailAverageTimeSlotBarTone>? = null,
 )
 
 class StatisticsViewModel(
@@ -53,7 +72,7 @@ class StatisticsViewModel(
             StatisticsData.Tab.MONTHLY ->
                 StatisticsData.getSingleMonthRange(monthOffset).let { it.first to it.second }
             StatisticsData.Tab.YEARLY ->
-                StatisticsData.getYearRange(yearOffset).let { it.first to it.second }
+                StatisticsData.getSingleYearRange(yearOffset).let { it.first to it.second }
             else -> 0L to 0L
         }
         categoryStatsStartMs = start
@@ -108,6 +127,13 @@ class StatisticsViewModel(
             0L
         }
 
+        val segmentTones = AppDetailTimeSegmentRepository.computeRankTonesForPackage(
+            context = context,
+            packageName = packageName,
+            startMs = startMs,
+            endMs = endMs,
+        )
+
         return AppDetailUiState(
             packageName = packageName,
             appName = appName,
@@ -115,6 +141,7 @@ class StatisticsViewModel(
             totalMinutes = totalMinutes,
             launchCount = launchCount,
             avgSessionMinutes = avgSessionMinutes,
+            averageTimeSlotBarTones = segmentTones,
         )
     }
 

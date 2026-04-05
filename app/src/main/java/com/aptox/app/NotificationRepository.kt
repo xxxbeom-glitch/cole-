@@ -1,16 +1,19 @@
 package com.aptox.app
 
 import android.content.Context
+import android.util.Log
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
 /**
  * Firestore users/{userId}/notifications 컬렉션.
@@ -40,6 +43,31 @@ class NotificationRepository(
                 ),
             )
             .await()
+    }
+
+    /**
+     * [NOTIFICATION_RETENTION_MS]보다 오래된 `timestamp` 문서를 Firestore에서 삭제.
+     * 앱 실행(로그인)·알림 목록 진입 시 호출.
+     */
+    suspend fun deleteNotificationDocumentsOlderThanRetention(userId: String) = withContext(Dispatchers.IO) {
+        if (userId.isBlank()) return@withContext
+        runCatching {
+            val cutoffMs = System.currentTimeMillis() - NOTIFICATION_RETENTION_MS
+            val cutoffTs = Timestamp(cutoffMs / 1000, ((cutoffMs % 1000) * 1_000_000L).toInt())
+            val coll = firestore.collection("users").document(userId).collection("notifications")
+            while (true) {
+                val snapshot = coll.whereLessThan("timestamp", cutoffTs).limit(500).get().await()
+                if (snapshot.documents.isEmpty()) break
+                val batch = firestore.batch()
+                for (doc in snapshot.documents) {
+                    batch.delete(doc.reference)
+                }
+                batch.commit().await()
+                if (snapshot.documents.size < 500) break
+            }
+        }.onFailure { e ->
+            Log.w(TAG, "만료 알림 문서 삭제 실패 userId=$userId", e)
+        }
     }
 
     /**
@@ -94,7 +122,11 @@ class NotificationRepository(
         if (userId.isNullOrBlank() || prefs == null) return
         val key = "$KEY_LAST_CHECKED_PREFIX$userId"
         prefs!!.edit().putLong(key, maxTimestampMs).commit()
-        Companion.markCheckedTrigger.tryEmit(Unit)
+        // MutableSharedFlow.tryEmit 은 구독자가 없으면 실패할 수 있어 미읽음 UI가 갱신되지 않음 → StateFlow로 항상 반영
+        markCheckedRevision.value = markCheckedRevision.value + 1L
+        context?.applicationContext?.let { appCtx ->
+            GoalAchievementNotificationHelper.cancelDisplayedNotificationsForChannel(appCtx)
+        }
     }
 
     /**
@@ -109,7 +141,7 @@ class NotificationRepository(
         val key = "$KEY_LAST_CHECKED_PREFIX$userId"
         return combine(
             getNotificationsFlow(userId),
-            Companion.markCheckedTrigger.onStart { emit(Unit) },
+            markCheckedRevision,
         ) { items, _ ->
             var lastCheckedMs = prefs!!.getLong(key, 0L)
             if (lastCheckedMs == 0L && items.isNotEmpty()) {
@@ -122,9 +154,13 @@ class NotificationRepository(
     }
 
     companion object {
+        private const val TAG = "NotificationRepository"
+        /** 수신 시각(`timestamp`) 기준 보관 기간 — 초과 분 `deleteNotificationDocumentsOlderThanRetention`에서 삭제 */
+        private const val NOTIFICATION_RETENTION_MS = 7L * 24 * 60 * 60 * 1000L
+
         private const val PREFS_NAME = "aptox_notification_check"
         private const val KEY_LAST_CHECKED_PREFIX = "last_checked_"
-        private val markCheckedTrigger = MutableSharedFlow<Unit>(replay = 0)
+        private val markCheckedRevision = MutableStateFlow(0L)
     }
 
     private fun formatTimeAgo(timestampMs: Long): String {
