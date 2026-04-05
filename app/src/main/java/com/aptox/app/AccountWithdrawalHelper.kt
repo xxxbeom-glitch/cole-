@@ -81,6 +81,11 @@ object AccountWithdrawalHelper {
                         .await()
                     val firestore = FirebaseFirestore.getInstance()
                     deleteUserFirestoreSubtree(firestore, uid)
+                    // 로컬 DB 폴더를 지우기 전에 Firestore를 종료하지 않으면
+                    // SDK가 SQLite에 쓰는 중 파일이 사라져 SQLITE_READONLY_DBMOVED 로 프로세스가 죽을 수 있음.
+                    firestore.terminate().await()
+                    runCatching { FirebaseFirestore.getInstance().clearPersistence().await() }
+                        .onFailure { Log.w(TAG, "Firestore clearPersistence 실패(무시)", it) }
                     AuthRepository().signOut()
                     wipeLocalStorage(app)
                 }
