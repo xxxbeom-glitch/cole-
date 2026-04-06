@@ -171,6 +171,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        AptoxApplication.startAppMonitorIfNeeded(applicationContext, clearForegroundPkg = pendingOpenBottomSheetPackage != null)
+    }
+
     override fun onResume() {
         super.onResume()
         AptoxApplication.startAppMonitorIfNeeded(applicationContext, clearForegroundPkg = pendingOpenBottomSheetPackage != null)
@@ -191,10 +196,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Android 13+ 알림 권한 런타임 요청
+        // Android 13+: 온보딩 권한 화면에서 런타임 요청(PermissionScreen). 여기서는 이미 필수 권한을 갖춘 사용자만 1회 유도(재설치·다른 기기 등).
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
+            if (areRequiredAppPermissionsGranted() &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
                 ActivityCompat.requestPermissions(
                     this,
                     arrayOf(Manifest.permission.POST_NOTIFICATIONS),

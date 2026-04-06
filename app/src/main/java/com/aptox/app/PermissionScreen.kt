@@ -26,8 +26,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -45,10 +48,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import android.Manifest
+import android.content.Context
 import android.os.Build
 import android.os.PowerManager
+import androidx.activity.ComponentActivity
 
 /**
  * 앱 사용정보·접근성 필수 권한이 모두 허용되었는지 (알림 등 선택 권한 제외).
@@ -66,6 +72,31 @@ fun android.content.Context.isIgnoringBatteryOptimizations(): Boolean {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
     val pm = getSystemService(android.content.Context.POWER_SERVICE) as PowerManager
     return pm.isIgnoringBatteryOptimizations(packageName)
+}
+
+private const val PREFS_PERM_FLOW = "aptox_permissions"
+private const val KEY_POST_NOTIFICATIONS_PROMPTED = "post_notifications_prompted"
+
+/** Android 8+ 앱 알림 설정 화면 (런타임 권한이 더 이상 뜨지 않을 때) */
+private fun Context.openAppNotificationSettings() {
+    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+            putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+        }
+    } else {
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", packageName, null)
+        }
+    }
+    try {
+        startActivity(intent)
+    } catch (_: Exception) {
+        startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.fromParts("package", packageName, null)
+            },
+        )
+    }
 }
 
 /**
@@ -91,6 +122,13 @@ fun PermissionScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    val permFlowPrefs = remember { context.getSharedPreferences(PREFS_PERM_FLOW, Context.MODE_PRIVATE) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) {
+        refresh++
+    }
+
     val usageGranted = remember(refresh) { StatisticsData.hasUsageAccess(context) }
     val accessibilityGranted = remember(refresh) {
         val enabled = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: ""
@@ -104,6 +142,12 @@ fun PermissionScreen(
         } else true
     }
     val allRequiredGranted = requiredOk
+
+    LaunchedEffect(requiredOk) {
+        if (requiredOk) {
+            AptoxApplication.startAppMonitorIfNeeded(context.applicationContext)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -177,19 +221,53 @@ fun PermissionScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 선택 권한 카드
-            PermissionCard(
-                items = listOf(
-                    PermissionItem(
-                        iconResId = R.drawable.ic_perm_notification,
-                        title = "알림 (선택)",
-                        description = "사용 시간 초과 알림과 목표 달성 소식을 알림으로 알리기 위해 필요합니다",
-                        onSettingsClick = { },
-                        showSettingsButton = false,
-                        isGranted = notificationGranted,
+            // Android 13+: POST_NOTIFICATIONS — 모니터링 포그라운드 알림·기타 알림 표시에 필요 (런타임 요청)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                PermissionCard(
+                    items = listOf(
+                        PermissionItem(
+                            iconResId = R.drawable.ic_perm_notification,
+                            title = "알림 (권장)",
+                            description = "Android 13 이상에서는 모니터링 알림·사용 시간 안내를 표시하려면 알림 권한이 필요합니다. 허용하지 않으면 포그라운드 알림이 보이지 않을 수 있어요",
+                            onSettingsClick = click@{
+                                val act = context as? ComponentActivity ?: return@click
+                                if (notificationGranted) return@click
+                                when {
+                                    ActivityCompat.shouldShowRequestPermissionRationale(
+                                        act,
+                                        Manifest.permission.POST_NOTIFICATIONS,
+                                    ) -> {
+                                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    }
+                                    !permFlowPrefs.getBoolean(KEY_POST_NOTIFICATIONS_PROMPTED, false) -> {
+                                        permFlowPrefs.edit()
+                                            .putBoolean(KEY_POST_NOTIFICATIONS_PROMPTED, true)
+                                            .apply()
+                                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    }
+                                    else -> context.openAppNotificationSettings()
+                                }
+                            },
+                            showSettingsButton = true,
+                            actionLabelWhenNotGranted = "알림 허용하기",
+                            isGranted = notificationGranted,
+                        ),
                     ),
-                ),
-            )
+                )
+            } else {
+                PermissionCard(
+                    items = listOf(
+                        PermissionItem(
+                            iconResId = R.drawable.ic_perm_notification,
+                            title = "알림",
+                            description = "사용 시간 초과 알림과 목표 달성 소식을 알림으로 알립니다",
+                            onSettingsClick = { },
+                            showSettingsButton = false,
+                            isGranted = true,
+                        ),
+                    ),
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -206,7 +284,11 @@ fun PermissionScreen(
                     tint = AppColors.TextDisclaimer,
                 )
                 Text(
-                    text = "선택 권한을 허용하지 않아도 서비스 이용이 가능합니다",
+                    text = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        "알림을 끄면 모니터링 표시가 숨겨질 수 있어요. 앱 사용 제한(필수 권한)은 알림과 별개로 동작합니다"
+                    } else {
+                        "선택 권한을 허용하지 않아도 서비스 이용이 가능합니다"
+                    },
                     style = AppTypography.Caption2.copy(color = AppColors.TextDisclaimer),
                 )
             }
@@ -248,6 +330,8 @@ private data class PermissionItem(
     val description: String,
     val onSettingsClick: () -> Unit,
     val showSettingsButton: Boolean = true,
+    /** 미허용 시 표시할 액션 문구 (기본: 설정 바로가기) */
+    val actionLabelWhenNotGranted: String? = null,
     val isGranted: Boolean = false,
 )
 
@@ -280,6 +364,7 @@ private fun PermissionCard(
                 description = item.description,
                 onSettingsClick = item.onSettingsClick,
                 showSettingsButton = item.showSettingsButton,
+                actionLabelWhenNotGranted = item.actionLabelWhenNotGranted,
                 isGranted = item.isGranted,
             )
         }
@@ -293,6 +378,7 @@ private fun PermissionItemRow(
     description: String,
     onSettingsClick: () -> Unit,
     showSettingsButton: Boolean = true,
+    actionLabelWhenNotGranted: String? = null,
     isGranted: Boolean = false,
 ) {
     Row(
@@ -336,7 +422,7 @@ private fun PermissionItemRow(
                         horizontalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         Text(
-                            text = "설정 바로가기",
+                            text = actionLabelWhenNotGranted ?: "설정 바로가기",
                             style = AppTypography.Caption2.copy(color = AppColors.Red300),
                         )
                         Icon(

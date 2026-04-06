@@ -96,17 +96,18 @@ class AptoxApplication : Application() {
         /** 포그라운드 상태에서 호출. 앱 실행 시 Application.onCreate는 백그라운드로 인식될 수 있어 MainActivity.onResume에서 호출
          * @param clearForegroundPkg true면 lastKnownForegroundPkg 초기화 (알림 탭으로 바텀시트 열 때 카운트 정지 시 오버레이 즉시 노출 방지) */
         fun startAppMonitorIfNeeded(context: android.content.Context, clearForegroundPkg: Boolean = false) {
+            val appCtx = context.applicationContext
             try {
-                (context.applicationContext as? AptoxApplication)?.applicationScope?.launch {
-                    DailyBriefCacheWarmup.ensureCached(context.applicationContext)
+                (appCtx as? AptoxApplication)?.applicationScope?.launch {
+                    DailyBriefCacheWarmup.ensureCached(appCtx)
                 }
-                ManualTimerRepository(context).ensureMidnightResetIfNeeded()
-                DailyUsageMidnightResetScheduler.scheduleNextMidnight(context)
-                val repo = AppRestrictionRepository(context)
+                ManualTimerRepository(appCtx).ensureMidnightResetIfNeeded()
+                DailyUsageMidnightResetScheduler.scheduleNextMidnight(appCtx)
+                val repo = AppRestrictionRepository(appCtx)
                 val map = repo.toRestrictionMap()
                 // 제한 앱이 없어도 FGS + 기본 알림 상시 유지 (사용량 기록 채널·재진입 시 즉시 감시)
-                AppMonitorService.start(context, map, clearForegroundPkg)
-                DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(context)
+                AppMonitorService.start(appCtx, map, clearForegroundPkg)
+                DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(appCtx)
 
             } catch (e: Throwable) {
                 Log.e(TAG, "AppMonitor 시작 실패", e)

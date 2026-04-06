@@ -234,6 +234,8 @@ public class AppMonitorService extends Service {
             .setContentTitle("앱 사용 시간을 기록하고 있어요")
             .setContentText("")
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setOngoing(true)
+            .setAutoCancel(false)
             .setContentIntent(pi)
             .build();
     }
@@ -383,7 +385,13 @@ public class AppMonitorService extends Service {
         checkAndApplyMidnightResetIfNeeded();
 
         long now = System.currentTimeMillis();
-        UsageEvents events = usm.queryEvents(lastCheckedTime, now);
+        UsageEvents events;
+        try {
+            events = usm.queryEvents(lastCheckedTime, now);
+        } catch (SecurityException e) {
+            Log.w(TAG, "queryEvents 실패(사용정보 권한 없음) — lastCheckedTime 유지", e);
+            return;
+        }
         lastCheckedTime = now;
 
         ManualTimerRepository timerRepo = new ManualTimerRepository(this);
@@ -444,7 +452,13 @@ public class AppMonitorService extends Service {
         UsageStatsManager usm = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
         if (usm == null) return;
         long now = System.currentTimeMillis();
-        UsageEvents events = usm.queryEvents(now - 60_000L, now);
+        UsageEvents events;
+        try {
+            events = usm.queryEvents(now - 60_000L, now);
+        } catch (SecurityException e) {
+            Log.w(TAG, "initForegroundPkg queryEvents 실패(사용정보 권한 없음)", e);
+            return;
+        }
         if (events == null) return;
         String selfPkg = getPackageName();
         Map<String, Long> foregroundMap = new HashMap<>();
@@ -605,12 +619,14 @@ public class AppMonitorService extends Service {
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm == null) return;
             NotificationChannel monitorChannel = new NotificationChannel(
-                CHANNEL_ID, "앱 모니터링", NotificationManager.IMPORTANCE_LOW);
+                CHANNEL_ID, "앱 모니터링", NotificationManager.IMPORTANCE_DEFAULT);
+            monitorChannel.setDescription("제한 앱 감시 및 사용 시간 기록");
             nm.createNotificationChannel(monitorChannel);
         }
     }
 
-    private static final String CHANNEL_ID = "app_monitor";
+    /** v2: 기존 LOW 채널은 상태 표시줄에 아이콘이 안 보이는 기기가 많아 새 채널로 상향 */
+    private static final String CHANNEL_ID = "app_monitor_v2";
     private static final int NOTIFICATION_ID = 1001;
     private static final long EVENT_CHECK_INTERVAL_MS = 1_000L;
     private static final String SEP_ITEM = "|";
@@ -642,6 +658,11 @@ public class AppMonitorService extends Service {
      * 제한 해제 후 호출. releasedPackage 전달 시 해당 앱 타이머 세션 즉시 종료 후 노티 갱신.
      */
     public static void start(Context context, Map<String, Integer> restrictionMap, boolean clearForegroundPkg, String releasedPackage) {
+        Context appCtx = context.getApplicationContext();
+        if (!PermissionScreenKt.areRequiredAppPermissionsGranted(appCtx)) {
+            Log.d(TAG, "필수 권한(사용정보·접근성) 미충족 — AppMonitorService.start 생략");
+            return;
+        }
         Intent intent = new Intent(context, AppMonitorService.class);
         if (restrictionMap != null) {
             StringBuilder sb = new StringBuilder();
@@ -657,10 +678,19 @@ public class AppMonitorService extends Service {
         if (releasedPackage != null && !releasedPackage.isEmpty()) {
             intent.putExtra(EXTRA_RELEASED_PACKAGE, releasedPackage);
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(intent);
-        } else {
-            context.startService(intent);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent);
+            } else {
+                context.startService(intent);
+            }
+        } catch (IllegalStateException e) {
+            // API 31+ ForegroundServiceStartNotAllowedException 등 — 클래스명은 구버전 기기에서 로딩 이슈가 있어 캐치만 공통 처리
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                Log.w(TAG, "FGS 시작 불가(백그라운드 제한). 앱을 포그라운드로 열면 재시도됩니다.", e);
+            } else {
+                throw e;
+            }
         }
     }
 
