@@ -436,11 +436,6 @@ fun SignUpFlowHost(
                 prefilledApp = null
                 step = SignUpStep.MAIN
             },
-            onCompleteWithFirstPackage = { pkg ->
-                prefilledApp = null
-                autoOpenPackage = pkg
-                step = SignUpStep.MAIN
-            },
             initialPrefilledApp = prefilledApp,
         )
         SignUpStep.TIME_SPECIFIED -> TimeSpecifiedFlowHost(

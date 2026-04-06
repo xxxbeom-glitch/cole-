@@ -7,7 +7,7 @@ import android.util.Log
 
 /**
  * 기기 재부팅 후 BOOT_COMPLETED 수신 시 AppMonitorService를 재시작합니다.
- * 제한 앱이 있을 때만 감시 서비스를 시작합니다.
+ * 제한 앱 유무와 관계없이 시작하여 포그라운드 알림을 상시 표시합니다.
  */
 class BootCompletedReceiver : BroadcastReceiver() {
 
@@ -20,10 +20,8 @@ class BootCompletedReceiver : BroadcastReceiver() {
             DailyUsageMidnightResetScheduler.scheduleNextMidnight(ctx)
             val repo = AppRestrictionRepository(ctx)
             val map = repo.toRestrictionMap()
-            if (map.isNotEmpty()) {
-                AppMonitorService.start(ctx, map)
-                Log.d(TAG, "부팅 완료: AppMonitorService 재시작 (제한 앱 ${map.size}개)")
-            }
+            AppMonitorService.start(ctx, map)
+            Log.d(TAG, "부팅 완료: AppMonitorService 재시작 (제한 앱 ${map.size}개)")
             TimeSpecifiedRestrictionAlarmScheduler.scheduleAll(ctx)
             DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(ctx)
             BriefDailyAlarmScheduler.schedule(ctx)

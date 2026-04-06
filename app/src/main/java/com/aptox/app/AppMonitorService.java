@@ -92,11 +92,21 @@ public class AppMonitorService extends Service {
         }, NOTIFICATION_UPDATE_INTERVAL_MS);
     }
 
+    /** 카운트 미중지 알람 + 이미 띄운 리마인더 노티 정리 (ongoing 노티는 앱에서 명시 취소 필요) */
+    private void cancelCountReminderAlarmAndNotification() {
+        String reminderPkg = scheduledCountReminderPkg;
+        CountReminderAlarmScheduler.INSTANCE.cancel(this);
+        if (reminderPkg != null) {
+            CountReminderNotificationHelper.INSTANCE.cancel(this, reminderPkg);
+        }
+        scheduledCountReminderPkg = null;
+    }
+
     /**
      * 알림·FGS 상태 갱신.
      * - 카운트 중: 카운트 알림
-     * - 제한 앱 모니터링 중(map 비어 있지 않음): 기본 모니터링 알림 유지 (stopForeground 금지 — FGS 타임아웃/재시작 크래시 방지)
-     * - 둘 다 아님: FGS 해제 후 서비스 종료
+     * - 시간 지정 제한 구간 중: 해당 알림
+     * - 그 외: 기본 모니터링 알림(제한 앱 0개여도 상시 표시, 서비스 유지)
      */
     /**
      * 한도 소진(남은 시간 0 이하)인 세션은 노티 "진행 중" 카운트에서 제외.
@@ -151,20 +161,11 @@ public class AppMonitorService extends Service {
                 n = buildTimeSpecifiedNotification(timeSpecActive.size());
             }
             startForeground(NOTIFICATION_ID, n);
-            CountReminderAlarmScheduler.INSTANCE.cancel(this);
-            scheduledCountReminderPkg = null;
-        } else if (!currentRestrictionMap.isEmpty()) {
-            startForeground(NOTIFICATION_ID, buildDefaultNotification());
-            CountReminderAlarmScheduler.INSTANCE.cancel(this);
-            scheduledCountReminderPkg = null;
+            cancelCountReminderAlarmAndNotification();
         } else {
-            stopForeground(STOP_FOREGROUND_REMOVE);
-            if (nm != null) nm.cancel(NOTIFICATION_ID);
-            CountReminderAlarmScheduler.INSTANCE.cancel(this);
-            scheduledCountReminderPkg = null;
-            isRunning = false;
-            handler.removeCallbacksAndMessages(null);
-            stopSelf();
+            // 제한 앱이 없어도 앱 설치 후 상시 감지 채널 유지 (빈 map이면 차단 루프만 생략)
+            startForeground(NOTIFICATION_ID, buildDefaultNotification());
+            cancelCountReminderAlarmAndNotification();
         }
     }
 
@@ -273,8 +274,10 @@ public class AppMonitorService extends Service {
             .setContentTitle("앱 사용 시간을 기록하고 있어요")
             .setContentText(contentText)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setOngoing(true)
+            .setAutoCancel(false)
             .setContentIntent(pi)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "카운트 중지", endPi)
+            .addAction(android.R.drawable.ic_media_pause, "카운트 중지", endPi)
             .build();
     }
 
@@ -292,8 +295,10 @@ public class AppMonitorService extends Service {
             .setContentTitle("앱 사용 시간을 기록하고 있어요")
             .setContentText(contentText)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setOngoing(true)
+            .setAutoCancel(false)
             .setContentIntent(pi)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "카운트 중지", endPi)
+            .addAction(android.R.drawable.ic_media_pause, "카운트 중지", endPi)
             .build();
     }
 
@@ -373,7 +378,7 @@ public class AppMonitorService extends Service {
 
     private void checkForegroundEvents() {
         UsageStatsManager usm = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
-        if (usm == null || currentRestrictionMap.isEmpty()) return;
+        if (usm == null) return;
 
         checkAndApplyMidnightResetIfNeeded();
 
@@ -385,6 +390,7 @@ public class AppMonitorService extends Service {
         kotlin.Pair<String, Long> activeSession = timerRepo.getActiveSession();
 
         String selfPkg = getPackageName();
+        final boolean mapEmpty = currentRestrictionMap.isEmpty();
         if (events != null) {
             UsageEvents.Event event = new UsageEvents.Event();
             while (events.hasNextEvent()) {
@@ -395,13 +401,14 @@ public class AppMonitorService extends Service {
                 if (event.getEventType() == UsageEvents.Event.MOVE_TO_FOREGROUND) {
                     lastKnownForegroundPkg = pkg;
                     foregroundStartTimeMap.put(pkg, event.getTimeStamp());
-                    if (currentRestrictionMap.containsKey(pkg)) {
+                    if (!mapEmpty && currentRestrictionMap.containsKey(pkg)) {
                         Log.d(TAG, "FOREGROUND 감지: " + pkg);
                         checkAndBlockPackage(pkg);
                     }
                     // 카운트 미중지: 포그라운드 복귀 시 예약 취소
                     if (pkg.equals(scheduledCountReminderPkg)) {
                         CountReminderAlarmScheduler.INSTANCE.cancel(this);
+                        CountReminderNotificationHelper.INSTANCE.cancel(this, pkg);
                         scheduledCountReminderPkg = null;
                     }
                 } else if (event.getEventType() == UsageEvents.Event.MOVE_TO_BACKGROUND) {
@@ -423,7 +430,7 @@ public class AppMonitorService extends Service {
         }
 
         // 이미 포그라운드에 있는 앱에서 일시정지 만료 시 바로 감지 (앱 나갔다 오지 않아도 동작)
-        if (lastKnownForegroundPkg != null && currentRestrictionMap.containsKey(lastKnownForegroundPkg)) {
+        if (!mapEmpty && lastKnownForegroundPkg != null && currentRestrictionMap.containsKey(lastKnownForegroundPkg)) {
             Log.d(TAG, "현재 포그라운드 체크: " + lastKnownForegroundPkg);
             checkAndBlockPackage(lastKnownForegroundPkg);
         }

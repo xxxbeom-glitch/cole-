@@ -117,7 +117,7 @@ private enum class TimeSpecifiedStep {
 /**
  * 시간 지정 제한 플로우 호스트
  * - SETUP에서 「다음」 시 저장 후 COMPLETE(설정 완료)로 이동 — 완료 화면 이전 단계 뒤로가기는 미저장
- * - COMPLETE에서 뒤로가기/앱 추가하기/닫기는 이미 저장된 상태로 홈(onComplete)
+ * - COMPLETE에서 뒤로가기/「홈으로 이동」은 이미 저장된 상태로 홈(onComplete)
  *
  * @param initialPrefilledApp 홈 빈 카드 등에서 「제한 앱 추가」→ 시간 지정으로 진입 시 미리 채울 앱 (AddAppFlowHost의 [initialPrefilledApp]과 동일 역할)
  */
@@ -237,8 +237,7 @@ fun TimeSpecifiedFlowHost(
                 selectedAppName = selectedAppName.ifBlank { "인스타그램" },
                 selectedStartTime = selectedStartTime ?: "",
                 selectedEndTime = selectedEndTime ?: "",
-                onAddClick = onComplete,
-                onCloseClick = onComplete,
+                onHomeClick = onComplete,
                 onBackClick = onComplete,
                 modifier = modifier,
             )
@@ -351,15 +350,14 @@ fun TimeSpecifiedScreen01(
  * 시간 지정 제한 설정 완료 화면
  * - 제목: "설정이 완료되었어요"
  * - 요약 InfoBox: 선택된 앱 / 제한 시작 시간 / 제한 종료 시간
- * - 하단: "앱 추가하기" + "닫기"
+ * - 하단: Primary 단일 "홈으로 이동" (앱 primary 색상)
  */
 @Composable
 fun TimeSpecifiedScreen03(
     selectedAppName: String,
     selectedStartTime: String,
     selectedEndTime: String,
-    onAddClick: () -> Unit,
-    onCloseClick: () -> Unit,
+    onHomeClick: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -406,15 +404,10 @@ fun TimeSpecifiedScreen03(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             AptoxPrimaryButton(
-                text = "앱 추가하기",
-                onClick = onAddClick,
-            )
-            AptoxGhostButton(
-                text = "닫기",
-                onClick = onCloseClick,
+                text = "홈으로 이동",
+                onClick = onHomeClick,
             )
         }
     }

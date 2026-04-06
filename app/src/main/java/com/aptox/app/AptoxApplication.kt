@@ -81,6 +81,8 @@ class AptoxApplication : Application() {
                 }
             }
         }
+        // MainActivity 진입 전에도 포그라운드 감시 알림을 띄울 수 있게 1회 시도
+        startAppMonitorIfNeeded(this)
     }
 
     override fun onTerminate() {
@@ -102,9 +104,8 @@ class AptoxApplication : Application() {
                 DailyUsageMidnightResetScheduler.scheduleNextMidnight(context)
                 val repo = AppRestrictionRepository(context)
                 val map = repo.toRestrictionMap()
-                if (map.isNotEmpty()) {
-                    AppMonitorService.start(context, map, clearForegroundPkg)
-                }
+                // 제한 앱이 없어도 FGS + 기본 알림 상시 유지 (사용량 기록 채널·재진입 시 즉시 감시)
+                AppMonitorService.start(context, map, clearForegroundPkg)
                 DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(context)
 
             } catch (e: Throwable) {

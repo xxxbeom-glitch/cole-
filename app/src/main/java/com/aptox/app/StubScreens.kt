@@ -75,6 +75,7 @@ import com.aptox.app.subscription.SubscriptionManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.activity.compose.BackHandler
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -92,6 +93,7 @@ import android.net.Uri
 import android.os.Process
 import android.provider.Settings
 import android.util.Log
+import android.widget.Toast
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.functions.FirebaseFunctionsException
 import java.util.concurrent.TimeUnit
@@ -176,7 +178,7 @@ fun rawScoreToResultType(rawScore: Int, answerCount: Int = 7): SelfTestResultTyp
 
 /**
  * 스플래시 화면 (Figma 409-6664)
- * - 0 → 30%: 로고 표시 + 앱 목록 로드 (가짜 진행)
+ * - 0 → 30%: 가짜 진행(20×30ms)과 앱 목록 로드(async) 병행 → 루프 종료 후 await
  * - 30 → 100%: classifyAndCacheApps onProgress 실제 진행률 반영
  * - 분류 실패/예외 시 즉시 100%로 완료 처리 (스플래시 블로킹 방지)
  */
@@ -186,17 +188,16 @@ fun SplashScreen(onFinish: () -> Unit) {
     var progress by remember { mutableStateOf(0f) }
 
     LaunchedEffect(Unit) {
-        // 1. 0 → 30%: 로고 표시 구간 (앱 목록 로드와 병행)
-        for (i in 1..30) {
-            progress = i / 100f
-            delay(40)
-        }
-
-        // 2. 앱 목록 로드 (빠름, 실패해도 빈 목록으로 진행)
         val preload = AppDataPreloadRepository(context)
-        val installedApps = runCatching {
-            withContext(Dispatchers.IO) { preload.loadInstalledApps() }
-        }.getOrElse { emptyList() }
+        val loadDeferred = async(Dispatchers.IO) {
+            runCatching { preload.loadInstalledApps() }.getOrElse { emptyList() }
+        }
+        // 0 → 30%: 가짜 진행(총 ~600ms), loadInstalledApps와 병행
+        for (i in 1..20) {
+            progress = (i / 20f) * 0.3f
+            delay(30)
+        }
+        val installedApps = loadDeferred.await()
 
         // 3. 30 → 100%: 실제 분류 진행률 반영 (캐시 미스 없으면 즉시 100%)
         runCatching {
@@ -550,6 +551,10 @@ internal fun TodaySmartphoneUsageCard(
     }
 }
 
+/** 홈 주간 Top 앱 → 제한 추가 시 이미 [AppRestrictionRepository]에 있으면 true */
+private fun isPackageAlreadyRestricted(context: Context, packageName: String): Boolean =
+    AppRestrictionRepository(context.applicationContext).getAll().any { it.packageName == packageName }
+
 /** MA-01: 코멘트 + 서브텍스트 + > 통계 이동 (Figma 932:9099, 662:2907) */
 @Composable
 internal fun MainCommentSection(
@@ -596,6 +601,7 @@ private fun MainHomeDataEmptyCard(
     modifier: Modifier = Modifier,
     contentBetweenGreetingAndTop3: @Composable () -> Unit = {},
 ) {
+    val context = LocalContext.current
     var showRestrictionTypeSheet by remember { mutableStateOf(false) }
     var pendingAppInfo by remember { mutableStateOf<com.aptox.app.model.SelectedAppInfo?>(null) }
 
@@ -616,11 +622,15 @@ private fun MainHomeDataEmptyCard(
         MainHomeWeeklyTopAppsCard(
             top3Apps = top3Apps,
             onAddRestrictionClick = { app ->
-                pendingAppInfo = com.aptox.app.model.SelectedAppInfo(
-                    appName = app.name,
-                    packageName = app.packageName,
-                )
-                showRestrictionTypeSheet = true
+                if (isPackageAlreadyRestricted(context, app.packageName)) {
+                    Toast.makeText(context, "이미 제한 중인 앱이에요", Toast.LENGTH_SHORT).show()
+                } else {
+                    pendingAppInfo = com.aptox.app.model.SelectedAppInfo(
+                        appName = app.name,
+                        packageName = app.packageName,
+                    )
+                    showRestrictionTypeSheet = true
+                }
             },
         )
         MainAppRestrictionCard(
@@ -1236,11 +1246,15 @@ internal fun MainScreenMA01(
             MainHomeWeeklyTopAppsCard(
                 top3Apps = top3Apps,
                 onAddRestrictionClick = { app ->
-                    pendingAppInfo = com.aptox.app.model.SelectedAppInfo(
-                        appName = app.name,
-                        packageName = app.packageName,
-                    )
-                    showRestrictionTypeSheet = true
+                    if (isPackageAlreadyRestricted(context, app.packageName)) {
+                        Toast.makeText(context, "이미 제한 중인 앱이에요", Toast.LENGTH_SHORT).show()
+                    } else {
+                        pendingAppInfo = com.aptox.app.model.SelectedAppInfo(
+                            appName = app.name,
+                            packageName = app.packageName,
+                        )
+                        showRestrictionTypeSheet = true
+                    }
                 },
             )
             MainAppRestrictionCard(

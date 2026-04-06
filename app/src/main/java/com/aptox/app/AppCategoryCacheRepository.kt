@@ -57,6 +57,13 @@ class AppCategoryCacheRepository(private val context: Context) {
         }
     }
 
+    /** AI 분류 캐시 전체 삭제 (디버그·재분류 테스트용) */
+    suspend fun clearAll() {
+        context.appCategoryCacheDataStore.edit { prefs ->
+            prefs.remove(CACHE_JSON)
+        }
+    }
+
     companion object {
         private val Context.appCategoryCacheDataStore: DataStore<Preferences> by preferencesDataStore(
             name = "app_category_cache"

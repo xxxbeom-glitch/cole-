@@ -17,7 +17,7 @@ android {
         applicationId = "com.aptox.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 23
+        versionCode = 25
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -121,4 +121,12 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+/** 기기에 release/externalTest 서명 APK가 있을 때 devDebug 설치가 INSTALL_FAILED_UPDATE_INCOMPATIBLE로 실패하는 경우 대비 */
+tasks.register<Exec>("uninstallAptoxForDevInstall") {
+    group = "install"
+    description = "연결 기기에서 com.aptox.app 제거 후 installDevDebug 등을 다시 시도하세요."
+    commandLine("adb", "uninstall", "com.aptox.app")
+    isIgnoreExitValue = true
 }

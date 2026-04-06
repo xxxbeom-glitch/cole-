@@ -1027,8 +1027,7 @@ fun AddAppDailyLimitScreen04(
 fun AddAppDailyLimitScreen05(
     appName: String,
     limitMinutes: String,
-    onCompleteClick: () -> Unit,
-    onAddAnotherClick: () -> Unit,
+    onHomeClick: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1040,10 +1039,8 @@ fun AddAppDailyLimitScreen05(
                 limitMinutes = limitMinutes,
             )
         },
-        primaryButtonText = "카운트 시작하기",
-        secondaryButtonText = "다른 앱 추가하기",
-        onPrimaryClick = onCompleteClick,
-        onSecondaryClick = onAddAnotherClick,
+        primaryButtonText = "홈으로 이동",
+        onPrimaryClick = onHomeClick,
         onBackClick = onBackClick,
         modifier = modifier,
     )
@@ -1223,7 +1220,7 @@ fun AddAppDailyDurationScreen(
 
 // ─────────────────────────────────────────────
 // AA-03-01 공통: 설정 완료 화면 (Figma 241-3538)
-// 하단 버튼 2단: Primary + Ghost, 12dp 간격
+// 하단: Primary 단일 또는 Primary + Ghost(secondary 지정 시)
 // ─────────────────────────────────────────────
 
 @Composable
@@ -1231,9 +1228,9 @@ fun AddAppCommonCompleteScreen(
     headerTitle: String,
     summaryContent: @Composable () -> Unit,
     primaryButtonText: String,
-    secondaryButtonText: String,
     onPrimaryClick: () -> Unit,
-    onSecondaryClick: () -> Unit,
+    secondaryButtonText: String? = null,
+    onSecondaryClick: (() -> Unit)? = null,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1276,7 +1273,9 @@ fun AddAppCommonCompleteScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             AptoxPrimaryButton(text = primaryButtonText, onClick = onPrimaryClick)
-            AptoxGhostButton(text = secondaryButtonText, onClick = onSecondaryClick)
+            if (secondaryButtonText != null && onSecondaryClick != null) {
+                AptoxGhostButton(text = secondaryButtonText, onClick = onSecondaryClick)
+            }
         }
     }
 }
@@ -1286,8 +1285,6 @@ fun AddAppFlowHost(
     onComplete: () -> Unit,
     onBackFromFirst: () -> Unit,
     modifier: Modifier = Modifier,
-    /** 일일 사용량 제한 완료 후 "카운트 시작하기" 탭 시 첫 번째 앱의 packageName 전달 */
-    onCompleteWithFirstPackage: (String) -> Unit = {},
     /** 홈 빈 상태 카드에서 앱 행의 「제한 앱 추가」 버튼으로 진입 시 pre-fill 앱 정보 */
     initialPrefilledApp: com.aptox.app.model.SelectedAppInfo? = null,
 ) {
@@ -1426,19 +1423,8 @@ fun AddAppFlowHost(
             AddAppDailyLimitScreen05(
                 appName = selectedAppNames.joinToString(", ").ifEmpty { "앱" },
                 limitMinutes = dailyLimitMinutes ?: "30분",
-                onCompleteClick = {
-                    val firstPkg = selectedAppsForDaily.firstOrNull()?.packageName ?: ""
-                    if (firstPkg.isNotBlank()) onCompleteWithFirstPackage(firstPkg) else onComplete()
-                },
-                onAddAnotherClick = {
-                    selectedAppNames = emptySet()
-                    selectedAppsForDaily = emptyList()
-                    dailyLimitMinutes = null
-                    step = AddAppStep.AA_DAILY_01
-                },
-                onBackClick = {
-                    onComplete()
-                },
+                onHomeClick = { onComplete() },
+                onBackClick = { onComplete() },
             )
         }
         // 시간지정제한 플로우
@@ -1536,18 +1522,8 @@ fun AddAppFlowHost(
                         selectedTimeLimit = selectedTimeLimit ?: "",
                     )
                 },
-                primaryButtonText = "홈으로 가기",
-                secondaryButtonText = "다른 앱 추가하기",
-                // AA_02A_TIME_05 → 진입 시 이미 저장됨
+                primaryButtonText = "홈으로 이동",
                 onPrimaryClick = { onComplete() },
-                onSecondaryClick = {
-                    selectedAppNames = emptySet()
-                    selectedAppsForDaily = emptyList()
-                    selectedAppsForTime = emptyList()
-                    selectedTimeLimit = null
-                    dailyLimitMinutes = null
-                    step = AddAppStep.AA_DAILY_01
-                },
                 onBackClick = { onComplete() },
             )
         }

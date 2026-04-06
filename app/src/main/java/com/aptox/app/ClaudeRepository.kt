@@ -46,9 +46,16 @@ class ClaudeRepository(
 
     /**
      * 앱 목록 AI 카테고리 분류 (classifyApps Cloud Function)
+     * @param debugSimulateFailure true면 네트워크 호출 없이 실패만 반환 (디버그 화면용)
      * @return Result에 results: List<ClassifyResult>
      */
-    suspend fun classifyApps(apps: List<Pair<String, String>>): Result<List<ClassifyResult>> = runCatching {
+    suspend fun classifyApps(
+        apps: List<Pair<String, String>>,
+        debugSimulateFailure: Boolean = false,
+    ): Result<List<ClassifyResult>> = runCatching {
+        if (debugSimulateFailure) {
+            error("[디버그] API 실패 시뮬레이션")
+        }
         val payload = apps.map { (pkg, name) ->
             hashMapOf("package" to pkg, "appName" to name)
         }

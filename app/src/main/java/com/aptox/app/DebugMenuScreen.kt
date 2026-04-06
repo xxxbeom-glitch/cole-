@@ -250,8 +250,7 @@ private fun DebugScreenPreview(
         DebugScreen.AddAppDaily05 -> AddAppDailyLimitScreen05(
             appName = "인스타그램",
             limitMinutes = "1시간 30분",
-            onCompleteClick = onBack,
-            onAddAnotherClick = onBack,
+            onHomeClick = onBack,
             onBackClick = onBack,
         )
         DebugScreen.AddAppFlowHost -> AddAppFlowHost(
