@@ -236,6 +236,7 @@ public class AppMonitorService extends Service {
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setOngoing(true)
             .setAutoCancel(false)
+            .setOnlyAlertOnce(true)
             .setContentIntent(pi)
             .build();
     }
@@ -278,6 +279,7 @@ public class AppMonitorService extends Service {
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setOngoing(true)
             .setAutoCancel(false)
+            .setOnlyAlertOnce(true)
             .setContentIntent(pi)
             .addAction(android.R.drawable.ic_media_pause, "카운트 중지", endPi)
             .build();
@@ -299,6 +301,7 @@ public class AppMonitorService extends Service {
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setOngoing(true)
             .setAutoCancel(false)
+            .setOnlyAlertOnce(true)
             .setContentIntent(pi)
             .addAction(android.R.drawable.ic_media_pause, "카운트 중지", endPi)
             .build();
@@ -315,6 +318,9 @@ public class AppMonitorService extends Service {
             .setContentTitle(oneLine)
             .setContentText(null)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setOnlyAlertOnce(true)
             .setContentIntent(pi)
             .build();
     }
@@ -329,6 +335,9 @@ public class AppMonitorService extends Service {
             .setContentTitle(oneLine)
             .setContentText(null)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setOnlyAlertOnce(true)
             .setContentIntent(pi)
             .build();
     }

@@ -296,7 +296,8 @@ fun StatisticsScreen(
                     onYearChange = { yearOffsetComparison = it },
                     onInfoClick = { showHelpSheet = StatsHelpType.TIME_SLOT },
                 )
-                if (BuildConfig.DEBUG) {
+                // externalTest 등 SHOW_DEBUG_MENU=false 빌드에서는 디버그 APK라도 통계 테스트 카드 숨김
+                if (BuildConfig.SHOW_DEBUG_MENU && BuildConfig.DEBUG) {
                     StatisticsDebugUsagePatternCard()
                     StatisticsDebugTotalUsageTimeCard()
                     StatisticsDebugCategoryStatsCard(statisticsViewModel = statisticsViewModel)

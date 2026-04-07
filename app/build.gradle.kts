@@ -17,7 +17,7 @@ android {
         applicationId = "com.aptox.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 27
+        versionCode = 29
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

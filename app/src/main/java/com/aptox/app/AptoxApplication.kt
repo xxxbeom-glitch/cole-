@@ -37,6 +37,7 @@ class AptoxApplication : Application() {
             )
         }
         NotificationPreferences.migrateIfNeeded(this)
+        UserPreferencesRepository.migrateClearLegacyHomeUserNameIfNeeded(this)
         applicationScope.launch {
             val initial = PremiumStatusRepository.readSubscribed(this@AptoxApplication)
             SubscriptionManager.setSubscribedFromDataStore(initial)

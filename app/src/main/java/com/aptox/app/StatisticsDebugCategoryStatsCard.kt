@@ -58,7 +58,7 @@ private val DebugCategoryColors = mapOf(
 
 /**
  * 통계 화면 전용 DEBUG — 카테고리 통계 탭(일/주/월) 프로토타입.
- * [StatisticsScreen]에서 `BuildConfig.DEBUG`일 때만 호출할 것.
+ * [StatisticsScreen]에서 `SHOW_DEBUG_MENU && DEBUG`일 때만 호출할 것.
  */
 @Composable
 fun StatisticsDebugCategoryStatsCard(

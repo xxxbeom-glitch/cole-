@@ -399,7 +399,8 @@ private fun formatUsageHoursMinutes(ms: Long): String {
 /** MA-01: 필수 권한 미허용 상태 홈 화면 (Figma 1410-5548) */
 @Composable
 private fun MainPermissionRequiredContent(
-    userName: String,
+    greetingTitle: String,
+    greetingSubtext: String,
     onPermissionClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -407,7 +408,7 @@ private fun MainPermissionRequiredContent(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        // 인사 + 권한 안내 행
+        // 인사(홈과 동일 멘트) + 권한 안내 행
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -421,11 +422,11 @@ private fun MainPermissionRequiredContent(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = "${if (userName.endsWith("님")) userName else "${userName}님"} 안녕하세요.",
+                    text = greetingTitle,
                     style = AppTypography.HeadingH3.copy(color = AppColors.TextPrimary),
                 )
                 Text(
-                    text = "앱 사용을 위해 필수 권한을 허용해 주세요",
+                    text = greetingSubtext,
                     style = AppTypography.BodyMedium.copy(color = AppColors.TextTertiary),
                 )
             }
@@ -1216,7 +1217,8 @@ internal fun MainScreenMA01(
     ) {
         if (!hasAllRequiredPermissions) {
             MainPermissionRequiredContent(
-                userName = greeting.title,
+                greetingTitle = greeting.title,
+                greetingSubtext = greeting.subtext,
                 onPermissionClick = onPermissionClick,
             )
         } else if (isRestrictionStateReady && restrictionItems.isEmpty()) {

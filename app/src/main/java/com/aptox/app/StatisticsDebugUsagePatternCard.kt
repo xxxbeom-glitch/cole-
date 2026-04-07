@@ -28,7 +28,7 @@ import java.util.Locale
 
 /**
  * 통계 화면 전용 DEBUG — "사용 패턴" 프로토타입.
- * [StatisticsScreen]에서 `BuildConfig.DEBUG`일 때만 호출할 것.
+ * [StatisticsScreen]에서 `SHOW_DEBUG_MENU && DEBUG`일 때만 호출할 것.
  */
 @Composable
 fun StatisticsDebugUsagePatternCard(modifier: Modifier = Modifier) {
