@@ -17,10 +17,16 @@ android {
         applicationId = "com.aptox.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 32
+        versionCode = 35
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // 전면 광고 — 출시 전 테스트 단위 ID (Google 공식 테스트)
+        buildConfigField(
+            "String",
+            "ADMOB_INTERSTITIAL_AD_UNIT_ID",
+            "\"ca-app-pub-3940256099942544/1033173712\"",
+        )
     }
 
     flavorDimensions += "distribution"
@@ -102,6 +108,7 @@ dependencies {
     implementation("androidx.media:media:1.7.0")
     implementation("androidx.core:core-splashscreen:1.0.1")
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation("androidx.lifecycle:lifecycle-process:2.10.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.fragment.ktx)

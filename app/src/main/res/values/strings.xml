@@ -2,6 +2,13 @@
     <string name="app_name">aptox</string>
     <string name="widget_daily_limit_description">제한 앱의 남은 시간·제한 구간을 한눈에 보여줍니다.</string>
     <string name="widget_title_daily_limit">Aptox 제한 현황</string>
+    <!-- 위젯 1: 하루 사용량 제한 -->
+    <string name="widget_daily_title">하루 사용량 제한</string>
+    <string name="widget_daily_label">Aptox 사용량 위젯</string>
+    <!-- 위젯 2: 지정 시간 제한 -->
+    <string name="widget_time_title">지정 시간 제한</string>
+    <string name="widget_time_label">Aptox 시간 위젯</string>
+    <string name="widget_time_description">지정 시간 제한 현황과 다음 제한까지 남은 시간을 보여줍니다.</string>
     <string name="widget_empty_message">현재 제한 중인 앱이 없습니다</string>
     <string name="widget_empty_add_restrictions">제한 앱을 추가해보세요</string>
     <string name="widget_free_user_hint">탭하여 구독하고 위젯을 이용해 보세요</string>

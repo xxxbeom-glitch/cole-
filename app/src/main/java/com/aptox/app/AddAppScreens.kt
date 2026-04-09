@@ -226,7 +226,7 @@ fun AddAppScreenAA02A01(
     modifier: Modifier = Modifier,
 ) {
     val limitOptions = listOf(
-        SelectionCardItem("하루 사용량 제한", "매일 사용할 수 있는 시간을 설정합니다", "30분"),
+        SelectionCardItem("하루 사용량 제한", "매일 사용할 수 있는 시간을 설정합니다", "30~180분"),
         SelectionCardItem("시간지정제한", "특정 시간대에만 사용 가능하도록 설정합니다", "설정"),
         SelectionCardItem("앱 차단", "특정 시간대에 앱 사용을 차단합니다", "설정"),
     )
@@ -776,17 +776,20 @@ fun AddAppSummaryRow(
 // 스크린샷: 헤더 "일일 사용량 제한", 4개 SelectionRow, "다음" 버튼
 // ─────────────────────────────────────────────
 
-// 무료/유료 공통 노출 순서 (짧은 시간→긴 시간→제한 없음). 디버그 시 3분만 맨 앞 옵션.
-private fun getDailyTimeSteps(): List<String> {
-    val base = listOf("30분", "60분", "90분", "120분", "150분", "180분", "제한 없음")
-    return if (DebugTestSettings.debugShow3MinDailyOption) listOf("3분") + base else base
-}
+private const val DAILY_LIMIT_MIN_MINUTES = 30
+private const val DAILY_LIMIT_MAX_MINUTES = 180
+private const val DAILY_LIMIT_DEFAULT_MINUTES = 60
 
-/** 드럼롤 바텀시트: 이미 고른 값이 있으면 그 인덱스, 없으면 기본 60분 */
+/** 일일 사용량: 30~180분 1분 단위 (드럼롤 목록) */
+private fun getDailyTimeSteps(): List<String> =
+    (DAILY_LIMIT_MIN_MINUTES..DAILY_LIMIT_MAX_MINUTES).map { "${it}분" }
+
+/** 드럼롤: 선택값이 목록에 있으면 해당 인덱스, 없으면 기본 60분 */
 private fun dailyDrumrollInitialIndex(steps: List<String>, selectedMinutes: String?): Int {
     val fromSelection = selectedMinutes?.let { steps.indexOf(it) }?.takeIf { it >= 0 }
     if (fromSelection != null) return fromSelection
-    return steps.indexOf("60분").takeIf { it >= 0 } ?: 0
+    val defaultLabel = "${DAILY_LIMIT_DEFAULT_MINUTES}분"
+    return steps.indexOf(defaultLabel).takeIf { it >= 0 } ?: 0
 }
 private val DAILY_DURATION_OPTIONS = listOf("오늘 하루만", "1주", "2주", "3주", "4주")
 
@@ -1387,7 +1390,7 @@ fun AddAppFlowHost(
             // 저장은 AA_DAILY_01 → 여기로 올 때 이미 완료됨
             AddAppDailyLimitScreen05(
                 appName = selectedAppNames.joinToString(", ").ifEmpty { "앱" },
-                limitMinutes = dailyLimitMinutes ?: "30분",
+                limitMinutes = dailyLimitMinutes ?: "${DAILY_LIMIT_DEFAULT_MINUTES}분",
                 onHomeClick = { onComplete() },
                 onBackClick = { onComplete() },
             )
@@ -1503,7 +1506,7 @@ private suspend fun persistDailyLimitAddFlow(
     dailyLimitMinutes: String?,
 ) {
     val repo = AppRestrictionRepository(context)
-    val mins = parseDailyLimitMinutesForStorage(dailyLimitMinutes ?: "30분")
+    val mins = parseDailyLimitMinutesForStorage(dailyLimitMinutes ?: "${DAILY_LIMIT_DEFAULT_MINUTES}분")
     val baselineTime = System.currentTimeMillis()
     selectedAppsForDaily.filter { it.packageName.isNotBlank() }.forEach { app ->
         repo.save(

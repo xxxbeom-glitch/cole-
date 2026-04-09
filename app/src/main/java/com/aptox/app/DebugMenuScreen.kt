@@ -1529,28 +1529,6 @@ private fun DebugTestSettingsSection() {
         }
         DebugDivider()
 
-        // 2-1. 하루 사용량 3분 옵션
-        var show3MinOption by remember { mutableStateOf(DebugTestSettings.debugShow3MinDailyOption) }
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(text = "하루 사용량 3분 항목", style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary))
-            Text(text = "일일 사용량 제한 화면에서 3분 선택지를 표시할지 여부. 테스트 시 ON, 출시용 체험 시 OFF.", style = AppTypography.Caption1.copy(color = AppColors.TextSecondary))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(text = if (show3MinOption) "3분 표시 (테스트용)" else "3분 숨김", style = AppTypography.BodyMedium.copy(color = AppColors.TextBody))
-                AptoxSwitch(
-                    checked = show3MinOption,
-                    onCheckedChange = {
-                        show3MinOption = it
-                        DebugTestSettings.debugShow3MinDailyOption = it
-                    },
-                )
-            }
-        }
-        DebugDivider()
-
         // 3. 알림내역 갯수
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(text = "알림내역 갯수", style = AppTypography.BodyMedium.copy(color = AppColors.TextPrimary))

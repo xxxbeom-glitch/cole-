@@ -87,7 +87,7 @@ object SubscriptionFeature {
     }
 
     // ── 하루 사용량 제한(드럼롤) ────────────
-    // 무료: 30·60분만 선택 가능. 그 외(90분~·제한 없음)는 잠금 + 구독 유도.
+    // 무료: 30·60분만 선택 가능. 그 외(31~59·61~180분)는 잠금 + 구독 유도.
     // 유료: 전체 옵션
     fun isDailyLimitDrumrollOptionLockedForFreeUser(optionLabel: String): Boolean {
         return optionLabel != "30분" && optionLabel != "60분"
@@ -101,8 +101,8 @@ object SubscriptionFeature {
     fun canUseLocalDeviceBackup(context: Context): Boolean = true
 
     // ── 홈 화면 위젯(핀/안내) ───────────────
-    fun canUseWidget(context: Context): Boolean =
-        SubscriptionManager.isSubscribed(context)
+    @Suppress("UnusedParameter")
+    fun canUseWidget(context: Context): Boolean = true
 
     // ── AdMob 홈 배너 ──────────────────────
     fun shouldShowHomeBannerAd(context: Context): Boolean =

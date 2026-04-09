@@ -6,21 +6,32 @@ import com.aptox.app.DailyUsageLimitConstants
 import com.aptox.app.ManualTimerRepository
 import com.aptox.app.PauseRepository
 import com.aptox.app.RestrictionDeleteHelper
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 
 /**
- * 홈 위젯용 제한 앱 한 줄 상태 (하루 사용량 + 시간 지정).
- * [com.aptox.app.loadRestrictionItems]와 동일한 데이터 규칙을 따름.
+ * 홈 위젯 4×2 집계 데이터.
+ * 지정 시간 제한 / 하루 사용량 제한 두 섹션의 표시값을 담는다.
  */
-data class RestrictionWidgetRow(
-    val packageName: String,
-    val appName: String,
-    val statusText: String,
-    /** 제한 초과 / 제한 중 등 강조 (AppColors.TextHighlight 대응) */
-    val statusUsesHighlightColor: Boolean,
+data class WidgetSummaryData(
+    // ── 지정 시간 제한 섹션 ──
+    /** 등록된 지정 시간 제한 앱 수 */
+    val timeSpecifiedTotal: Int,
+    /** 현재 제한 창(window) 안에서 활성 중인 앱 수 */
+    val timeSpecifiedActive: Int,
+    /** 제한 중 / 전체 비율 0~100 */
+    val timeSpecifiedProgressPercent: Int,
+
+    // ── 하루 사용량 제한 섹션 ──
+    /** 등록된 하루 사용량 제한 앱 수 (만료 제거 후) */
+    val dailyUsageTotal: Int,
+    /** 오늘 사용량 합계 (분, 비무제한 앱 기준) */
+    val dailyUsageTotalMinutes: Int,
+    /** 한도 합계 (분, 비무제한 앱 기준); 0 이면 모두 무제한 */
+    val dailyLimitTotalMinutes: Int,
+    /** 사용량 / 한도 비율 0~100 */
+    val dailyUsageProgressPercent: Int,
+    /** 한도 합계 초과 여부 (진행색 전환용) */
+    val dailyIsExceeded: Boolean,
 )
 
 private const val TIME_SPEC_ONE_DAY_MS = 24L * 60 * 60 * 1000
@@ -32,15 +43,6 @@ private fun todayDayIndex(): Int {
 
 private fun parseRepeatDays(repeatDays: String): Set<Int> =
     repeatDays.split(",").mapNotNull { it.trim().toIntOrNull() }.filter { it in 0..6 }.toSet()
-
-private fun daysUntilNextRestriction(todayIdx: Int, restrictionDayIndices: Set<Int>): Int {
-    if (todayIdx in restrictionDayIndices) return 0
-    for (d in 1..7) {
-        val idx = (todayIdx + d) % 7
-        if (idx in restrictionDayIndices) return d
-    }
-    return 7
-}
 
 private fun isDurationExpired(baselineTimeMs: Long, durationWeeks: Int): Boolean {
     if (durationWeeks <= 0) return false
@@ -68,28 +70,42 @@ private fun rollToNextTimeSpecifiedWindow(startTimeMs: Long, blockUntilMs: Long,
     return s to e
 }
 
-private fun formatHm(timeMs: Long): String =
-    SimpleDateFormat("HH:mm", Locale.KOREA).format(Date(timeMs))
-
 object RestrictionWidgetDataLoader {
 
-    private const val MAX_ROWS = 24
+    /** 로딩 실패·폴백용 — 전부 0, 미초과 */
+    fun emptySummary(): WidgetSummaryData = WidgetSummaryData(
+        timeSpecifiedTotal = 0,
+        timeSpecifiedActive = 0,
+        timeSpecifiedProgressPercent = 0,
+        dailyUsageTotal = 0,
+        dailyUsageTotalMinutes = 0,
+        dailyLimitTotalMinutes = 0,
+        dailyUsageProgressPercent = 0,
+        dailyIsExceeded = false,
+    )
 
-    fun loadRows(context: Context): List<RestrictionWidgetRow> {
+    fun loadSummary(context: Context): WidgetSummaryData {
         val app = context.applicationContext
         val repo = AppRestrictionRepository(app)
-        var restrictions = repo.getAll()
-        if (restrictions.isEmpty()) return emptyList()
+        val restrictions = repo.getAll()
+
+        if (restrictions.isEmpty()) return emptySummary()
 
         val pauseRepo = PauseRepository(app)
-        val todayIdx = todayDayIndex()
+        val timerRepo = ManualTimerRepository(app)
         val now = System.currentTimeMillis()
 
-        val out = ArrayList<RestrictionWidgetRow>()
+        var timeSpecTotal = 0
+        var timeSpecActive = 0
+
+        var dailyTotal = 0
+        var dailySumUsageMsActual = 0L  // 표시용 실제 사용량
+        var dailySumUsageMsCapped = 0L  // 프로그레스용 (한도 상한)
+        var dailySumLimitMs = 0L
 
         for (orig in restrictions) {
-            if (out.size >= MAX_ROWS) break
             val isTimeSpecified = orig.startTimeMs > 0
+
             if (isTimeSpecified) {
                 val restriction = if (orig.blockUntilMs <= now) {
                     repo.renewExpiredTimeSpecifiedRestrictions()
@@ -102,22 +118,12 @@ object RestrictionWidgetDataLoader {
                     restriction.blockUntilMs,
                     now,
                 )
-                val isInRestriction = !isPaused && now >= winStart && now < winEnd
+                val isActive = !isPaused && now >= winStart && now < winEnd
 
-                val (text, highlight) = when {
-                    isPaused -> "일시정지 중" to false
-                    isInRestriction -> "제한 중" to true
-                    else -> "${formatHm(winStart)} 시작" to false
-                }
-                out.add(
-                    RestrictionWidgetRow(
-                        packageName = restriction.packageName,
-                        appName = restriction.appName,
-                        statusText = text,
-                        statusUsesHighlightColor = highlight,
-                    ),
-                )
+                timeSpecTotal++
+                if (isActive) timeSpecActive++
             } else {
+                // 만료 체크
                 val repeatDaySet = parseRepeatDays(orig.repeatDays)
                 if (repeatDaySet.isEmpty()) {
                     if (isTodayOnlyExpired(orig.baselineTimeMs)) {
@@ -131,44 +137,41 @@ object RestrictionWidgetDataLoader {
                     }
                 }
 
-                val timerRepo = ManualTimerRepository(app)
-                val usageMs = timerRepo.getTodayUsageMs(orig.packageName)
+                dailyTotal++
+
                 val isDailyUnlimited =
                     orig.limitMinutes >= DailyUsageLimitConstants.UNLIMITED_MINUTES_SENTINEL
-                val limitMs =
-                    if (isDailyUnlimited) Long.MAX_VALUE / 4 else orig.limitMinutes * 60L * 1000L
-                val remainingMs = (limitMs - usageMs).coerceAtLeast(0)
-                val isCountActive = timerRepo.isSessionActive(orig.packageName)
-
-                val isEveryDay = repeatDaySet.size == 7
-                val daysUntil =
-                    if (!isEveryDay && repeatDaySet.isNotEmpty()) daysUntilNextRestriction(todayIdx, repeatDaySet) else 0
-
-                val (text, highlight) = when {
-                    daysUntil > 0 -> "${daysUntil}일 후 예정" to false
-                    isDailyUnlimited -> when {
-                        isCountActive -> "이용 중" to false
-                        else -> "제한 없음" to false
-                    }
-                    remainingMs <= 0 && isCountActive -> "제한 초과" to true
-                    remainingMs <= 0 && !isCountActive -> "오늘 완료" to false
-                    else -> {
-                        val remainingMin = (remainingMs / 60_000).toInt().coerceAtLeast(1)
-                        "${remainingMin}분 남음" to false
-                    }
+                if (!isDailyUnlimited) {
+                    val limitMs = orig.limitMinutes * 60L * 1000L
+                    val usageMs = timerRepo.getTodayUsageMs(orig.packageName)
+                    dailySumLimitMs += limitMs
+                    dailySumUsageMsActual += usageMs
+                    dailySumUsageMsCapped += usageMs.coerceAtMost(limitMs)
                 }
-
-                out.add(
-                    RestrictionWidgetRow(
-                        packageName = orig.packageName,
-                        appName = orig.appName,
-                        statusText = text,
-                        statusUsesHighlightColor = highlight,
-                    ),
-                )
             }
         }
 
-        return out
+        val timeSpecProgress = if (timeSpecTotal > 0)
+            (timeSpecActive * 100 / timeSpecTotal).coerceIn(0, 100)
+        else 0
+
+        val dailyUsageMinutes = (dailySumUsageMsActual / 60_000L).toInt()
+        val dailyLimitMinutes = (dailySumLimitMs / 60_000L).toInt()
+        val dailyProgress = if (dailySumLimitMs > 0)
+            ((dailySumUsageMsCapped.toFloat() / dailySumLimitMs) * 100).toInt().coerceIn(0, 100)
+        else 0
+        val dailyExceeded = dailySumLimitMs > 0 && dailySumUsageMsActual > dailySumLimitMs
+
+        return WidgetSummaryData(
+            timeSpecifiedTotal = timeSpecTotal,
+            timeSpecifiedActive = timeSpecActive,
+            timeSpecifiedProgressPercent = timeSpecProgress,
+            dailyUsageTotal = dailyTotal,
+            dailyUsageTotalMinutes = dailyUsageMinutes,
+            dailyLimitTotalMinutes = dailyLimitMinutes,
+            dailyUsageProgressPercent = dailyProgress,
+            dailyIsExceeded = dailyExceeded,
+        )
     }
+
 }

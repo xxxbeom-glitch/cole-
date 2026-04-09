@@ -32,4 +32,16 @@
     <color name="widget_text_highlight">#FF6C54DD</color>
     <!-- AppColors.SurfaceBackgroundBackground (Grey100) — 위젯 4x1 배경 -->
     <color name="widget_restrictions_bg">#FFF5F5F5</color>
+
+    <!-- 홈 위젯 4x2 다크 테마 -->
+    <color name="widget_dark_bg">#FF1E1E1E</color>
+    <color name="widget_dark_text_primary">#FFFFFFFF</color>
+    <color name="widget_dark_text_secondary">#FFA3A3A3</color>
+    <color name="widget_dark_title">#FFAAAAAA</color>
+    <color name="widget_dark_sub">#FF888888</color>
+    <color name="widget_dark_accent">#FF7C6AF7</color>
+    <color name="widget_dark_progress">#FF7C6AF7</color>
+    <color name="widget_dark_divider">#FF333333</color>
+    <color name="widget_dark_progress_bg">#FF333333</color>
+    <color name="widget_dark_exceeded">#FFFF5252</color>
 </resources>

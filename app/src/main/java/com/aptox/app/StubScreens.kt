@@ -73,9 +73,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.aptox.app.BuildConfig
-import android.appwidget.AppWidgetManager
-import android.content.ComponentName
-import android.os.Build
 import com.aptox.app.subscription.PremiumStatusRepository
 import com.aptox.app.subscription.SubscriptionBillingController
 import com.aptox.app.subscription.SubscriptionFeature
@@ -95,7 +92,6 @@ import com.aptox.app.backup.BackupTargetStorageEstimator
 import com.aptox.app.backup.BackupUiFormatter
 import com.aptox.app.backup.DataBackupMetadataRepository
 import com.aptox.app.backup.LocalBackupExporter
-import com.aptox.app.widget.AptoxRestrictionStatusWidgetProvider
 import com.aptox.app.backup.LocalBackupImporter
 import com.aptox.app.usage.UsageStatsFirestoreSync
 import com.aptox.app.StatisticsData
@@ -1704,6 +1700,8 @@ fun MainFlowHost(
     var showDataBackupSheet by remember { mutableStateOf(false) }
     var showRestoreBackupConfirm by remember { mutableStateOf(false) }
     var isBackupRestoring by remember { mutableStateOf(false) }
+    /** 로컬 백업: ZIP 생성 후 [ACTION_CREATE_DOCUMENT] 결과까지 대기하는 임시 파일 */
+    var pendingLocalBackupZip by remember { mutableStateOf<java.io.File?>(null) }
     var backupCardTotalSizeText by remember { mutableStateOf("—") }
     var backupCardLocalLastText by remember { mutableStateOf("-") }
     var backupCardServerLastText by remember { mutableStateOf("-") }
@@ -1758,6 +1756,42 @@ fun MainFlowHost(
     var permissionRefreshKey by remember { mutableIntStateOf(0) }
     /** 필수 권한(사용정보·오버레이·접근성) 미충족 시 앱 제한 추가 대신 표시 */
     var showRequiredPermissionDialog by remember { mutableStateOf(false) }
+
+    val backupCreateDocumentLauncher = rememberLauncherForActivityResult(
+        contract = object : ActivityResultContracts.CreateDocument("application/zip") {
+            override fun createIntent(context: Context, input: String): Intent =
+                LocalBackupExporter.createSaveBackupZipIntent(input)
+        },
+    ) { uri ->
+        val zip = pendingLocalBackupZip
+        pendingLocalBackupZip = null
+        scope.launch {
+            try {
+                when {
+                    uri != null && zip != null -> {
+                        val ok = withContext(Dispatchers.IO) {
+                            LocalBackupExporter.copyZipFileToUri(context.applicationContext, zip, uri)
+                        }
+                        zip.delete()
+                        if (ok) {
+                            DataBackupMetadataRepository.setLocalBackupCompletedNow(context)
+                            val ts = DataBackupMetadataRepository.readLocalLastBackupTimestamp(context.applicationContext)
+                            backupCardLocalLastText = ts?.takeIf { it > 0L }?.let { BackupUiFormatter.formatLastBackupInstant(it) } ?: "-"
+                            toastReplayKey += 1
+                            toastMessage = "기기에 백업됐어요"
+                        } else {
+                            toastReplayKey += 1
+                            toastMessage = "백업에 실패했어요"
+                        }
+                    }
+                    else -> zip?.delete()
+                }
+            } finally {
+                isBackupRestoring = false
+                showDataBackupSheet = false
+            }
+        }
+    }
 
     // 일시정지 플로우 state
     var showPauseProposalSheet by remember { mutableStateOf(false) }
@@ -2066,6 +2100,7 @@ fun MainFlowHost(
                                 SettingsDetail.AccountManage -> AccountManageScreen(
                                     onBack = { settingsDetail = null },
                                     currentUserInfo = currentUserInfo,
+                                    isLoggedIn = isLoggedIn,
                                     onLogout = {
                                         scope.launch {
                                             authRepository.signOut()
@@ -2211,26 +2246,6 @@ fun MainFlowHost(
                                     },
                                     onNotificationClick = { settingsDetail = SettingsDetail.Notification },
                                     onDataBackupClick = { showDataBackupSheet = true },
-                                    onHomeWidgetClick = {
-                                        if (!SubscriptionFeature.canUseWidget(context.applicationContext)) {
-                                            showSubscriptionBottomSheet = true
-                                        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                            val awm = AppWidgetManager.getInstance(context)
-                                            val provider =
-                                                ComponentName(context, AptoxRestrictionStatusWidgetProvider::class.java)
-                                            if (awm.isRequestPinAppWidgetSupported) {
-                                                awm.requestPinAppWidget(provider, null, null)
-                                            } else {
-                                                toastReplayKey += 1
-                                                toastMessage =
-                                                    "홈 화면을 길게 누른 뒤 위젯 목록에서 추가할 수 있어요"
-                                            }
-                                        } else {
-                                            toastReplayKey += 1
-                                            toastMessage =
-                                                "홈 화면을 길게 누른 뒤 위젯 목록에서 추가할 수 있어요"
-                                        }
-                                    },
                                     onPermissionClick = { settingsDetail = SettingsDetail.Permission },
                                     onBugReportClick = { settingsDetail = SettingsDetail.BugReport },
                                     onTermsClick = { showTermsSheet = true },
@@ -2559,16 +2574,11 @@ fun MainFlowHost(
                                 isBackupRestoring = true
                                 try {
                                     val zip = LocalBackupExporter.exportToZipFile(context)
-                                    LocalBackupExporter.shareZip(act, zip)
-                                    DataBackupMetadataRepository.setLocalBackupCompletedNow(context)
-                                    val ts = DataBackupMetadataRepository.readLocalLastBackupTimestamp(context.applicationContext)
-                                    backupCardLocalLastText = ts?.takeIf { it > 0L }?.let { BackupUiFormatter.formatLastBackupInstant(it) } ?: "-"
-                                    toastReplayKey += 1
-                                    toastMessage = "기기에 백업됐어요"
+                                    pendingLocalBackupZip = zip
+                                    backupCreateDocumentLauncher.launch(zip.name)
                                 } catch (_: Exception) {
                                     toastReplayKey += 1
                                     toastMessage = "백업에 실패했어요"
-                                } finally {
                                     isBackupRestoring = false
                                     showDataBackupSheet = false
                                 }

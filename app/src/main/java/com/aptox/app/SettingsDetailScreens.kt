@@ -350,6 +350,8 @@ private fun isAccessibilityEnabled(context: Context): Boolean {
 fun AccountManageScreen(
     onBack: () -> Unit,
     currentUserInfo: com.aptox.app.AuthRepository.CurrentUserInfo?,
+    /** Firebase 로그인 여부 — false면 회원 탈퇴 진입점 미노출 */
+    isLoggedIn: Boolean,
     onLogout: () -> Unit,
     onGoogleClick: () -> Unit = {},
     onWithdrawClick: () -> Unit = {},
@@ -407,21 +409,23 @@ fun AccountManageScreen(
             )
         }
 
-        // 하단 탈퇴하기 텍스트 버튼
-        Text(
-            text = "탈퇴하기",
-            style = AppTypography.BodyRegular.copy(color = AppColors.TextCaption),
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onWithdrawClick,
-                )
-                .padding(bottom = 28.dp, top = 16.dp),
-        )
+        if (isLoggedIn) {
+            // 하단 탈퇴하기 텍스트 버튼 (로그인 시에만)
+            Text(
+                text = "탈퇴하기",
+                style = AppTypography.BodyRegular.copy(color = AppColors.TextCaption),
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onWithdrawClick,
+                    )
+                    .padding(bottom = 28.dp, top = 16.dp),
+            )
+        }
     }
 }
 

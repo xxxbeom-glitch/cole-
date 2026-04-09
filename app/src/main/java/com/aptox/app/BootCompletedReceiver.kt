@@ -6,8 +6,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.aptox.app.widget.AptoxRestrictionStatusWidgetProvider
-import com.aptox.app.widget.RestrictionsWidgetRefreshScheduler
+import com.aptox.app.widget.AptoxDailyLimitWidgetProvider
+import com.aptox.app.widget.AptoxTimeRestrictionWidgetProvider
 
 /**
  * 기기 재부팅 후 BOOT_COMPLETED 수신 시 AppMonitorService를 재시작합니다.
@@ -30,11 +30,12 @@ class BootCompletedReceiver : BroadcastReceiver() {
             DailyUsageAlarmScheduler.scheduleResetWarningIfNeeded(ctx)
             BriefDailyAlarmScheduler.schedule(ctx)
 
-            val widgetIds = AppWidgetManager.getInstance(ctx).getAppWidgetIds(
-                ComponentName(ctx, AptoxRestrictionStatusWidgetProvider::class.java),
-            )
-            if (widgetIds.isNotEmpty()) {
-                RestrictionsWidgetRefreshScheduler.schedule(ctx)
+            val mgr = AppWidgetManager.getInstance(ctx)
+            if (mgr.getAppWidgetIds(ComponentName(ctx, AptoxDailyLimitWidgetProvider::class.java)).isNotEmpty()) {
+                AptoxDailyLimitWidgetProvider.cancel(ctx) // 기존 알람 중복 방지 후 재등록
+            }
+            if (mgr.getAppWidgetIds(ComponentName(ctx, AptoxTimeRestrictionWidgetProvider::class.java)).isNotEmpty()) {
+                AptoxTimeRestrictionWidgetProvider.cancel(ctx)
             }
 
         } catch (e: Throwable) {

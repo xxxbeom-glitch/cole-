@@ -4,10 +4,10 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
-import com.aptox.app.MainActivity
+import android.util.Log
 
 /**
- * 4x1 홈 화면 제한 앱 현황 위젯 (하루 사용량 + 시간 지정).
+ * 4×2 홈 화면 제한 앱 현황 위젯 (하루 사용량 + 시간 지정).
  */
 class AptoxRestrictionStatusWidgetProvider : AppWidgetProvider() {
 
@@ -18,7 +18,11 @@ class AptoxRestrictionStatusWidgetProvider : AppWidgetProvider() {
             val cn = android.content.ComponentName(app, AptoxRestrictionStatusWidgetProvider::class.java)
             val ids = mgr.getAppWidgetIds(cn)
             if (ids.isNotEmpty()) {
-                onUpdate(app, mgr, ids)
+                try {
+                    onUpdate(app, mgr, ids)
+                } catch (t: Throwable) {
+                    Log.e(TAG, "onReceive ACTION_REFRESH onUpdate failed", t)
+                }
             }
             return
         }
@@ -31,34 +35,44 @@ class AptoxRestrictionStatusWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray,
     ) {
         val app = context.applicationContext
-        val views = AptoxRestrictionWidgetBinder.buildUpdate(app)
-        for (id in appWidgetIds) {
-            appWidgetManager.updateAppWidget(id, views)
+        try {
+            val views = AptoxRestrictionWidgetBinder.buildUpdate(app)
+            for (id in appWidgetIds) {
+                appWidgetManager.updateAppWidget(id, views)
+            }
+        } catch (t: Throwable) {
+            Log.e(TAG, "onUpdate failed, applying per-widget fallback", t)
+            val fallback = AptoxRestrictionWidgetBinder.buildFallbackRemoteViews(app)
+            for (id in appWidgetIds) {
+                try {
+                    appWidgetManager.updateAppWidget(id, fallback)
+                } catch (inner: Throwable) {
+                    Log.e(TAG, "updateAppWidget failed appWidgetId=$id", inner)
+                }
+            }
         }
     }
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        RestrictionsWidgetRefreshScheduler.schedule(context.applicationContext)
-        if (!AptoxRestrictionWidgetBinder.isPremiumUser(context)) {
-            val app = context.applicationContext
-            app.startActivity(
-                Intent(app, MainActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    putExtra(MainActivity.EXTRA_OPEN_SUBSCRIPTION_FROM_WIDGET, true)
-                },
-            )
+        try {
+            RestrictionsWidgetRefreshScheduler.schedule(context.applicationContext)
+        } catch (t: Throwable) {
+            Log.e(TAG, "onEnabled schedule failed", t)
         }
     }
 
     override fun onDisabled(context: Context) {
-        RestrictionsWidgetRefreshScheduler.cancel(context.applicationContext)
+        try {
+            RestrictionsWidgetRefreshScheduler.cancel(context.applicationContext)
+        } catch (t: Throwable) {
+            Log.e(TAG, "onDisabled cancel failed", t)
+        }
         super.onDisabled(context)
     }
 
     companion object {
+        private const val TAG = "AptoxRestrictionWidget"
         const val ACTION_REFRESH = "com.aptox.app.action.WIDGET_REFRESH_RESTRICTIONS"
     }
 }

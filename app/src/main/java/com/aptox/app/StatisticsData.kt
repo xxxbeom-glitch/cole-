@@ -1190,24 +1190,25 @@ object StatisticsData {
             .map { it.first }
     }
 
-    /** AI 분류 카테고리: OTT, SNS, 웹툰, 쇼핑, 게임, 주식/코인 (기타 제외) */
-    private val AI_CATEGORIES = setOf("OTT", "SNS", "웹툰", "쇼핑", "게임", "주식,코인")
+    /** 통계 카테고리 탭 표시 대상: AI 6종 + 기타 ([AppCategoryRepository] 미매핑은 기타) */
+    private val AI_CATEGORIES = setOf("OTT", "SNS", "웹툰", "쇼핑", "게임", "주식,코인", "기타")
 
     /**
-     * 6개 허용 카테고리(SNS, OTT, 게임, 쇼핑, 웹툰, 주식·코인) 앱만 필터링하여 사용량 반환.
-     * 수동 오버라이드 → AI 캐시 우선순위로 카테고리 결정.
+     * 허용 카테고리(SNS, OTT, 게임, 쇼핑, 웹툰, 주식·코인, 기타) 앱만 필터링하여 사용량 반환.
+     * 수동 오버라이드 → AI 캐시 → 맵에 없으면 "기타" (AppCategoryRepository.getCategory와 동일 규칙).
      */
     suspend fun loadAppUsageForAllowedCategories(context: Context, startMs: Long, endMs: Long): List<StatsAppItem> =
         withContext(Dispatchers.IO) {
             val categoryRepo = AppCategoryRepository(context)
             val allCategories = categoryRepo.getAllCategories()
-            val allowedPkgs = allCategories.filterValues { it in AI_CATEGORIES }.keys.toSet()
-            if (allowedPkgs.isEmpty()) return@withContext emptyList()
             val raw = loadAppUsage(context, startMs, endMs)
             raw
-                .filter { it.packageName in allowedPkgs }
-                .map { it.copy(categoryTag = allCategories[it.packageName]) }
                 .filter { it.usageMs >= 10 * 60_000L }
+                .map { item ->
+                    val tag = allCategories[item.packageName] ?: "기타"
+                    item.copy(categoryTag = tag)
+                }
+                .filter { it.categoryTag in AI_CATEGORIES }
         }
 
     /**

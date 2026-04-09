@@ -91,17 +91,32 @@
             android:name=".BriefDailyAlarmReceiver"
             android:exported="false" />
 
+        <!-- 위젯 1: 하루 사용량 제한 -->
         <receiver
-            android:name=".widget.AptoxRestrictionStatusWidgetProvider"
+            android:name=".widget.AptoxDailyLimitWidgetProvider"
             android:exported="true"
-            android:label="@string/widget_title_daily_limit">
+            android:label="@string/widget_daily_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.aptox.app.action.WIDGET_REFRESH_RESTRICTIONS" />
+                <action android:name="com.aptox.app.action.DAILY_WIDGET_REFRESH" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/aptox_restriction_status_widget_info" />
+                android:resource="@xml/aptox_daily_limit_widget_info" />
+        </receiver>
+
+        <!-- 위젯 2: 지정 시간 제한 -->
+        <receiver
+            android:name=".widget.AptoxTimeRestrictionWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_time_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.aptox.app.action.TIME_WIDGET_REFRESH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/aptox_time_restriction_widget_info" />
         </receiver>
         <receiver
             android:name=".CountReminderAlarmReceiver"

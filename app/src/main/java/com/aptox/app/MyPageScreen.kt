@@ -44,8 +44,6 @@ fun MyPageScreen(
     onSubscriptionManageClick: () -> Unit = {},
     onNotificationClick: () -> Unit = {},
     onDataBackupClick: () -> Unit = {},
-    /** 홈 화면 위젯 핀(안내) — 무료 시 호출부에서 구독 시트 */
-    onHomeWidgetClick: () -> Unit = {},
     onPermissionClick: () -> Unit = {},
     onBugReportClick: () -> Unit = {},
     onTermsClick: () -> Unit = {},
@@ -102,12 +100,6 @@ fun MyPageScreen(
                     iconResId = R.drawable.ic_data_backup,
                     label = "데이터 백업",
                     onClick = onDataBackupClick,
-                )
-                MyPageDivider()
-                MyPageRowItem(
-                    iconResId = R.drawable.ic_nav_home,
-                    label = "홈 화면 위젯",
-                    onClick = onHomeWidgetClick,
                 )
                 MyPageDivider()
                 MyPageRowItem(

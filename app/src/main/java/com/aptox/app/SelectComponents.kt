@@ -187,11 +187,11 @@ fun AptoxSelectionCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFFFFFFF))
             .then(
                 if (selected) Modifier.border(1.5.dp, AppColors.Primary300, RoundedCornerShape(12.dp))
                 else Modifier.border(1.dp, AppColors.InteractiveRadioBorderUnselected, RoundedCornerShape(12.dp))
             )
-            .background(Color(0xFFFFFFFF))
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onClick() }
             .padding(horizontal = 16.dp, vertical = 28.dp),
     ) {
@@ -248,11 +248,11 @@ fun AptoxSelectionCardTitleOnly(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFFFFFFF))
             .then(
                 if (selected) Modifier.border(1.5.dp, AppColors.Primary300, RoundedCornerShape(12.dp))
                 else Modifier.border(1.dp, AppColors.InteractiveRadioBorderUnselected, RoundedCornerShape(12.dp))
             )
-            .background(Color(0xFFFFFFFF))
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onClick() }
             .padding(horizontal = 16.dp, vertical = 22.dp),
     ) {

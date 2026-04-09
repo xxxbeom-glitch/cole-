@@ -1664,7 +1664,7 @@ private fun StatsStackedBarAndAppList(
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(StatsCardListItemSpacing)) {
-            filteredApps.take(6).forEach { app ->
+            filteredApps.forEach { app ->
                 StatsAppRow(
                     packageName = app.packageName,
                     name = app.name,

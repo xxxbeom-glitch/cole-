@@ -2,6 +2,10 @@ package com.aptox.app.backup
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.DocumentsContract
+import android.provider.MediaStore
 import androidx.activity.ComponentActivity
 import androidx.core.content.FileProvider
 import com.aptox.app.AppRestrictionRepository
@@ -19,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -55,6 +60,30 @@ object LocalBackupExporter {
         }
         zipFile
     }
+
+    /**
+     * [Intent.ACTION_CREATE_DOCUMENT] — Files 앱 등 SAF로 저장 위치 선택.
+     * API 29+ 에서 [MediaStore.Downloads]를 초기 위치로 힌트합니다.
+     */
+    fun createSaveBackupZipIntent(suggestedFileName: String): Intent =
+        Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/zip"
+            putExtra(Intent.EXTRA_TITLE, suggestedFileName)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                putExtra(DocumentsContract.EXTRA_INITIAL_URI, MediaStore.Downloads.EXTERNAL_CONTENT_URI)
+            }
+        }
+
+    /** SAF로 받은 [destinationUri]에 ZIP 바이트를 복사합니다. */
+    fun copyZipFileToUri(context: Context, sourceZip: File, destinationUri: Uri): Boolean =
+        try {
+            context.contentResolver.openOutputStream(destinationUri)?.use { out ->
+                FileInputStream(sourceZip).use { input -> input.copyTo(out) }
+            } != null
+        } catch (_: Exception) {
+            false
+        }
 
     fun shareZip(activity: ComponentActivity, zipFile: File): Boolean = try {
         val uri = FileProvider.getUriForFile(activity, fileProviderAuthority(activity), zipFile)

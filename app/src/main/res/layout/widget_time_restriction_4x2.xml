@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- RemoteViews: LinearLayout/FrameLayout/TextView/ProgressBar/ImageView only -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_time_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_4x2_bg"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <!-- 타이틀 -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/widget_time_title"
+        android:textColor="@color/widget_dark_title"
+        android:textSize="12sp" />
+
+    <!-- 메인 상태: 남은 시간 또는 제한 중 -->
+    <TextView
+        android:id="@+id/widget_time_main"
+        android:layout_width="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:textColor="@color/widget_dark_text_primary"
+        android:textSize="22sp"
+        android:textStyle="bold" />
+
+    <!-- 24시간 타임라인 바 (제한 구간 시각화) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginTop="4dp">
+
+        <!-- 시각화: 3구간으로 단순 표현 (시작 공백 + 제한구간 + 나머지) -->
+        <!-- ProgressBar로 하루 중 제한 구간 비율 표현 -->
+        <ProgressBar
+            android:id="@+id/widget_time_timeline"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="@color/widget_dark_accent"
+            android:progressBackgroundTint="@color/widget_dark_progress_bg" />
+
+        <!-- 하단: 스케줄 수 -->
+        <TextView
+            android:id="@+id/widget_time_footer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="@color/widget_dark_title"
+            android:textSize="11sp" />
+    </LinearLayout>
+</LinearLayout>

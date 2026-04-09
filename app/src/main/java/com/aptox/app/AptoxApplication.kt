@@ -11,6 +11,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.aptox.app.usage.DailyUsageFirestoreRepository
 import com.aptox.app.usage.UsageStatsSyncWorker
+import com.aptox.app.ads.ForegroundInterstitialAdController
 import com.google.android.gms.ads.MobileAds
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.crashlytics.FirebaseCrashlytics
@@ -38,6 +39,7 @@ class AptoxApplication : Application() {
             )
         }
         MobileAds.initialize(this) {}
+        ForegroundInterstitialAdController.install(this)
         Log.i(
             TAG,
             "AdMob 초기화 완료. externalTest 등 실제 단위 ID로 실기기 테스트 시 logcat의 " +

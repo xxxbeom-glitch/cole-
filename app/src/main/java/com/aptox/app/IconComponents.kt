@@ -246,7 +246,7 @@ private val AppIconShape = RoundedCornerShape(6.dp)
  * - 외곽 [Modifier] 체인: **border 먼저, clip 나중** ([AppIconBox], [AppIconBoxOrGreyIfUninstalled], [AppIconSquircleLock], [RestrictedAppIconBox])
  */
 private val AppIconBorderWidth = 0.5.dp
-private val AppIconBorderColor = Color.Black.copy(alpha = 0.08f)
+private val AppIconBorderColor = Color.Black.copy(alpha = 0.18f)
 
 /** 기기 AdaptiveIcon 마스크 Shape. 실패 시 RoundedCornerShape(50%) 폴백 */
 @Composable
@@ -301,8 +301,8 @@ fun AppIconSquircleLock(
     Box(
         modifier = modifier
             .size(iconSize)
-            .border(AppIconBorderWidth, AppIconBorderColor, maskShape)
-            .clip(maskShape),
+            .clip(maskShape)
+            .border(AppIconBorderWidth, AppIconBorderColor, maskShape),
     ) {
         Icon(
             painter = appIcon,
@@ -341,8 +341,8 @@ fun RestrictedAppIconBox(
     Box(
         modifier = modifier
             .size(size)
-            .border(AppIconBorderWidth, AppIconBorderColor, AppIconShape)
-            .clip(AppIconShape),
+            .clip(AppIconShape)
+            .border(AppIconBorderWidth, AppIconBorderColor, AppIconShape),
     ) {
         Icon(
             painter = appIcon,
@@ -380,8 +380,8 @@ fun AppIconBoxOrGreyIfUninstalled(
     Box(
         modifier = modifier
             .size(size)
-            .border(AppIconBorderWidth, AppIconBorderColor, maskShape)
-            .clip(maskShape),
+            .clip(maskShape)
+            .border(AppIconBorderWidth, AppIconBorderColor, maskShape),
     ) {
         if (painter != null) {
             Icon(
@@ -419,8 +419,8 @@ fun AppIconBox(
     Box(
         modifier = modifier
             .size(size)
-            .border(AppIconBorderWidth, AppIconBorderColor, maskShape)
-            .clip(maskShape),
+            .clip(maskShape)
+            .border(AppIconBorderWidth, AppIconBorderColor, maskShape),
     ) {
         Icon(
             painter = appIcon,
