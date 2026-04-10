@@ -2,7 +2,7 @@
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/widget_daily_limit_description"
     android:initialLayout="@layout/widget_daily_limit_4x2"
-    android:minWidth="250dp"
+    android:minWidth="110dp"
     android:minHeight="110dp"
     android:previewLayout="@layout/widget_daily_limit_4x2"
     android:resizeMode="none"

@@ -5,6 +5,7 @@
     <!-- 위젯 1: 하루 사용량 제한 -->
     <string name="widget_daily_title">하루 사용량 제한</string>
     <string name="widget_daily_label">Aptox 사용량 위젯</string>
+    <string name="widget_daily_footer_managed">총 %1$d개 앱 관리 중</string>
     <!-- 위젯 2: 지정 시간 제한 -->
     <string name="widget_time_title">지정 시간 제한</string>
     <string name="widget_time_label">Aptox 시간 위젯</string>

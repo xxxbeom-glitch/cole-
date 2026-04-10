@@ -1,164 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- RemoteViews: LinearLayout/FrameLayout/TextView/ProgressBar/ImageView only -->
+<!-- RemoteViews: LinearLayout / TextView / ProgressBar only -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_daily_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_4x2_bg"
     android:orientation="vertical"
-    android:padding="12dp">
+    android:padding="8dp">
 
-    <!-- 타이틀 -->
     <TextView
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
         android:text="@string/widget_daily_title"
         android:textColor="@color/widget_dark_title"
         android:textSize="12sp" />
 
-    <!-- 앱 목록 영역 (최대 3개, visibility 제어) -->
-    <LinearLayout
-        android:id="@+id/widget_daily_content"
+    <TextView
+        android:id="@+id/widget_daily_main"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center_vertical">
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/widget_dark_text_primary"
+        android:textSize="18sp"
+        android:textStyle="bold" />
 
-        <!-- 앱 행 1 -->
-        <LinearLayout
-            android:id="@+id/widget_daily_row1"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginTop="8dp"
-            android:visibility="gone">
+    <ProgressBar
+        android:id="@+id/widget_daily_progress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_marginTop="4dp"
+        android:max="100"
+        android:progress="0"
+        android:progressBackgroundTint="@color/widget_dark_progress_bg"
+        android:progressTint="@color/widget_dark_progress" />
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
-                <TextView
-                    android:id="@+id/widget_daily_name1"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:textColor="@color/widget_dark_text_primary"
-                    android:textSize="13sp"
-                    android:singleLine="true" />
-                <TextView
-                    android:id="@+id/widget_daily_usage1"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/widget_dark_sub"
-                    android:textSize="11sp" />
-            </LinearLayout>
-            <ProgressBar
-                android:id="@+id/widget_daily_progress1"
-                style="?android:attr/progressBarStyleHorizontal"
-                android:layout_width="match_parent"
-                android:layout_height="4dp"
-                android:layout_marginTop="4dp"
-                android:max="100"
-                android:progressTint="@color/widget_dark_progress"
-                android:progressBackgroundTint="@color/widget_dark_progress_bg" />
-        </LinearLayout>
-
-        <!-- 앱 행 2 -->
-        <LinearLayout
-            android:id="@+id/widget_daily_row2"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginTop="8dp"
-            android:visibility="gone">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
-                <TextView
-                    android:id="@+id/widget_daily_name2"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:textColor="@color/widget_dark_text_primary"
-                    android:textSize="13sp"
-                    android:singleLine="true" />
-                <TextView
-                    android:id="@+id/widget_daily_usage2"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/widget_dark_sub"
-                    android:textSize="11sp" />
-            </LinearLayout>
-            <ProgressBar
-                android:id="@+id/widget_daily_progress2"
-                style="?android:attr/progressBarStyleHorizontal"
-                android:layout_width="match_parent"
-                android:layout_height="4dp"
-                android:layout_marginTop="4dp"
-                android:max="100"
-                android:progressTint="@color/widget_dark_progress"
-                android:progressBackgroundTint="@color/widget_dark_progress_bg" />
-        </LinearLayout>
-
-        <!-- 앱 행 3 -->
-        <LinearLayout
-            android:id="@+id/widget_daily_row3"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginTop="8dp"
-            android:visibility="gone">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
-                <TextView
-                    android:id="@+id/widget_daily_name3"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:textColor="@color/widget_dark_text_primary"
-                    android:textSize="13sp"
-                    android:singleLine="true" />
-                <TextView
-                    android:id="@+id/widget_daily_usage3"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/widget_dark_sub"
-                    android:textSize="11sp" />
-            </LinearLayout>
-            <ProgressBar
-                android:id="@+id/widget_daily_progress3"
-                style="?android:attr/progressBarStyleHorizontal"
-                android:layout_width="match_parent"
-                android:layout_height="4dp"
-                android:layout_marginTop="4dp"
-                android:max="100"
-                android:progressTint="@color/widget_dark_progress"
-                android:progressBackgroundTint="@color/widget_dark_progress_bg" />
-        </LinearLayout>
-
-        <!-- 빈 상태 -->
-        <TextView
-            android:id="@+id/widget_daily_empty"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/widget_empty_message"
-            android:textColor="@color/widget_dark_title"
-            android:textSize="12sp"
-            android:visibility="gone" />
-    </LinearLayout>
-
-    <!-- 하단: 총 앱 수 -->
     <TextView
         android:id="@+id/widget_daily_footer"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
+        android:ellipsize="end"
+        android:maxLines="1"
         android:textColor="@color/widget_dark_title"
         android:textSize="11sp" />
 </LinearLayout>

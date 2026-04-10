@@ -16,7 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
 /**
- * 위젯 2 — 지정 시간 제한 현황 (4×2).
+ * 위젯 2 — 지정 시간 제한 현황 (2×2).
  */
 class AptoxTimeRestrictionWidgetProvider : AppWidgetProvider() {
 
@@ -77,7 +77,14 @@ class AptoxTimeRestrictionWidgetProvider : AppWidgetProvider() {
             try {
                 val views = buildViews(app)
                 for (id in ids) mgr.updateAppWidget(id, views)
-            } catch (t: Throwable) { Log.e(TAG, "updateAll failed", t) }
+            } catch (t: Throwable) {
+                Log.e(TAG, "updateAll failed", t)
+                try {
+                    val fallback = buildFallback(app)
+                    for (id in ids) mgr.updateAppWidget(id, fallback)
+                } catch (_: Throwable) {
+                }
+            }
         }
 
         fun buildViews(context: Context): RemoteViews {
