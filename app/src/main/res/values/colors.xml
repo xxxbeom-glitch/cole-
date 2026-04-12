@@ -53,4 +53,6 @@
     <color name="widget_daily_limit_progress_track">#0DFFFFFF</color>
     <!-- rgba(255,255,255,0.02) CTA 블록 -->
     <color name="widget_daily_limit_cta_fill">#05FFFFFF</color>
+    <!-- 위젯 유닛 테두리 (rgba(255,255,255,0.18)) -->
+    <color name="widget_daily_unit_stroke">#2EFFFFFF</color>
 </resources>

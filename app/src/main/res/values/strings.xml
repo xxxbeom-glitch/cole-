@@ -12,6 +12,10 @@
     <string name="widget_daily_limit_header_icon_cd">하루 사용 제한 설정</string>
     <string name="widget_daily_limit_status_limited">%1$d/%2$d분 사용 중</string>
     <string name="widget_daily_limit_status_unlimited">%1$d분 사용 중</string>
+    <string name="widget_daily_header_title">하루 사용 제한</string>
+    <string name="widget_daily_refresh_cd">새로고침</string>
+    <string name="widget_daily_add_apps_hint">+ 앱을 추가해 보세요</string>
+    <string name="widget_daily_add_app_short">+ 앱 추가</string>
     <!-- 위젯 2: 지정 시간 제한 -->
     <string name="widget_time_title">지정 시간 제한</string>
     <string name="widget_time_label">Aptox 시간 위젯</string>
