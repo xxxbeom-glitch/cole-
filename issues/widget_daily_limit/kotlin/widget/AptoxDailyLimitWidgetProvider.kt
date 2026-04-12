@@ -90,9 +90,7 @@ class AptoxDailyLimitWidgetProvider : AppWidgetProvider() {
     companion object {
         private const val TAG = "AptoxDailyWidget"
         const val ACTION_REFRESH = "com.aptox.app.action.DAILY_WIDGET_REFRESH"
-        private const val REQUEST_CODE = 94010          // MainActivity 이동 (root, cta)
-        private const val REQUEST_CODE_ICON = 94012     // 헤더 아이콘 탭 → 즉시 갱신
-        // 94011 은 AlarmManager 30분 반복 용도 (buildRefreshPi 참조)
+        private const val REQUEST_CODE = 94010
         private const val THIRTY_MIN_MS = 30 * 60 * 1000L
 
         fun updateAll(context: Context) {
@@ -122,10 +120,9 @@ class AptoxDailyLimitWidgetProvider : AppWidgetProvider() {
             appWidgetId: Int,
         ): RemoteViews {
             val app = context.applicationContext
-            val views = RemoteViews(app.packageName, R.layout.widget_daily_limit_2x2)
+            val views = RemoteViews(app.packageName, R.layout.widget_daily_limit_4x2)
 
-            // 루트 · CTA 탭 → MainActivity 이동
-            val mainPi = PendingIntent.getActivity(
+            val pi = PendingIntent.getActivity(
                 app,
                 REQUEST_CODE,
                 Intent(app, MainActivity::class.java).apply {
@@ -135,19 +132,8 @@ class AptoxDailyLimitWidgetProvider : AppWidgetProvider() {
                 },
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            views.setOnClickPendingIntent(R.id.widget_daily_root, mainPi)
-            views.setOnClickPendingIntent(R.id.widget_daily_cta, mainPi)
-
-            // 헤더 아이콘 탭 → 즉시 데이터 갱신 브로드캐스트
-            val refreshIconPi = PendingIntent.getBroadcast(
-                app,
-                REQUEST_CODE_ICON,
-                Intent(app, AptoxDailyLimitWidgetProvider::class.java).apply {
-                    action = ACTION_REFRESH
-                },
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-            views.setOnClickPendingIntent(R.id.widget_daily_header_icon, refreshIconPi)
+            views.setOnClickPendingIntent(R.id.widget_daily_root, pi)
+            views.setOnClickPendingIntent(R.id.widget_daily_cta, pi)
 
             val data = runCatching {
                 runBlocking(Dispatchers.IO) { DailyLimitWidgetDataLoader.load(app) }
@@ -162,7 +148,7 @@ class AptoxDailyLimitWidgetProvider : AppWidgetProvider() {
             appWidgetManager: AppWidgetManager,
             appWidgetId: Int,
         ): RemoteViews {
-            val views = RemoteViews(context.packageName, R.layout.widget_daily_limit_2x2)
+            val views = RemoteViews(context.packageName, R.layout.widget_daily_limit_4x2)
             return try {
                 bind(views, DailyLimitWidgetDataLoader.empty(), context, appWidgetManager, appWidgetId)
                 views

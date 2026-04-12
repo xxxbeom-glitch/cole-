@@ -1,0 +1,250 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Figma: 1718:5871(3개) / 1737:6029(2개) / 1737:5982(1개) / 1737:5952(0개)
+  RemoteViews safe: LinearLayout / TextView / ImageView / ProgressBar only.
+  <View> is not in the RemoteViews whitelist — use empty TextView as spacer.
+  No @font/ custom fonts (inflate crash in launcher process).
+  No clipToOutline / elevation / strokeColor.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_daily_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_daily_limit_bg"
+    android:gravity="top"
+    android:orientation="vertical"
+    android:padding="6dp">
+
+    <!-- 헤더 — Group 756: 「하루 사용 제한」+ 아이콘 -->
+    <LinearLayout
+        android:id="@+id/widget_daily_header"
+        android:layout_width="match_parent"
+        android:layout_height="16dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/widget_daily_headline"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="@string/widget_daily_limit_header_title"
+            android:textColor="@color/widget_daily_limit_text"
+            android:textSize="8sp" />
+
+        <ImageView
+            android:id="@+id/widget_daily_header_icon"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:contentDescription="@null"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_widget_daily_limit_header" />
+    </LinearLayout>
+
+    <!-- 헤더 아래 7dp 간격 (View 비허용 → 빈 TextView) -->
+    <TextView
+        android:id="@+id/widget_daily_spacer_after_header"
+        android:layout_width="match_parent"
+        android:layout_height="7dp"
+        android:text="" />
+
+    <!-- ═══ 행 1 ═══ -->
+    <LinearLayout
+        android:id="@+id/widget_daily_row_1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/widget_daily_row_1_line"
+            android:layout_width="match_parent"
+            android:layout_height="9dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/widget_daily_row_1_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="@color/widget_daily_limit_text"
+                android:textSize="7sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widget_daily_row_1_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif"
+                android:gravity="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="@color/widget_daily_limit_text"
+                android:textSize="7sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <ProgressBar
+            android:id="@+id/widget_daily_row_1_progress"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:layout_marginTop="4dp"
+            android:indeterminate="false"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/widget_daily_limit_progress" />
+    </LinearLayout>
+
+    <!-- ═══ 행 2 ═══ -->
+    <LinearLayout
+        android:id="@+id/widget_daily_row_2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="7dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/widget_daily_row_2_line"
+            android:layout_width="match_parent"
+            android:layout_height="9dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/widget_daily_row_2_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="@color/widget_daily_limit_text"
+                android:textSize="7sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widget_daily_row_2_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif"
+                android:gravity="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="@color/widget_daily_limit_text"
+                android:textSize="7sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <ProgressBar
+            android:id="@+id/widget_daily_row_2_progress"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:layout_marginTop="4dp"
+            android:indeterminate="false"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/widget_daily_limit_progress" />
+    </LinearLayout>
+
+    <!-- ═══ 행 3 ═══ -->
+    <LinearLayout
+        android:id="@+id/widget_daily_row_3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="7dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/widget_daily_row_3_line"
+            android:layout_width="match_parent"
+            android:layout_height="9dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/widget_daily_row_3_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="@color/widget_daily_limit_text"
+                android:textSize="7sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widget_daily_row_3_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif"
+                android:gravity="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="@color/widget_daily_limit_text"
+                android:textSize="7sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <ProgressBar
+            android:id="@+id/widget_daily_row_3_progress"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:layout_marginTop="4dp"
+            android:indeterminate="false"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/widget_daily_limit_progress" />
+    </LinearLayout>
+
+    <!-- 3개 행 꽉 찰 때 하단 밸런스 스페이서 (빈 TextView) -->
+    <TextView
+        android:id="@+id/widget_daily_spacer_balance"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:text=""
+        android:visibility="gone" />
+
+    <!-- CTA: 남는 높이 — weight=1 로 자동 확장 -->
+    <LinearLayout
+        android:id="@+id/widget_daily_cta"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@drawable/widget_daily_limit_cta_bg"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/widget_daily_cta_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:text="@string/widget_daily_limit_cta"
+            android:textColor="@color/widget_daily_limit_text"
+            android:textSize="6sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+</LinearLayout>

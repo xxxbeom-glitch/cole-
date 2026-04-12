@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<font-family xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <!-- Figma: SUIT Variable 660 / 6sp — 「사용 제한 앱 추가」 -->
+    <font
+        android:font="@font/suit_variable"
+        android:fontStyle="normal"
+        android:fontWeight="600"
+        app:fontVariationSettings="'wght' 660" />
+</font-family>

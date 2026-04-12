@@ -141,6 +141,29 @@ fun DebugPermissionUsageAccessOnboarding1652Screen(
     val batteryGranted = remember(permissionRefresh) { context.isIgnoringBatteryOptimizations() }
     val notificationGranted = remember(permissionRefresh) { context.hasPostNotificationsGrantedForOnboarding() }
 
+    LaunchedEffect(permissionRefresh) {
+        // 권한 설정 화면에서 돌아올 때마다 현재 페이지의 권한이 허용되었는지 확인하여 자동 이동
+        val currentPage = pagerState.currentPage
+        val isCurrentPageGranted = when (currentPage) {
+            0 -> accessibilityGranted
+            1 -> usageGranted
+            2 -> batteryGranted
+            else -> notificationGranted
+        }
+
+        if (isCurrentPageGranted) {
+            if (currentPage < PermissionOnboardingPageCount - 1) {
+                // 마지막 페이지가 아니면 다음 페이지로 이동
+                pagerState.animateScrollToPage(currentPage + 1)
+            } else {
+                // 마지막 페이지이고 모든 권한이 허용되었으면 온보딩 완료
+                if (accessibilityGranted && usageGranted && batteryGranted && notificationGranted) {
+                    (onStartAptox ?: onBack)()
+                }
+            }
+        }
+    }
+
     val pagerState = rememberPagerState(pageCount = { PermissionOnboardingPageCount })
     val isLastOnboardingPage =
         pagerState.currentPage == PermissionOnboardingPageCount - 1

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<font-family xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <!-- Figma: SUIT Variable 500 / 8sp — 헤더 「하루 사용 제한」 -->
+    <font
+        android:font="@font/suit_variable"
+        android:fontStyle="normal"
+        android:fontWeight="500"
+        app:fontVariationSettings="'wght' 500" />
+</font-family>

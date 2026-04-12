@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Figma 110 프레임 기준(원본 dp). 런타임에 DailyLimitWidgetAppearance에서 스케일. -->
+    <dimen name="widget_daily_limit_corner_radius">6dp</dimen>
+    <dimen name="widget_daily_limit_cta_corner_radius">6dp</dimen>
+    <dimen name="widget_daily_limit_progress_corner_radius">3dp</dimen>
+</resources>

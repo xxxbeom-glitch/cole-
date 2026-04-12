@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Figma 110×110 캔버스 기준 (노드 1718:5871, 1737:6029, 1737:5982, 1737:5952) -->
+    <item name="widget_daily_limit_design_canvas_dp" format="float" type="dimen">110</item>
+
+    <item name="widget_daily_limit_design_padding_dp" format="float" type="dimen">6</item>
+
+    <item name="widget_daily_limit_design_header_height_dp" format="float" type="dimen">16</item>
+    <item name="widget_daily_limit_design_header_icon_dp" format="float" type="dimen">16</item>
+    <item name="widget_daily_limit_design_title_sp" format="float" type="dimen">8</item>
+
+    <item name="widget_daily_limit_design_spacer_after_header_dp" format="float" type="dimen">7</item>
+
+    <item name="widget_daily_limit_design_row_height_dp" format="float" type="dimen">19</item>
+    <item name="widget_daily_limit_design_row_text_line_height_dp" format="float" type="dimen">9</item>
+    <item name="widget_daily_limit_design_row_text_to_bar_gap_dp" format="float" type="dimen">4</item>
+    <item name="widget_daily_limit_design_row_text_sp" format="float" type="dimen">7</item>
+
+    <item name="widget_daily_limit_design_progress_height_dp" format="float" type="dimen">6</item>
+
+    <item name="widget_daily_limit_design_row_gap_dp" format="float" type="dimen">7</item>
+
+    <item name="widget_daily_limit_design_balance_spacer_dp" format="float" type="dimen">4</item>
+
+    <item name="widget_daily_limit_design_cta_text_sp" format="float" type="dimen">6</item>
+    <item name="widget_daily_limit_design_cta_min_height_2_dp" format="float" type="dimen">20</item>
+    <item name="widget_daily_limit_design_cta_min_height_1_dp" format="float" type="dimen">44</item>
+
+    <dimen name="widget_daily_limit_fallback_min_side_dp">110dp</dimen>
+</resources>
